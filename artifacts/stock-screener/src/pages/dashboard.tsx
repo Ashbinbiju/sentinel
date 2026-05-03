@@ -84,6 +84,70 @@ function formatSessionDateFull(dateStr: string): { short: string; long: string; 
   }
 }
 
+function isMarketOpen(): boolean {
+  const { h, m } = getNowIST();
+  const mins = h * 60 + m;
+  return mins >= 9 * 60 + 15 && mins < 15 * 60 + 30;
+}
+
+// ── Countdown ring (circular progress) ───────────────────────────────────────
+
+const POLL_INTERVAL = 60; // seconds
+
+function CountdownRing({
+  seconds,
+  total = POLL_INTERVAL,
+  active,
+  scanning,
+}: {
+  seconds: number;
+  total?: number;
+  active: boolean;
+  scanning: boolean;
+}) {
+  const r = 9;
+  const circ = 2 * Math.PI * r;
+  const progress = seconds / total; // 1 = full, 0 = empty
+  const offset = circ * (1 - progress);
+
+  const color = scanning ? "#34d399" : active ? "#34d399" : "#4b5563";
+  const textColor = active ? "#d1fae5" : "#6b7280";
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0" title={active ? `Next scan in ${seconds}s` : "Auto-scan paused (market closed)"}>
+      <svg width="24" height="24" viewBox="0 0 24 24" className={scanning ? "animate-pulse" : ""}>
+        {/* Track */}
+        <circle cx="12" cy="12" r={r} fill="none" stroke="#1e293b" strokeWidth="2.2" />
+        {/* Progress arc */}
+        <circle
+          cx="12" cy="12" r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="2.2"
+          strokeDasharray={circ}
+          strokeDashoffset={scanning ? 0 : offset}
+          strokeLinecap="round"
+          style={{ transform: "rotate(-90deg)", transformOrigin: "12px 12px", transition: "stroke-dashoffset 0.9s linear" }}
+          strokeOpacity={active ? 0.85 : 0.35}
+        />
+        {/* Centre text */}
+        {!scanning && (
+          <text x="12" y="12" dominantBaseline="middle" textAnchor="middle"
+            fontSize="5.5" fontWeight="700" fill={textColor} fontFamily="ui-monospace,monospace">
+            {active ? seconds : "–"}
+          </text>
+        )}
+        {scanning && (
+          <circle cx="12" cy="12" r="3" fill="#34d399" fillOpacity="0.9" />
+        )}
+      </svg>
+      <span className={`text-[10px] font-mono tabular-nums hidden sm:block ${active ? "text-emerald-400/70" : "text-muted-foreground/40"}`}>
+        {scanning ? "scanning" : active ? `${seconds}s` : "paused"}
+      </span>
+    </div>
+  );
+}
+
 // ── IST Live Clock ────────────────────────────────────────────────────────────
 
 function ISTClock() {
@@ -274,15 +338,44 @@ type MobileTab = "picks" | "signals" | "sectors";
 
 export default function Dashboard() {
   const { data: sectorsData, isLoading: isLoadingSectors, isFetching: isFetchingSectors, refetch: refetchSectors } = useGetSectors({
-    query: { refetchInterval: 30000, queryKey: getGetSectorsQueryKey() },
+    query: { queryKey: getGetSectorsQueryKey() },
   });
 
   const { data: momentumData, isLoading: isLoadingMomentum, isFetching: isFetchingMomentum, refetch: refetchMomentum } = useGetMomentumPicks({
-    query: { refetchInterval: 30000, queryKey: getGetMomentumPicksQueryKey() },
+    query: { queryKey: getGetMomentumPicksQueryKey() },
   });
 
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const isRefreshing = manualRefreshing || isFetchingSectors || isFetchingMomentum;
+
+  // ── Auto-poll countdown ────────────────────────────────────────────────────
+  const [countdown, setCountdown] = useState(POLL_INTERVAL);
+  const [marketOpen, setMarketOpen] = useState(isMarketOpen);
+  const isAutoPolling = marketOpen && !isRefreshing;
+
+  // Countdown tick — runs every second, checks market open, fires auto-refresh
+  const countdownRef = useRef(POLL_INTERVAL);
+  useEffect(() => {
+    const tick = setInterval(() => {
+      const open = isMarketOpen();
+      setMarketOpen(open);
+      if (!open) {
+        // Reset so it's ready when market opens
+        countdownRef.current = POLL_INTERVAL;
+        setCountdown(POLL_INTERVAL);
+        return;
+      }
+      countdownRef.current -= 1;
+      setCountdown(countdownRef.current);
+      if (countdownRef.current <= 0) {
+        countdownRef.current = POLL_INTERVAL;
+        setCountdown(POLL_INTERVAL);
+        refetchSectors();
+        refetchMomentum();
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [refetchSectors, refetchMomentum]);
 
   const [toasts, setToasts] = useState<ToastSignal[]>([]);
   const toastIdRef = useRef(0);
@@ -334,6 +427,9 @@ export default function Dashboard() {
   }, [momentumData, alertsOn]);
 
   function handleRefresh() {
+    // Reset countdown so auto-poll restarts from 60 after manual refresh
+    countdownRef.current = POLL_INTERVAL;
+    setCountdown(POLL_INTERVAL);
     setManualRefreshing(true);
     Promise.all([refetchSectors(), refetchMomentum()]).finally(() => {
       setTimeout(() => setManualRefreshing(false), 600);
@@ -368,14 +464,17 @@ export default function Dashboard() {
   );
 
   const RefreshBtn = () => (
-    <button
-      onClick={handleRefresh}
-      disabled={isRefreshing}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/40 bg-card hover:bg-accent/30 disabled:opacity-50 transition-all text-xs text-muted-foreground"
-    >
-      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
-      <span className="hidden sm:inline">{isRefreshing ? "Scanning…" : "Refresh"}</span>
-    </button>
+    <div className="flex items-center gap-2">
+      <CountdownRing seconds={countdown} active={isAutoPolling} scanning={isRefreshing} />
+      <button
+        onClick={handleRefresh}
+        disabled={isRefreshing}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/40 bg-card hover:bg-accent/30 disabled:opacity-50 transition-all text-xs text-muted-foreground"
+      >
+        <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
+        <span className="hidden sm:inline">{isRefreshing ? "Scanning…" : "Refresh"}</span>
+      </button>
+    </div>
   );
 
   // ── Mobile tab bar ────────────────────────────────────────────────────────
