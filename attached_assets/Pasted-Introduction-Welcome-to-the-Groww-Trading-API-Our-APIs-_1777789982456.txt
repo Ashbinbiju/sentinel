@@ -1,0 +1,89 @@
+Introduction
+Welcome to the Groww Trading API! Our APIs enable you to build and automate trading strategies with seamless access to real-time market data, order placement, portfolio management, and more. Whether you're an experienced algo trader or just starting with automation, Groww's API is designed to be simple, powerful, and developer-friendly.
+
+This SDK wraps our REST-like APIs into easy-to-use Python methods, allowing you to focus on building your trading applications without worrying about the underlying API implementation details.
+
+With the Groww SDK, you can easily execute and modify orders in real time, manage your portfolio, access live market data, and more — all through a clean and intuitive Python interface.
+
+Key Features
+Getting started:
+Step 1: Prerequisites
+Trading on Groww using Groww APIs requires:
+
+Note: Groww Trading APIs support equity (CASH), derivatives (FNO), and commodities (COMMODITY) trading. You can trade across NSE, BSE, and MCX exchanges.
+
+Step 2: Install the Python SDK
+You can install the Python SDK by running this command on your terminal/command prompt.
+
+pip install growwapi
+Step 3: Authentication
+There are two ways you can interact with GrowwAPI:
+
+1st Approach: API Key and Secret Flow
+(Uses API Key and Secret — Requires daily approval on Groww Cloud Api Keys Page)
+
+Make sure you have the latest SDK version for this. You can upgrade your Python SDK by running this command on your terminal/command prompt.
+
+pip install --upgrade growwapi
+You can use the generated ‘API key & secret’ to log in via the Python SDK in the following way:
+
+from growwapi import GrowwAPI
+import pyotp
+ 
+api_key = "YOUR_API_KEY"
+secret = "YOUR_API_SECRET"
+ 
+access_token = GrowwAPI.get_access_token(api_key=api_key, secret=secret)
+# Use access_token to initiate GrowwAPI
+groww = GrowwAPI(access_token)
+2nd Approach: TOTP Flow
+(Uses TOTP token and TOTP QR code — No Expiry)
+
+Make sure you have the latest SDK version for this. You can upgrade your Python SDK by running this command on your terminal/command prompt.
+
+pip install --upgrade growwapi
+To use the TOTP flow, you have to install the pyotp library. You can do that by running this command on your terminal/command prompt.
+
+pip install pyotp
+You can use the generated ‘API key & secret’ to log in via the Python SDK in the following way:
+
+from growwapi import GrowwAPI
+import pyotp
+ 
+api_key = "YOUR_TOTP_TOKEN"
+ 
+# totp can be obtained using the authenticator app or can be generated like this
+totp_gen = pyotp.TOTP('YOUR_TOTP_SECRET')
+totp = totp_gen.now()
+ 
+access_token = GrowwAPI.get_access_token(api_key=api_key, totp=totp)
+# Use access_token to initiate GrowwAPI
+groww = GrowwAPI(access_token)
+Step 4: Place your First Order
+Use this sample code to place an order.
+
+from growwapi import GrowwAPI
+ 
+# Groww API Credentials (Replace with your actual credentials)
+API_AUTH_TOKEN = "your_token"  # Access token generated using step 3.,
+ 
+# Initialize Groww API
+groww = GrowwAPI(API_AUTH_TOKEN)
+ 
+place_order_response = groww.place_order(
+    trading_symbol="WIPRO",
+    quantity=1, 
+    validity=groww.VALIDITY_DAY,
+    exchange=groww.EXCHANGE_NSE,
+    segment=groww.SEGMENT_CASH,
+    product=groww.PRODUCT_CNC,
+    order_type=groww.ORDER_TYPE_LIMIT,
+    transaction_type=groww.TRANSACTION_TYPE_BUY,
+    price=250,               # Optional: Price of the stock (for Limit orders)
+    trigger_price=245,       # Optional: Trigger price (if applicable)
+    order_reference_id="Ab-654321234-1628190"  # Optional: User provided 8 to 20 length alphanumeric reference ID to track the order
+)
+print(place_order_response)
+Rate Limits
+The rate limits are applied at the type level, not on individual APIs. This means that all APIs grouped under a type (e.g., Orders, Live Data, Non Trading) share the same limit. If the limit for one API within a type is exhausted, all other APIs in that type will also be rate-limited until the limit window resets.
+
