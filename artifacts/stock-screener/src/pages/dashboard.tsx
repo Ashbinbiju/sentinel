@@ -199,15 +199,16 @@ function playChime() {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { data: sectorsData, isLoading: isLoadingSectors, refetch: refetchSectors } = useGetSectors({
+  const { data: sectorsData, isLoading: isLoadingSectors, isFetching: isFetchingSectors, refetch: refetchSectors } = useGetSectors({
     query: { refetchInterval: 30000, queryKey: getGetSectorsQueryKey() },
   });
 
-  const { data: momentumData, isLoading: isLoadingMomentum, refetch: refetchMomentum } = useGetMomentumPicks({
+  const { data: momentumData, isLoading: isLoadingMomentum, isFetching: isFetchingMomentum, refetch: refetchMomentum } = useGetMomentumPicks({
     query: { refetchInterval: 30000, queryKey: getGetMomentumPicksQueryKey() },
   });
 
-  const isRefreshing = isLoadingSectors || isLoadingMomentum;
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+  const isRefreshing = manualRefreshing || isFetchingSectors || isFetchingMomentum;
 
   // ── Alert toggle (persisted) ──
   const [alertsOn, setAlertsOn] = useState<boolean>(() => {
@@ -250,8 +251,10 @@ export default function Dashboard() {
   }, [momentumData, alertsOn]);
 
   function handleRefresh() {
-    refetchSectors();
-    refetchMomentum();
+    setManualRefreshing(true);
+    Promise.all([refetchSectors(), refetchMomentum()]).finally(() => {
+      setTimeout(() => setManualRefreshing(false), 600);
+    });
   }
 
   const sessionLabel = momentumData?.indicatorDate
