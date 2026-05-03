@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { sendTelegramAlerts } from "../notifications.js";
 
 const router = Router();
 
@@ -556,6 +557,11 @@ router.get("/momentum-picks", async (req, res) => {
 
     const todayIST = getTodayISTDateStr();
     const isLiveSession = indicatorDate === todayIST;
+
+    // Fire Telegram alerts for any new signals (non-blocking)
+    sendTelegramAlerts(topPicks, req.log).catch((err) =>
+      req.log.error({ err }, "Telegram alert dispatch failed"),
+    );
 
     return res.json({
       fetchedAt: new Date().toISOString(),
