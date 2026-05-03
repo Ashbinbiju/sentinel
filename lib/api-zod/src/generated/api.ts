@@ -77,6 +77,16 @@ export const GetMomentumPicksResponse = zod.object({
             .describe(
               "Downsampled intraday close prices for sparkline rendering",
             ),
+          circuitLimit: zod
+            .union([
+              zod.literal("upper"),
+              zod.literal("lower"),
+              zod.literal(null),
+            ])
+            .nullish()
+            .describe(
+              "Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise",
+            ),
         })
         .describe("One of the top 5 intraday picks across all sectors"),
     )
@@ -122,6 +132,16 @@ export const GetMomentumPicksResponse = zod.object({
             .optional()
             .describe(
               "Downsampled intraday close prices (up to 40 pts) for sparkline rendering",
+            ),
+          circuitLimit: zod
+            .union([
+              zod.literal("upper"),
+              zod.literal("lower"),
+              zod.literal(null),
+            ])
+            .nullish()
+            .describe(
+              "Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise",
             ),
         }),
       ),

@@ -148,6 +148,17 @@ function computeTradeParams(
   return { sl, target1, target2, riskPct, smartExit };
 }
 
+function detectCircuitLimit(candles: Candle[]): "upper" | "lower" | null {
+  if (candles.length < 3) return null;
+  const last3 = candles.slice(-3);
+  // All three last candles have identical close → price is frozen at a circuit limit
+  const frozen = last3[0].c;
+  const allSame = last3.every((c) => Math.abs(c.c - frozen) <= 0.01);
+  if (!allSame) return null;
+  // Direction: frozen price vs first candle open of the session
+  return frozen >= candles[0].o ? "upper" : "lower";
+}
+
 interface IndicatorResult {
   vwap: number | null;
   ema20: number | null;
@@ -161,6 +172,7 @@ interface IndicatorResult {
   indicatorDate: string | null;
   lastCandleTimeIST: string | null;
   sparkline: number[];
+  circuitLimit: "upper" | "lower" | null;
 }
 
 async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
@@ -177,6 +189,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     indicatorDate: null,
     lastCandleTimeIST: null,
     sparkline: [],
+    circuitLimit: null,
   };
 
   try {
@@ -231,6 +244,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       indicatorDate: getISTDateStr(last.t),
       lastCandleTimeIST: getISTTimeStr(last.t),
       sparkline,
+      circuitLimit: detectCircuitLimit(confirmed),
     };
   } catch {
     return empty;
@@ -365,6 +379,7 @@ router.get("/momentum-picks", async (req, res) => {
       vwap: number;
       ema20: number;
       sparkline: number[];
+      circuitLimit: "upper" | "lower" | null;
       score: number;
     }> = [];
 
@@ -462,6 +477,7 @@ router.get("/momentum-picks", async (req, res) => {
                 vwap: ind.vwap,
                 ema20: ind.ema20,
                 sparkline: ind.sparkline,
+                circuitLimit: ind.circuitLimit,
                 score,
               });
             }
@@ -480,6 +496,7 @@ router.get("/momentum-picks", async (req, res) => {
               riskPct: ind.riskPct,
               smartExit: ind.smartExit,
               sparkline: ind.sparkline,
+              circuitLimit: ind.circuitLimit,
             };
           });
 

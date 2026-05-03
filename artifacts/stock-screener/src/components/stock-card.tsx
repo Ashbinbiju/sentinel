@@ -34,6 +34,22 @@ export function StockCard({ stock }: StockCardProps) {
         )}
 
         <div className="p-3">
+          {/* Circuit breaker banner */}
+          {stock.circuitLimit != null && (
+            <div className={`-mx-3 -mt-3 mb-2 px-3 py-1 flex items-center gap-1.5 ${
+              stock.circuitLimit === "upper"
+                ? "bg-amber-500/15 border-b border-amber-500/25"
+                : "bg-rose-500/15 border-b border-rose-500/25"
+            }`}>
+              <span className="text-[9px]">{stock.circuitLimit === "upper" ? "🔒" : "🔒"}</span>
+              <span className={`text-[9px] font-bold uppercase tracking-widest ${
+                stock.circuitLimit === "upper" ? "text-amber-400" : "text-rose-400"
+              }`}>
+                {stock.circuitLimit === "upper" ? "Upper Circuit" : "Lower Circuit"} — price frozen
+              </span>
+            </div>
+          )}
+
           {/* Header row */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -41,6 +57,15 @@ export function StockCard({ stock }: StockCardProps) {
               {entry && (
                 <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
                   ENTRY
+                </span>
+              )}
+              {stock.circuitLimit != null && (
+                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
+                  stock.circuitLimit === "upper"
+                    ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                    : "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                }`}>
+                  {stock.circuitLimit === "upper" ? "⚡ UC" : "⚡ LC"}
                 </span>
               )}
             </div>

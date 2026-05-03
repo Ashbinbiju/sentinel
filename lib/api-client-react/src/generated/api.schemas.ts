@@ -21,6 +21,19 @@ export interface SectorPerformance {
   changePct: number;
 }
 
+/**
+ * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+ * @nullable
+ */
+export type StockItemCircuitLimit =
+  | (typeof StockItemCircuitLimit)[keyof typeof StockItemCircuitLimit]
+  | null;
+
+export const StockItemCircuitLimit = {
+  upper: "upper",
+  lower: "lower",
+} as const;
+
 export interface StockItem {
   symbol: string;
   ltp: number;
@@ -60,7 +73,25 @@ export interface StockItem {
   smartExit?: string | null;
   /** Downsampled intraday close prices (up to 40 pts) for sparkline rendering */
   sparkline?: number[];
+  /**
+   * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+   * @nullable
+   */
+  circuitLimit?: StockItemCircuitLimit;
 }
+
+/**
+ * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+ * @nullable
+ */
+export type TopPickCircuitLimit =
+  | (typeof TopPickCircuitLimit)[keyof typeof TopPickCircuitLimit]
+  | null;
+
+export const TopPickCircuitLimit = {
+  upper: "upper",
+  lower: "lower",
+} as const;
 
 /**
  * One of the top 5 intraday picks across all sectors
@@ -86,6 +117,11 @@ export interface TopPick {
   ema20: number;
   /** Downsampled intraday close prices for sparkline rendering */
   sparkline?: number[];
+  /**
+   * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+   * @nullable
+   */
+  circuitLimit?: TopPickCircuitLimit;
 }
 
 export interface SectorWithStocks {

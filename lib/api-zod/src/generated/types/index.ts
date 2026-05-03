@@ -13,4 +13,6 @@ export * from "./momentumPicksResponse";
 export * from "./sectorPerformance";
 export * from "./sectorWithStocks";
 export * from "./stockItem";
+export * from "./stockItemCircuitLimit";
 export * from "./topPick";
+export * from "./topPickCircuitLimit";

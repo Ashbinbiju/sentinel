@@ -156,6 +156,10 @@ components:
           items:
             type: number
           description: Downsampled intraday close prices (up to 40 pts) for sparkline rendering
+        circuitLimit:
+          type: ["string", "null"]
+          enum: ["upper", "lower", null]
+          description: Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
       required:
         - symbol
         - ltp
@@ -199,6 +203,10 @@ components:
           items:
             type: number
           description: Downsampled intraday close prices for sparkline rendering
+        circuitLimit:
+          type: ["string", "null"]
+          enum: ["upper", "lower", null]
+          description: Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
       required:
         - symbol
         - sectorName

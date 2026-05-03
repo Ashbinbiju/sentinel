@@ -300,6 +300,21 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
         <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60" />
 
         <div className="p-4">
+          {/* Circuit breaker banner */}
+          {pick.circuitLimit != null && (
+            <div className={`-mx-4 -mt-4 mb-3 px-4 py-1.5 flex items-center gap-2 ${
+              pick.circuitLimit === "upper"
+                ? "bg-amber-500/15 border-b border-amber-500/25"
+                : "bg-rose-500/15 border-b border-rose-500/25"
+            }`}>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                pick.circuitLimit === "upper" ? "text-amber-400" : "text-rose-400"
+              }`}>
+                🔒 {pick.circuitLimit === "upper" ? "Upper Circuit" : "Lower Circuit"} — price frozen, do not enter
+              </span>
+            </div>
+          )}
+
           {/* Rank + symbol + sector + % */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -307,7 +322,18 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
                 {rank}
               </span>
               <div>
-                <div className="font-bold text-base text-foreground leading-none">{pick.symbol}</div>
+                <div className="flex items-center gap-1.5 leading-none">
+                  <span className="font-bold text-base text-foreground">{pick.symbol}</span>
+                  {pick.circuitLimit != null && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
+                      pick.circuitLimit === "upper"
+                        ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                        : "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                    }`}>
+                      ⚡ {pick.circuitLimit === "upper" ? "UC" : "LC"}
+                    </span>
+                  )}
+                </div>
                 <div className="text-[10px] text-muted-foreground mt-0.5">{cleanSectorName(pick.sectorName)}</div>
               </div>
             </div>

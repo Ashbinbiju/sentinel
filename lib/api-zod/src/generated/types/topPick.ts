@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { TopPickCircuitLimit } from "./topPickCircuitLimit";
 
 /**
  * One of the top 5 intraday picks across all sectors
@@ -30,4 +31,9 @@ export interface TopPick {
   ema20: number;
   /** Downsampled intraday close prices for sparkline rendering */
   sparkline?: number[];
+  /**
+   * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+   * @nullable
+   */
+  circuitLimit?: TopPickCircuitLimit;
 }

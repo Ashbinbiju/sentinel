@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StockItemCircuitLimit } from "./stockItemCircuitLimit";
 
 export interface StockItem {
   symbol: string;
@@ -45,4 +46,9 @@ export interface StockItem {
   smartExit?: string | null;
   /** Downsampled intraday close prices (up to 40 pts) for sparkline rendering */
   sparkline?: number[];
+  /**
+   * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+   * @nullable
+   */
+  circuitLimit?: StockItemCircuitLimit;
 }
