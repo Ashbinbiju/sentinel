@@ -99,7 +99,7 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
 
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="block flex-1 min-w-[200px] max-w-[300px] group">
+      className="block shrink-0 w-[78vw] max-w-[280px] sm:flex-1 sm:w-auto sm:min-w-[180px] sm:max-w-none group">
       <div className="relative rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 via-card to-card overflow-hidden hover:border-emerald-400/40 transition-all duration-200 shadow-[0_0_20px_rgba(16,185,129,0.06)]">
         {/* Top accent bar */}
         <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60" />
@@ -343,47 +343,47 @@ export default function Dashboard() {
       <Ticker />
 
       {/* ── Top bar: session info + IST clock ── */}
-      <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm px-4 py-2 flex items-center gap-4 flex-wrap">
+      <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-4">
         <ISTClock />
         {sessionLabel && !isLoadingMomentum && (
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${
             momentumData?.isLiveSession
               ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
               : "bg-amber-500/10 text-amber-400 border-amber-500/30"
           }`}>
-            {momentumData?.isLiveSession ? "● " : "◌ "}{sessionLabel}
+            {momentumData?.isLiveSession ? "●" : "◌"} <span className="hidden sm:inline">{sessionLabel}</span>
           </span>
         )}
         {momentumData?.lastCandleTimeIST && !isLoadingMomentum && (
-          <span className="text-xs text-muted-foreground font-mono">
+          <span className="text-xs text-muted-foreground font-mono hidden md:block">
             last candle {momentumData.lastCandleTimeIST} IST
           </span>
         )}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2">
           {updatedIST && !isLoadingMomentum && (
-            <span className="text-xs text-muted-foreground hidden sm:block">
+            <span className="text-xs text-muted-foreground hidden lg:block">
               refreshed {updatedIST}
             </span>
           )}
           <button
             onClick={toggleAlerts}
             title={alertsOn ? "Alerts on — click to mute" : "Alerts muted — click to enable"}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-150 text-xs
+            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg border transition-all duration-150 text-xs
               ${alertsOn
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                 : "border-border/40 bg-card text-muted-foreground/50 hover:bg-accent/30 hover:text-muted-foreground"
               }`}
           >
-            {alertsOn ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
-            <span>{alertsOn ? "Alerts on" : "Muted"}</span>
+            {alertsOn ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{alertsOn ? "Alerts on" : "Muted"}</span>
           </button>
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/40 bg-card hover:bg-accent/30 hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 text-xs text-muted-foreground hover:text-emerald-400"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg border border-border/40 bg-card hover:bg-accent/30 hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 text-xs text-muted-foreground hover:text-emerald-400"
           >
-            <RefreshCw className={`w-3 h-3 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
-            <span>{isRefreshing ? "Scanning…" : "Refresh"}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
+            <span className="hidden sm:inline">{isRefreshing ? "Scanning…" : "Refresh"}</span>
           </button>
         </div>
       </div>
@@ -396,13 +396,13 @@ export default function Dashboard() {
         </div>
 
         {isLoadingMomentum ? (
-          <div className="flex gap-3 px-4 pb-4">
+          <div className="flex gap-3 px-4 pb-4 overflow-x-auto">
             {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="flex-1 min-w-[180px] h-[220px] rounded-xl" />
+              <Skeleton key={i} className="shrink-0 w-[78vw] max-w-[240px] sm:flex-1 h-[220px] rounded-xl" />
             ))}
           </div>
         ) : hasTopPicks ? (
-          <div className="flex gap-3 px-4 pb-4">
+          <div className="flex gap-3 px-4 pb-4 overflow-x-auto">
             {topPicks.map((pick, i) => (
               <TopPickCard key={pick.symbol} pick={pick} rank={i + 1} />
             ))}
@@ -421,8 +421,8 @@ export default function Dashboard() {
       </div>
 
       {/* ── Main content: sectors + sidebar ── */}
-      <div className="px-4 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
+      <div className="px-3 sm:px-4 py-4 sm:py-6">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
           {/* Sectors + stocks */}
           <div className="flex-1 min-w-0 space-y-6">
             {isLoadingMomentum ? (
@@ -430,7 +430,7 @@ export default function Dashboard() {
                 {[1, 2].map((i) => (
                   <div key={i} className="space-y-3">
                     <Skeleton className="h-7 w-40" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                       {[1, 2, 3, 4].map((j) => <Skeleton key={j} className="h-32 w-full rounded-xl" />)}
                     </div>
                   </div>
@@ -459,7 +459,7 @@ export default function Dashboard() {
                     </div>
                     {(() => {
                       return entryStocks.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                           {entryStocks.map((stock) => (
                             <StockCard key={stock.symbol} stock={stock} />
                           ))}
@@ -505,8 +505,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Smart Exit Legend */}
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
+            {/* Smart Exit Legend — hidden on mobile */}
+            <div className="hidden sm:block rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
                 <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
@@ -519,8 +519,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Signal legend */}
-            <div className="rounded-xl border border-border/30 bg-card p-4 space-y-2">
+            {/* Signal legend — hidden on mobile */}
+            <div className="hidden sm:block rounded-xl border border-border/30 bg-card p-4 space-y-2">
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
               <div className="space-y-1.5 text-[11px] text-muted-foreground">
                 <div className="flex items-center gap-2">
