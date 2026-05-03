@@ -99,7 +99,7 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
 
   return (
     <a href={href} target="_blank" rel="noopener noreferrer"
-      className="block shrink-0 w-[240px] sm:w-[260px] group">
+      className="block flex-1 min-w-[200px] max-w-[300px] group">
       <div className="relative rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 via-card to-card overflow-hidden hover:border-emerald-400/40 transition-all duration-200 shadow-[0_0_20px_rgba(16,185,129,0.06)]">
         {/* Top accent bar */}
         <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60" />
@@ -325,18 +325,16 @@ export default function Dashboard() {
         </div>
 
         {isLoadingMomentum ? (
-          <div className="flex gap-3 pl-4 pb-4 overflow-x-auto">
+          <div className="flex gap-3 px-4 pb-4">
             {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="w-[240px] h-[220px] shrink-0 rounded-xl" />
+              <Skeleton key={i} className="flex-1 min-w-[180px] h-[220px] rounded-xl" />
             ))}
-            <div className="shrink-0 w-4" />
           </div>
         ) : hasTopPicks ? (
-          <div className="flex gap-3 pl-4 pb-4 overflow-x-auto">
+          <div className="flex gap-3 px-4 pb-4">
             {topPicks.map((pick, i) => (
               <TopPickCard key={pick.symbol} pick={pick} rank={i + 1} />
             ))}
-            <div className="shrink-0 w-4" />
           </div>
         ) : (
           <div className="px-4 pb-4">
