@@ -18,11 +18,11 @@ export default function Dashboard() {
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: sectorsData, isLoading: isLoadingSectors } = useGetSectors({
-    query: { refetchInterval: 5 * 60 * 1000, queryKey: getGetSectorsQueryKey() }
+    query: { refetchInterval: 1000, queryKey: getGetSectorsQueryKey() }
   });
 
   const { data: momentumData, isLoading: isLoadingMomentum, isFetching } = useGetMomentumPicks({
-    query: { refetchInterval: 5 * 60 * 1000, queryKey: getGetMomentumPicksQueryKey() }
+    query: { refetchInterval: 1000, queryKey: getGetMomentumPicksQueryKey() }
   });
 
   const handleRefresh = () => {
