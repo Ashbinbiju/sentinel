@@ -277,6 +277,9 @@ export default function Dashboard() {
               <div className="space-y-8">
                 {momentumData?.sectors.map((sector) => (
                   <div key={sector.sectorKeyword}>
+                    {(() => {
+                      const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
+                      return (<>
                     <div className="flex items-center gap-3 mb-3 pb-2 border-b border-border/30">
                       <div className={`w-1 h-5 rounded-full ${sector.sectorChangePct >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
                       <h3 className="font-bold text-foreground">{cleanSectorName(sector.sectorName)}</h3>
@@ -284,11 +287,10 @@ export default function Dashboard() {
                         {formatPercent(sector.sectorChangePct)}
                       </span>
                       <span className="text-xs text-muted-foreground ml-auto">
-                        {sector.stocks.length} stocks
+                        {entryStocks.length} signal{entryStocks.length !== 1 ? "s" : ""}
                       </span>
                     </div>
                     {(() => {
-                      const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
                       return entryStocks.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                           {entryStocks.map((stock) => (
@@ -301,6 +303,7 @@ export default function Dashboard() {
                         </p>
                       );
                     })()}
+                    </>); })()}
                   </div>
                 ))}
               </div>
