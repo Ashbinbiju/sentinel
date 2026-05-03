@@ -24,7 +24,7 @@ export function TradingViewChart({ symbol }: TradingViewChartProps) {
     script.async = true;
     script.innerHTML = JSON.stringify({
       autosize: true,
-      symbol: `NSE:${symbol}`,
+      symbol: `NSEINDIA:${symbol}`,
       interval: "5",
       timezone: "Asia/Kolkata",
       theme: "dark",

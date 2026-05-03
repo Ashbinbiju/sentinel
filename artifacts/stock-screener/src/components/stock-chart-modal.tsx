@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { TradingViewChart } from "@/components/trading-view-chart";
 import { formatCurrency, formatPercent, getBgColorClass } from "@/lib/format";
 import type { StockItem } from "@workspace/api-client-react";
+import { ExternalLink } from "lucide-react";
 
 interface StockChartModalProps {
   stock: StockItem | null;
@@ -23,6 +24,15 @@ export function StockChartModal({ stock, onClose }: StockChartModalProps) {
                 <span className={`text-xs px-1.5 py-0.5 rounded font-mono font-medium ${getBgColorClass(stock.changePct)}`}>
                   {formatPercent(stock.changePct)}
                 </span>
+                <a
+                  href={`https://www.tradingview.com/chart/?symbol=NSE%3A${stock.symbol}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto mr-8 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors font-normal"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Open in TradingView
+                </a>
               </>
             )}
           </DialogTitle>
