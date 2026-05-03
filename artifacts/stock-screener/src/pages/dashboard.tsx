@@ -325,16 +325,18 @@ export default function Dashboard() {
         </div>
 
         {isLoadingMomentum ? (
-          <div className="flex gap-3 px-4 pb-4 overflow-x-auto">
+          <div className="flex gap-3 pl-4 pb-4 overflow-x-auto">
             {[1, 2, 3, 4, 5].map((i) => (
               <Skeleton key={i} className="w-[240px] h-[220px] shrink-0 rounded-xl" />
             ))}
+            <div className="shrink-0 w-4" />
           </div>
         ) : hasTopPicks ? (
-          <div className="flex gap-3 px-4 pb-4 overflow-x-auto">
+          <div className="flex gap-3 pl-4 pb-4 overflow-x-auto">
             {topPicks.map((pick, i) => (
               <TopPickCard key={pick.symbol} pick={pick} rank={i + 1} />
             ))}
+            <div className="shrink-0 w-4" />
           </div>
         ) : (
           <div className="px-4 pb-4">
