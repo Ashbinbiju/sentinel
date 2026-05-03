@@ -138,6 +138,12 @@ router.get("/momentum-picks", async (req, res) => {
               symbol: stock.symbol,
               ltp: stock.ltp,
               changePct: stock.changePct,
+              vwap: null,
+              ema20: null,
+              confirmedClose: null,
+              vwapSignal: null,
+              ema20Signal: null,
+              entrySignal: null,
             }));
 
           return {
