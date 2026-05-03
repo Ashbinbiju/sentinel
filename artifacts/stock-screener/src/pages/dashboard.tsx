@@ -576,7 +576,9 @@ export default function Dashboard() {
 
   const RefreshBtn = () => (
     <div className="flex items-center gap-2">
-      <CountdownRing seconds={countdown} active={isAutoPolling} scanning={isRefreshing} />
+      {marketOpen && (
+        <CountdownRing seconds={countdown} active={isAutoPolling} scanning={isRefreshing} />
+      )}
       <button
         onClick={handleRefresh}
         disabled={isRefreshing}
