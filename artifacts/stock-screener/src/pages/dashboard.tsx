@@ -202,7 +202,6 @@ export default function Dashboard() {
         <div className="px-4 pt-4 pb-1 flex items-center gap-2">
           <Zap className="w-4 h-4 text-emerald-400" />
           <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Top 5 Intraday Picks</h2>
-          <span className="text-xs text-muted-foreground">— VWAP + EMA20 confirmed signals · RR 1:1.5 / 1:2.5</span>
         </div>
 
         {isLoadingMomentum ? (
