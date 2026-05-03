@@ -170,6 +170,54 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
   );
 }
 
+// ── Signal Toast ─────────────────────────────────────────────────────────────
+
+interface ToastSignal {
+  id: number;
+  symbol: string;
+  sectorName: string;
+  entry: number;
+}
+
+function SignalToastItem({ toast, onDone }: { toast: ToastSignal; onDone: () => void }) {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const hide = setTimeout(() => setVisible(false), 3800);
+    const remove = setTimeout(onDone, 4300);
+    return () => { clearTimeout(hide); clearTimeout(remove); };
+  }, []);
+
+  return (
+    <div className={`transition-all duration-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}>
+      <div className="flex items-center gap-3 bg-card border border-emerald-500/40 rounded-xl px-4 py-3 shadow-[0_0_24px_rgba(16,185,129,0.15)] min-w-[240px]">
+        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-sm text-foreground">{toast.symbol}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold uppercase tracking-wide">ENTRY</span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            ₹{toast.entry.toFixed(2)} · {cleanSectorName(toast.sectorName)}
+          </div>
+        </div>
+        <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
+      </div>
+    </div>
+  );
+}
+
+function SignalToastContainer({ toasts, onRemove }: { toasts: ToastSignal[]; onRemove: (id: number) => void }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      {toasts.map((t) => (
+        <SignalToastItem key={t.id} toast={t} onDone={() => onRemove(t.id)} />
+      ))}
+    </div>
+  );
+}
+
 // ── Audio chime (Web Audio API — no external file needed) ────────────────────
 
 function playChime() {
@@ -210,6 +258,21 @@ export default function Dashboard() {
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const isRefreshing = manualRefreshing || isFetchingSectors || isFetchingMomentum;
 
+  // ── Signal toasts ──
+  const [toasts, setToasts] = useState<ToastSignal[]>([]);
+  const toastIdRef = useRef(0);
+
+  function addToasts(newSignals: Array<{ symbol: string; sectorName: string; entry: number }>) {
+    setToasts((prev) => [
+      ...prev,
+      ...newSignals.map((s) => ({ ...s, id: ++toastIdRef.current })),
+    ]);
+  }
+
+  function removeToast(id: number) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+
   // ── Alert toggle (persisted) ──
   const [alertsOn, setAlertsOn] = useState<boolean>(() => {
     try { return localStorage.getItem("sentinel_alerts") !== "off"; } catch { return true; }
@@ -231,19 +294,26 @@ export default function Dashboard() {
     if (!momentumData?.sectors) return;
 
     const current = new Set<string>();
+    const newSignals: Array<{ symbol: string; sectorName: string; entry: number }> = [];
+
     for (const sector of momentumData.sectors) {
       for (const stock of sector.stocks) {
-        if (stock.entrySignal === true) current.add(stock.symbol);
+        if (stock.entrySignal === true) {
+          current.add(stock.symbol);
+          if (!isFirstFetch.current && !prevSignalsRef.current.has(stock.symbol)) {
+            newSignals.push({
+              symbol: stock.symbol,
+              sectorName: sector.sectorName,
+              entry: stock.price ?? 0,
+            });
+          }
+        }
       }
     }
 
-    if (!isFirstFetch.current && alertsOn) {
-      for (const sym of current) {
-        if (!prevSignalsRef.current.has(sym)) {
-          playChime();
-          break; // one chime per refresh cycle, even if multiple new signals
-        }
-      }
+    if (!isFirstFetch.current && newSignals.length > 0) {
+      if (alertsOn) playChime();
+      addToasts(newSignals);
     }
 
     isFirstFetch.current = false;
@@ -269,6 +339,7 @@ export default function Dashboard() {
 
   return (
     <Layout>
+      <SignalToastContainer toasts={toasts} onRemove={removeToast} />
       <Ticker />
 
       {/* ── Top bar: session info + IST clock ── */}
@@ -354,8 +425,6 @@ export default function Dashboard() {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Sectors + stocks */}
           <div className="flex-1 min-w-0 space-y-6">
-            <h2 className="text-lg font-bold tracking-tight text-foreground">Momentum Screener</h2>
-
             {isLoadingMomentum ? (
               <div className="space-y-6">
                 {[1, 2].map((i) => (
