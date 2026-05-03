@@ -94,11 +94,6 @@ export function StockCard({ stock }: StockCardProps) {
                   <span className="font-mono text-emerald-300 font-bold text-[10px]">₹{stock.target2.toFixed(1)}</span>
                 </div>
               </div>
-              {stock.riskPct != null && (
-                <div className="text-[9px] text-muted-foreground/50 text-center">
-                  Risk {stock.riskPct.toFixed(2)}% · RR 1:1.5 / 1:2.5
-                </div>
-              )}
             </div>
           )}
         </div>

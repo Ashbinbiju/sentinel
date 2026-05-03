@@ -13,6 +13,28 @@ import { formatPercent, getColorClass, formatCurrency } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, Target, ShieldAlert, Clock, Zap, ChevronRight } from "lucide-react";
 
+// ── Formatting helpers ───────────────────────────────────────────────────────
+
+function cleanSectorName(name: string): string {
+  return name
+    .replace(/^NIFTY[_ ]/, "")
+    .replace(/_/g, " ")
+    .replace(/\bPVT\b/, "Pvt")
+    .replace(/\bFIN\b/, "Fin")
+    .replace(/\bSERVICE\b/, "Service")
+    .replace(/\bFMCG\b/, "FMCG")
+    .replace(/\bAUTO\b/, "Auto")
+    .replace(/\bBANK\b/, "Bank")
+    .replace(/\bMEDIA\b/, "Media")
+    .replace(/\bENERGY\b/, "Energy")
+    .replace(/\bIT\b/, "IT")
+    .replace(/\bPHARMA\b/, "Pharma")
+    .replace(/\bHEALTHCARE\b/, "Healthcare")
+    .replace(/\bCONSUMPTION\b/, "Consumption")
+    .replace(/\bOIL AND GAS\b/, "Oil & Gas")
+    .trim();
+}
+
 // ── IST helpers ──────────────────────────────────────────────────────────────
 
 function getNowIST() {
@@ -91,7 +113,7 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
               </span>
               <div>
                 <div className="font-bold text-base text-foreground leading-none">{pick.symbol}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{pick.sectorName.replace("NIFTY ", "")}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">{cleanSectorName(pick.sectorName)}</div>
               </div>
             </div>
             <span className={`text-sm font-mono font-bold px-2 py-0.5 rounded ${pick.changePct >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
@@ -257,7 +279,7 @@ export default function Dashboard() {
                   <div key={sector.sectorKeyword}>
                     <div className="flex items-center gap-3 mb-3 pb-2 border-b border-border/30">
                       <div className={`w-1 h-5 rounded-full ${sector.sectorChangePct >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
-                      <h3 className="font-bold text-foreground">{sector.sectorName}</h3>
+                      <h3 className="font-bold text-foreground">{cleanSectorName(sector.sectorName)}</h3>
                       <span className={`text-sm font-mono font-semibold ${getColorClass(sector.sectorChangePct)}`}>
                         {formatPercent(sector.sectorChangePct)}
                       </span>
@@ -300,7 +322,7 @@ export default function Dashboard() {
                     ?.filter((s, i, arr) => arr.findIndex((x) => x.keyword === s.keyword) === i)
                     .map((sector) => (
                     <div key={sector.keyword} className="flex items-center justify-between px-4 py-2.5 hover:bg-accent/20 transition-colors">
-                      <span className="text-sm text-foreground/80">{sector.name.replace("NIFTY ", "")}</span>
+                      <span className="text-sm text-foreground/80">{cleanSectorName(sector.name)}</span>
                       <span className={`text-sm font-mono font-semibold ${getColorClass(sector.changePct)}`}>
                         {formatPercent(sector.changePct)}
                       </span>
