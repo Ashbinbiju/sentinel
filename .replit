@@ -34,3 +34,8 @@ externalPort = 3001
 [[ports]]
 localPort = 18250
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+TELEGRAM_CHAT_ID = "-1002411670969"
