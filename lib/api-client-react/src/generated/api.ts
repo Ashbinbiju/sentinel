@@ -259,7 +259,7 @@ export function useGetSectors<
 }
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum)
+ * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum), enriched with VWAP and EMA20 signals from 5-minute candles
  * @summary Get momentum stock picks
  */
 export const getGetMomentumPicksUrl = () => {

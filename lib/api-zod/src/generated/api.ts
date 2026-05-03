@@ -38,7 +38,7 @@ export const GetSectorsResponseItem = zod.object({
 export const GetSectorsResponse = zod.array(GetSectorsResponseItem);
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum)
+ * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum), enriched with VWAP and EMA20 signals from 5-minute candles
  * @summary Get momentum stock picks
  */
 export const GetMomentumPicksResponse = zod.object({
@@ -53,6 +53,10 @@ export const GetMomentumPicksResponse = zod.object({
           symbol: zod.string(),
           ltp: zod.number(),
           changePct: zod.number(),
+          vwap: zod.number().nullish(),
+          ema20: zod.number().nullish(),
+          confirmedClose: zod.number().nullish(),
+          entrySignal: zod.boolean().nullish(),
         }),
       ),
     }),

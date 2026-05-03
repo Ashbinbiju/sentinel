@@ -25,6 +25,14 @@ export interface StockItem {
   symbol: string;
   ltp: number;
   changePct: number;
+  /** @nullable */
+  vwap?: number | null;
+  /** @nullable */
+  ema20?: number | null;
+  /** @nullable */
+  confirmedClose?: number | null;
+  /** @nullable */
+  entrySignal?: boolean | null;
 }
 
 export interface SectorWithStocks {

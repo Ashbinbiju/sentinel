@@ -73,7 +73,7 @@ paths:
       operationId: getMomentumPicks
       tags: [stocks]
       summary: Get momentum stock picks
-      description: Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum)
+      description: Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum), enriched with VWAP and EMA20 signals from 5-minute candles
       responses:
         "200":
           description: Momentum stock picks grouped by sector
@@ -131,6 +131,14 @@ components:
           type: number
         changePct:
           type: number
+        vwap:
+          type: ["number", "null"]
+        ema20:
+          type: ["number", "null"]
+        confirmedClose:
+          type: ["number", "null"]
+        entrySignal:
+          type: ["boolean", "null"]
       required:
         - symbol
         - ltp
