@@ -3,7 +3,7 @@ import { formatCurrency, formatPercent, getColorClass } from "@/lib/format";
 
 export function Ticker() {
   const { data: indices, isLoading } = useGetMarketIndices({
-    query: { refetchInterval: 1000, queryKey: getGetMarketIndicesQueryKey() },
+    query: { refetchInterval: 30000, queryKey: getGetMarketIndicesQueryKey() },
   });
 
   if (isLoading) {

@@ -7,11 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { data: sectorsData, isLoading: isLoadingSectors } = useGetSectors({
-    query: { refetchInterval: 1000, queryKey: getGetSectorsQueryKey() }
+    query: { refetchInterval: 30000, queryKey: getGetSectorsQueryKey() }
   });
 
   const { data: momentumData, isLoading: isLoadingMomentum } = useGetMomentumPicks({
-    query: { refetchInterval: 1000, queryKey: getGetMomentumPicksQueryKey() }
+    query: { refetchInterval: 30000, queryKey: getGetMomentumPicksQueryKey() }
   });
 
   return (
