@@ -28,4 +28,6 @@ export interface TopPick {
   smartExit: string;
   vwap: number;
   ema20: number;
+  /** Downsampled intraday close prices for sparkline rendering */
+  sparkline?: number[];
 }

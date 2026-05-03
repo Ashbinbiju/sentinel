@@ -160,6 +160,7 @@ interface IndicatorResult {
   smartExit: string | null;
   indicatorDate: string | null;
   lastCandleTimeIST: string | null;
+  sparkline: number[];
 }
 
 async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
@@ -175,6 +176,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     smartExit: null,
     indicatorDate: null,
     lastCandleTimeIST: null,
+    sparkline: [],
   };
 
   try {
@@ -188,6 +190,10 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const vwap = calculateVWAP(confirmed);
     const closes = confirmed.map((c) => c.c);
     const ema20 = calculateEMA(closes);
+
+    // Downsample sparkline to at most 40 points to keep payload lean
+    const step = Math.max(1, Math.floor(closes.length / 40));
+    const sparkline = closes.filter((_, i) => i % step === 0 || i === closes.length - 1).map(r2);
 
     const entrySignal =
       vwap !== null && ema20 !== null
@@ -224,6 +230,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       smartExit,
       indicatorDate: getISTDateStr(last.t),
       lastCandleTimeIST: getISTTimeStr(last.t),
+      sparkline,
     };
   } catch {
     return empty;
@@ -357,6 +364,7 @@ router.get("/momentum-picks", async (req, res) => {
       smartExit: string;
       vwap: number;
       ema20: number;
+      sparkline: number[];
       score: number;
     }> = [];
 
@@ -453,6 +461,7 @@ router.get("/momentum-picks", async (req, res) => {
                 smartExit: ind.smartExit,
                 vwap: ind.vwap,
                 ema20: ind.ema20,
+                sparkline: ind.sparkline,
                 score,
               });
             }
@@ -470,6 +479,7 @@ router.get("/momentum-picks", async (req, res) => {
               target2: ind.target2,
               riskPct: ind.riskPct,
               smartExit: ind.smartExit,
+              sparkline: ind.sparkline,
             };
           });
 

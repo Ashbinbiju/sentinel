@@ -71,6 +71,12 @@ export const GetMomentumPicksResponse = zod.object({
           smartExit: zod.string().describe("Smart exit rule"),
           vwap: zod.number(),
           ema20: zod.number(),
+          sparkline: zod
+            .array(zod.number())
+            .optional()
+            .describe(
+              "Downsampled intraday close prices for sparkline rendering",
+            ),
         })
         .describe("One of the top 5 intraday picks across all sectors"),
     )
@@ -111,6 +117,12 @@ export const GetMomentumPicksResponse = zod.object({
             .string()
             .nullish()
             .describe("Plain-English smart exit rule for this trade"),
+          sparkline: zod
+            .array(zod.number())
+            .optional()
+            .describe(
+              "Downsampled intraday close prices (up to 40 pts) for sparkline rendering",
+            ),
         }),
       ),
     }),

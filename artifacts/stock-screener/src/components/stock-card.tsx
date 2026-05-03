@@ -1,6 +1,7 @@
 import React from "react";
 import type { StockItem } from "@workspace/api-client-react";
 import { formatCurrency, formatPercent, getColorClass } from "@/lib/format";
+import { Sparkline } from "@/components/sparkline";
 
 interface StockCardProps {
   stock: StockItem;
@@ -54,6 +55,13 @@ export function StockCard({ stock }: StockCardProps) {
           <div className="font-mono text-base font-semibold text-foreground mb-2">
             {formatCurrency(stock.ltp)}
           </div>
+
+          {/* Sparkline */}
+          {stock.sparkline && stock.sparkline.length > 2 && (
+            <div className="mb-2 rounded overflow-hidden opacity-80">
+              <Sparkline closes={stock.sparkline} vwap={stock.vwap} height={34} id={stock.symbol} />
+            </div>
+          )}
 
           {/* Indicator badges */}
           <div className="flex gap-1 mb-2">

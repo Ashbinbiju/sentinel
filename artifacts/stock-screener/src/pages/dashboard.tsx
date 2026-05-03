@@ -12,6 +12,7 @@ import {
 import { formatPercent, getColorClass } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw, Bell, BellOff, BarChart2 } from "lucide-react";
+import { Sparkline } from "@/components/sparkline";
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -141,10 +142,17 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
           </div>
 
           {/* Entry price */}
-          <div className="mb-3">
+          <div className="mb-2">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Entry</div>
             <div className={`font-mono font-bold text-foreground ${fullWidth ? "text-2xl" : "text-lg"}`}>₹{pick.entry.toFixed(2)}</div>
           </div>
+
+          {/* Sparkline */}
+          {pick.sparkline && pick.sparkline.length > 2 && (
+            <div className="mb-3 rounded overflow-hidden opacity-85 -mx-1">
+              <Sparkline closes={pick.sparkline} vwap={pick.vwap} height={42} id={`pick-${pick.symbol}`} />
+            </div>
+          )}
 
           {/* SL / T1 / T2 grid */}
           <div className="grid grid-cols-3 gap-1.5 mb-3">
@@ -312,7 +320,7 @@ export default function Dashboard() {
         if (stock.entrySignal === true) {
           current.add(stock.symbol);
           if (!isFirstFetch.current && !prevSignalsRef.current.has(stock.symbol)) {
-            newSignals.push({ symbol: stock.symbol, sectorName: sector.sectorName, entry: stock.price ?? 0 });
+            newSignals.push({ symbol: stock.symbol, sectorName: sector.sectorName, entry: stock.confirmedClose ?? stock.ltp ?? 0 });
           }
         }
       }

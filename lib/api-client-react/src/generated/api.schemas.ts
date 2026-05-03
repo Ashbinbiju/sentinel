@@ -58,6 +58,8 @@ export interface StockItem {
    * @nullable
    */
   smartExit?: string | null;
+  /** Downsampled intraday close prices (up to 40 pts) for sparkline rendering */
+  sparkline?: number[];
 }
 
 /**
@@ -82,6 +84,8 @@ export interface TopPick {
   smartExit: string;
   vwap: number;
   ema20: number;
+  /** Downsampled intraday close prices for sparkline rendering */
+  sparkline?: number[];
 }
 
 export interface SectorWithStocks {

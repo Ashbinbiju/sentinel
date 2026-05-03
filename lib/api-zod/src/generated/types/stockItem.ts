@@ -43,4 +43,6 @@ export interface StockItem {
    * @nullable
    */
   smartExit?: string | null;
+  /** Downsampled intraday close prices (up to 40 pts) for sparkline rendering */
+  sparkline?: number[];
 }
