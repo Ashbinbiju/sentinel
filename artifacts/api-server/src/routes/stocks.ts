@@ -336,66 +336,13 @@ router.get("/momentum-picks", async (req, res) => {
       changePct: sectorData.datasets[i] ?? 0,
     }));
 
+    const top4 = [...allSectors]
+      .sort((a, b) => b.changePct - a.changePct)
+      .slice(0, 4);
+
     let indicatorDate: string | null = null;
     let lastCandleTimeIST: string | null = null;
 
-    // ── Step 1: Fetch constituent stocks for ALL sectors in parallel ──────────
-    type StockInfo = { symbol: string; ltp: number; changePct: number };
-    const sectorStockLists = await Promise.all(
-      allSectors.map(async (sector) => {
-        try {
-          const url = `https://intradayscreener.com/api/indices/index-constituents/${encodeURIComponent(sector.keyword)}/1?filter=cash`;
-          const r = await fetch(url, { headers: HEADERS });
-          if (!r.ok) return { sector, stocks: [] as StockInfo[] };
-
-          const constituentData = (await r.json()) as {
-            indexConstituents?: StockInfo[];
-            nonIndexConstituents?: StockInfo[];
-          };
-
-          const seen = new Set<string>();
-          const stocks: StockInfo[] = [];
-          for (const s of [
-            ...(constituentData.indexConstituents ?? []),
-            ...(constituentData.nonIndexConstituents ?? []),
-          ]) {
-            if (!seen.has(s.symbol)) {
-              seen.add(s.symbol);
-              // Only carry momentum stocks; skip extremes
-              if (s.changePct >= 0.3 && s.changePct < 3.0) stocks.push(s);
-            }
-          }
-          return { sector, stocks };
-        } catch {
-          return { sector, stocks: [] as StockInfo[] };
-        }
-      }),
-    );
-
-    // ── Step 2: Collect unique symbols across all sectors ─────────────────────
-    const symbolToInfo = new Map<string, StockInfo>();
-    for (const { stocks } of sectorStockLists) {
-      for (const s of stocks) {
-        if (!symbolToInfo.has(s.symbol)) symbolToInfo.set(s.symbol, s);
-      }
-    }
-
-    // ── Step 3: Enrich with indicators — global concurrency of 8 ─────────────
-    const uniqueSymbols = [...symbolToInfo.keys()];
-    const indicatorList = await runWithConcurrency(uniqueSymbols, 8, enrichWithIndicators);
-    const symbolIndicators = new Map(
-      uniqueSymbols.map((sym, i) => [sym, indicatorList[i]]),
-    );
-
-    // Collect first available date from any indicator
-    for (const ind of indicatorList) {
-      if (ind.indicatorDate && !indicatorDate) {
-        indicatorDate = ind.indicatorDate;
-        lastCandleTimeIST = ind.lastCandleTimeIST;
-      }
-    }
-
-    // ── Step 4: Build sector results + top-pick candidates ────────────────────
     // Candidates for top 5 picks (entry signal stocks across all sectors)
     const topPickCandidates: Array<{
       symbol: string;
@@ -413,63 +360,135 @@ router.get("/momentum-picks", async (req, res) => {
       score: number;
     }> = [];
 
-    const sectorResults = sectorStockLists.map(({ sector, stocks }) => {
-      const enrichedStocks = stocks.map((stock) => {
-        const ind = symbolIndicators.get(stock.symbol)!;
+    const sectorResults = await Promise.all(
+      top4.map(async (sector) => {
+        try {
+          const url = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
+          const r = await fetch(url, { headers: HEADERS });
+          if (!r.ok)
+            return {
+              sectorName: sector.name,
+              sectorKeyword: sector.keyword,
+              sectorChangePct: sector.changePct,
+              stocks: [],
+            };
 
-        if (
-          ind.entrySignal &&
-          ind.confirmedClose !== null &&
-          ind.sl !== null &&
-          ind.target1 !== null &&
-          ind.target2 !== null &&
-          ind.riskPct !== null &&
-          ind.smartExit !== null &&
-          ind.vwap !== null &&
-          ind.ema20 !== null
-        ) {
-          const vwapMarginPct = ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
-          const score = stock.changePct * 1.5 - Math.max(0, vwapMarginPct - 0.5) * 2;
-          topPickCandidates.push({
-            symbol: stock.symbol,
-            sectorName: sector.name,
-            ltp: stock.ltp,
-            changePct: stock.changePct,
-            entry: ind.confirmedClose,
-            sl: ind.sl,
-            target1: ind.target1,
-            target2: ind.target2,
-            riskPct: ind.riskPct,
-            smartExit: ind.smartExit,
-            vwap: ind.vwap,
-            ema20: ind.ema20,
-            score,
+          const constituentData = (await r.json()) as {
+            indexConstituents?: Array<{
+              symbol: string;
+              ltp: number;
+              changePct: number;
+            }>;
+            nonIndexConstituents?: Array<{
+              symbol: string;
+              ltp: number;
+              changePct: number;
+            }>;
+          };
+
+          const seen = new Set<string>();
+          const all: Array<{ symbol: string; ltp: number; changePct: number }> =
+            [];
+          for (const stock of [
+            ...(constituentData.indexConstituents ?? []),
+            ...(constituentData.nonIndexConstituents ?? []),
+          ]) {
+            if (!seen.has(stock.symbol)) {
+              seen.add(stock.symbol);
+              all.push(stock);
+            }
+          }
+
+          const filtered = all.filter((stock) => {
+            const change = stock.changePct ?? 0;
+            return change >= 0.3 && change < 3.0;
           });
+
+          const symbols = filtered.map((s) => s.symbol);
+          const indicators = await runWithConcurrency(
+            symbols,
+            5,
+            enrichWithIndicators,
+          );
+
+          for (const ind of indicators) {
+            if (ind.indicatorDate && !indicatorDate) {
+              indicatorDate = ind.indicatorDate;
+              lastCandleTimeIST = ind.lastCandleTimeIST;
+            }
+          }
+
+          const stocks = filtered.map((stock, i) => {
+            const ind = indicators[i];
+
+            // Collect entry signal stocks for top picks
+            if (
+              ind.entrySignal &&
+              ind.confirmedClose !== null &&
+              ind.sl !== null &&
+              ind.target1 !== null &&
+              ind.target2 !== null &&
+              ind.riskPct !== null &&
+              ind.smartExit !== null &&
+              ind.vwap !== null &&
+              ind.ema20 !== null
+            ) {
+              // Score: prioritise momentum (changePct) + VWAP proximity (fresher crossover = tighter margin)
+              const vwapMarginPct =
+                ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
+              // We want freshly crossed stocks (small positive margin) with good momentum
+              const score =
+                stock.changePct * 1.5 - Math.max(0, vwapMarginPct - 0.5) * 2;
+
+              topPickCandidates.push({
+                symbol: stock.symbol,
+                sectorName: sector.name,
+                ltp: stock.ltp,
+                changePct: stock.changePct,
+                entry: ind.confirmedClose,
+                sl: ind.sl,
+                target1: ind.target1,
+                target2: ind.target2,
+                riskPct: ind.riskPct,
+                smartExit: ind.smartExit,
+                vwap: ind.vwap,
+                ema20: ind.ema20,
+                score,
+              });
+            }
+
+            return {
+              symbol: stock.symbol,
+              ltp: stock.ltp,
+              changePct: stock.changePct,
+              vwap: ind.vwap,
+              ema20: ind.ema20,
+              confirmedClose: ind.confirmedClose,
+              entrySignal: ind.entrySignal,
+              sl: ind.sl,
+              target1: ind.target1,
+              target2: ind.target2,
+              riskPct: ind.riskPct,
+              smartExit: ind.smartExit,
+            };
+          });
+
+          return {
+            sectorName: sector.name,
+            sectorKeyword: sector.keyword,
+            sectorChangePct: sector.changePct,
+            stocks,
+          };
+        } catch {
+          return {
+            sectorName: sector.name,
+            sectorKeyword: sector.keyword,
+            sectorChangePct: sector.changePct,
+            stocks: [],
+          };
         }
-
-        return {
-          symbol: stock.symbol,
-          ltp: stock.ltp,
-          changePct: stock.changePct,
-          vwap: ind.vwap,
-          ema20: ind.ema20,
-          confirmedClose: ind.confirmedClose,
-          entrySignal: ind.entrySignal,
-          sl: ind.sl,
-          target1: ind.target1,
-          target2: ind.target2,
-          riskPct: ind.riskPct,
-          smartExit: ind.smartExit,
-        };
-      });
-
-      return {
-        sectorName: sector.name,
-        sectorKeyword: sector.keyword,
-        sectorChangePct: sector.changePct,
-        stocks: enrichedStocks,
-      };
-    });
+      }),
+    );
 
     // Build top 5 picks — deduplicated, sorted by score
     const seen = new Set<string>();
