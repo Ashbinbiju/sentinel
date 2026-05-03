@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { Ticker } from "@/components/ticker";
 import { StockCard } from "@/components/stock-card";
@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { formatPercent, getColorClass, formatCurrency } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw } from "lucide-react";
+import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw, Bell, BellOff } from "lucide-react";
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -170,6 +170,32 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
   );
 }
 
+// ── Audio chime (Web Audio API — no external file needed) ────────────────────
+
+function playChime() {
+  try {
+    const ctx = new AudioContext();
+    // Two-tone rising chime: C5 then E5
+    const notes = [523.25, 659.25];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.18);
+      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.35);
+      osc.start(ctx.currentTime + i * 0.18);
+      osc.stop(ctx.currentTime + i * 0.18 + 0.4);
+    });
+    setTimeout(() => ctx.close(), 1000);
+  } catch {
+    // AudioContext not available — silent fail
+  }
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -182,6 +208,46 @@ export default function Dashboard() {
   });
 
   const isRefreshing = isLoadingSectors || isLoadingMomentum;
+
+  // ── Alert toggle (persisted) ──
+  const [alertsOn, setAlertsOn] = useState<boolean>(() => {
+    try { return localStorage.getItem("sentinel_alerts") !== "off"; } catch { return true; }
+  });
+
+  function toggleAlerts() {
+    setAlertsOn((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("sentinel_alerts", next ? "on" : "off"); } catch {}
+      return next;
+    });
+  }
+
+  // ── New-signal detection ──
+  const prevSignalsRef = useRef<Set<string>>(new Set());
+  const isFirstFetch = useRef(true);
+
+  useEffect(() => {
+    if (!momentumData?.sectors) return;
+
+    const current = new Set<string>();
+    for (const sector of momentumData.sectors) {
+      for (const stock of sector.stocks) {
+        if (stock.entrySignal === true) current.add(stock.symbol);
+      }
+    }
+
+    if (!isFirstFetch.current && alertsOn) {
+      for (const sym of current) {
+        if (!prevSignalsRef.current.has(sym)) {
+          playChime();
+          break; // one chime per refresh cycle, even if multiple new signals
+        }
+      }
+    }
+
+    isFirstFetch.current = false;
+    prevSignalsRef.current = current;
+  }, [momentumData, alertsOn]);
 
   function handleRefresh() {
     refetchSectors();
@@ -225,6 +291,18 @@ export default function Dashboard() {
               refreshed {updatedIST}
             </span>
           )}
+          <button
+            onClick={toggleAlerts}
+            title={alertsOn ? "Alerts on — click to mute" : "Alerts muted — click to enable"}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-150 text-xs
+              ${alertsOn
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                : "border-border/40 bg-card text-muted-foreground/50 hover:bg-accent/30 hover:text-muted-foreground"
+              }`}
+          >
+            {alertsOn ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
+            <span>{alertsOn ? "Alerts on" : "Muted"}</span>
+          </button>
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
