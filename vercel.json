@@ -1,0 +1,15 @@
+{
+  "buildCommand": "pnpm install && pnpm --filter @workspace/stock-screener run build",
+  "outputDirectory": "artifacts/stock-screener/dist/public",
+  "installCommand": "pnpm install",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://REPLACE_WITH_YOUR_RENDER_URL/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
