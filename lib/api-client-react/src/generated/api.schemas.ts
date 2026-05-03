@@ -8,3 +8,37 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface MarketIndex {
+  symbol: string;
+  ltp: number;
+  changePct: number;
+}
+
+export interface SectorPerformance {
+  name: string;
+  keyword: string;
+  changePct: number;
+}
+
+export interface StockItem {
+  symbol: string;
+  ltp: number;
+  changePct: number;
+}
+
+export interface SectorWithStocks {
+  sectorName: string;
+  sectorKeyword: string;
+  sectorChangePct: number;
+  stocks: StockItem[];
+}
+
+export interface MomentumPicksResponse {
+  fetchedAt: string;
+  sectors: SectorWithStocks[];
+}
+
+export interface ErrorResponse {
+  error: string;
+}

@@ -13,7 +13,13 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ErrorResponse,
+  HealthStatus,
+  MarketIndex,
+  MomentumPicksResponse,
+  SectorPerformance,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
 import type { ErrorType } from "../custom-fetch";
@@ -92,6 +98,234 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Fetches real-time performance of major market indices (NIFTY 50, BANKNIFTY etc.)
+ * @summary Get broad market indices
+ */
+export const getGetMarketIndicesUrl = () => {
+  return `/api/stocks/market-indices`;
+};
+
+export const getMarketIndices = async (
+  options?: RequestInit,
+): Promise<MarketIndex[]> => {
+  return customFetch<MarketIndex[]>(getGetMarketIndicesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMarketIndicesQueryKey = () => {
+  return [`/api/stocks/market-indices`] as const;
+};
+
+export const getGetMarketIndicesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMarketIndices>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketIndices>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMarketIndicesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMarketIndices>>
+  > = ({ signal }) => getMarketIndices({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketIndices>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMarketIndicesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMarketIndices>>
+>;
+export type GetMarketIndicesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get broad market indices
+ */
+
+export function useGetMarketIndices<
+  TData = Awaited<ReturnType<typeof getMarketIndices>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMarketIndices>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMarketIndicesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Retrieves daily percentage change for all major NSE sectors
+ * @summary Get sector performance
+ */
+export const getGetSectorsUrl = () => {
+  return `/api/stocks/sectors`;
+};
+
+export const getSectors = async (
+  options?: RequestInit,
+): Promise<SectorPerformance[]> => {
+  return customFetch<SectorPerformance[]>(getGetSectorsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSectorsQueryKey = () => {
+  return [`/api/stocks/sectors`] as const;
+};
+
+export const getGetSectorsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSectors>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSectors>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSectorsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSectors>>> = ({
+    signal,
+  }) => getSectors({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSectors>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSectorsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSectors>>
+>;
+export type GetSectorsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get sector performance
+ */
+
+export function useGetSectors<
+  TData = Awaited<ReturnType<typeof getSectors>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSectors>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSectorsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum)
+ * @summary Get momentum stock picks
+ */
+export const getGetMomentumPicksUrl = () => {
+  return `/api/stocks/momentum-picks`;
+};
+
+export const getMomentumPicks = async (
+  options?: RequestInit,
+): Promise<MomentumPicksResponse> => {
+  return customFetch<MomentumPicksResponse>(getGetMomentumPicksUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMomentumPicksQueryKey = () => {
+  return [`/api/stocks/momentum-picks`] as const;
+};
+
+export const getGetMomentumPicksQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMomentumPicks>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMomentumPicks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMomentumPicksQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMomentumPicks>>
+  > = ({ signal }) => getMomentumPicks({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMomentumPicks>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMomentumPicksQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMomentumPicks>>
+>;
+export type GetMomentumPicksQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get momentum stock picks
+ */
+
+export function useGetMomentumPicks<
+  TData = Awaited<ReturnType<typeof getMomentumPicks>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMomentumPicks>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMomentumPicksQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

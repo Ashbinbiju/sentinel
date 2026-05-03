@@ -14,3 +14,47 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Fetches real-time performance of major market indices (NIFTY 50, BANKNIFTY etc.)
+ * @summary Get broad market indices
+ */
+export const GetMarketIndicesResponseItem = zod.object({
+  symbol: zod.string(),
+  ltp: zod.number(),
+  changePct: zod.number(),
+});
+export const GetMarketIndicesResponse = zod.array(GetMarketIndicesResponseItem);
+
+/**
+ * Retrieves daily percentage change for all major NSE sectors
+ * @summary Get sector performance
+ */
+export const GetSectorsResponseItem = zod.object({
+  name: zod.string(),
+  keyword: zod.string(),
+  changePct: zod.number(),
+});
+export const GetSectorsResponse = zod.array(GetSectorsResponseItem);
+
+/**
+ * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum)
+ * @summary Get momentum stock picks
+ */
+export const GetMomentumPicksResponse = zod.object({
+  fetchedAt: zod.string(),
+  sectors: zod.array(
+    zod.object({
+      sectorName: zod.string(),
+      sectorKeyword: zod.string(),
+      sectorChangePct: zod.number(),
+      stocks: zod.array(
+        zod.object({
+          symbol: zod.string(),
+          ltp: zod.number(),
+          changePct: zod.number(),
+        }),
+      ),
+    }),
+  ),
+});

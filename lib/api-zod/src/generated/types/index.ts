@@ -6,4 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./marketIndex";
+export * from "./momentumPicksResponse";
+export * from "./sectorPerformance";
+export * from "./sectorWithStocks";
+export * from "./stockItem";

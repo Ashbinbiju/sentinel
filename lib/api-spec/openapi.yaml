@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: stocks
+    description: Stock market data
 paths:
   /healthz:
     get:
@@ -24,6 +26,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /stocks/market-indices:
+    get:
+      operationId: getMarketIndices
+      tags: [stocks]
+      summary: Get broad market indices
+      description: Fetches real-time performance of major market indices (NIFTY 50, BANKNIFTY etc.)
+      responses:
+        "200":
+          description: Market indices data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketIndex"
+        "500":
+          description: Failed to fetch data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/sectors:
+    get:
+      operationId: getSectors
+      tags: [stocks]
+      summary: Get sector performance
+      description: Retrieves daily percentage change for all major NSE sectors
+      responses:
+        "200":
+          description: Sector performance data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SectorPerformance"
+        "500":
+          description: Failed to fetch data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/momentum-picks:
+    get:
+      operationId: getMomentumPicks
+      tags: [stocks]
+      summary: Get momentum stock picks
+      description: Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum)
+      responses:
+        "200":
+          description: Momentum stock picks grouped by sector
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MomentumPicksResponse"
+        "500":
+          description: Failed to fetch data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +96,79 @@ components:
           type: string
       required:
         - status
-
+    MarketIndex:
+      type: object
+      properties:
+        symbol:
+          type: string
+        ltp:
+          type: number
+        changePct:
+          type: number
+      required:
+        - symbol
+        - ltp
+        - changePct
+    SectorPerformance:
+      type: object
+      properties:
+        name:
+          type: string
+        keyword:
+          type: string
+        changePct:
+          type: number
+      required:
+        - name
+        - keyword
+        - changePct
+    StockItem:
+      type: object
+      properties:
+        symbol:
+          type: string
+        ltp:
+          type: number
+        changePct:
+          type: number
+      required:
+        - symbol
+        - ltp
+        - changePct
+    SectorWithStocks:
+      type: object
+      properties:
+        sectorName:
+          type: string
+        sectorKeyword:
+          type: string
+        sectorChangePct:
+          type: number
+        stocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockItem"
+      required:
+        - sectorName
+        - sectorKeyword
+        - sectorChangePct
+        - stocks
+    MomentumPicksResponse:
+      type: object
+      properties:
+        fetchedAt:
+          type: string
+        sectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectorWithStocks"
+      required:
+        - fetchedAt
+        - sectors
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
