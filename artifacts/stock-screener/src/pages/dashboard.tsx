@@ -287,17 +287,20 @@ export default function Dashboard() {
                         {sector.stocks.length} stocks
                       </span>
                     </div>
-                    {sector.stocks.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                        {sector.stocks.map((stock) => (
-                          <StockCard key={stock.symbol} stock={stock} />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">
-                        No stocks matched criteria in this sector.
-                      </p>
-                    )}
+                    {(() => {
+                      const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
+                      return entryStocks.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                          {entryStocks.map((stock) => (
+                            <StockCard key={stock.symbol} stock={stock} />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          No entry signals in this sector yet.
+                        </p>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
