@@ -66,6 +66,23 @@ function formatSessionDate(dateStr: string): string {
   }
 }
 
+function formatSessionDateFull(dateStr: string): { short: string; long: string; dayOfWeek: string; daysAgo: string } {
+  try {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    const todayIST = new Date(Date.now() + 19800000);
+    const todayMidnight = new Date(todayIST.getUTCFullYear(), todayIST.getUTCMonth(), todayIST.getUTCDate());
+    const diffDays = Math.round((todayMidnight.getTime() - date.getTime()) / 86400000);
+    const daysAgo = diffDays === 1 ? "yesterday" : diffDays === 0 ? "today" : `${diffDays} days ago`;
+    const short = date.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    const long = date.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+    const dayOfWeek = date.toLocaleDateString("en-IN", { weekday: "long" });
+    return { short, long, dayOfWeek, daysAgo };
+  } catch {
+    return { short: dateStr, long: dateStr, dayOfWeek: "", daysAgo: "" };
+  }
+}
+
 // ── IST Live Clock ────────────────────────────────────────────────────────────
 
 function ISTClock() {
@@ -319,6 +336,10 @@ export default function Dashboard() {
     ? momentumData.isLiveSession ? "Live" : formatSessionDate(momentumData.indicatorDate)
     : null;
 
+  const sessionDateFull = momentumData?.indicatorDate && !momentumData.isLiveSession
+    ? formatSessionDateFull(momentumData.indicatorDate)
+    : null;
+
   const updatedIST = momentumData?.fetchedAt ? toISTDisplay(momentumData.fetchedAt) : null;
   const topPicks = momentumData?.topPicks ?? [];
   const hasTopPicks = topPicks.length > 0;
@@ -366,21 +387,45 @@ export default function Dashboard() {
         <Ticker />
 
         {/* Compact mobile session bar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-background/80 backdrop-blur-sm">
-          <ISTClock />
-          {sessionLabel && !isLoadingMomentum && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
-              momentumData?.isLiveSession
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-            }`}>
-              {sessionLabel}
-            </span>
-          )}
-          <div className="ml-auto flex items-center gap-2">
-            <AlertBtn />
-            <RefreshBtn />
+        <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <ISTClock />
+            {momentumData?.isLiveSession && sessionLabel && !isLoadingMomentum && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full border font-medium bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                {sessionLabel}
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <AlertBtn />
+              <RefreshBtn />
+            </div>
           </div>
+          {/* Stale data strip — mobile */}
+          {sessionDateFull && !isLoadingMomentum && (
+            <div className="px-3 pb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400/70" />
+                <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">Previous Session</span>
+              </div>
+              <span className="text-[10px] text-amber-300/80 font-medium">
+                {sessionDateFull.dayOfWeek}, {sessionDateFull.long}
+              </span>
+              <span className="text-[10px] text-muted-foreground/60">·</span>
+              <span className="text-[10px] text-muted-foreground font-mono">{sessionDateFull.daysAgo}</span>
+              {momentumData?.lastCandleTimeIST && (
+                <>
+                  <span className="text-[10px] text-muted-foreground/60">·</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">last candle {momentumData.lastCandleTimeIST} IST</span>
+                </>
+              )}
+              {updatedIST && (
+                <>
+                  <span className="text-[10px] text-muted-foreground/60">·</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">refreshed {updatedIST}</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tab content — scrollable */}
@@ -551,29 +596,59 @@ export default function Dashboard() {
         <Ticker />
 
         {/* Session bar */}
-        <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm px-4 py-2 flex items-center gap-4">
-          <ISTClock />
-          {sessionLabel && !isLoadingMomentum && (
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-              momentumData?.isLiveSession
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-            }`}>
-              {momentumData?.isLiveSession ? "● " : "◌ "}{sessionLabel}
-            </span>
-          )}
-          {momentumData?.lastCandleTimeIST && !isLoadingMomentum && (
-            <span className="text-xs text-muted-foreground font-mono hidden lg:block">
-              last candle {momentumData.lastCandleTimeIST} IST
-            </span>
-          )}
-          <div className="ml-auto flex items-center gap-3">
-            {updatedIST && !isLoadingMomentum && (
-              <span className="text-xs text-muted-foreground hidden xl:block">refreshed {updatedIST}</span>
+        <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm">
+          <div className="px-4 py-2 flex items-center gap-4">
+            <ISTClock />
+            {momentumData?.isLiveSession && sessionLabel && !isLoadingMomentum && (
+              <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                ● {sessionLabel}
+              </span>
             )}
-            <AlertBtn />
-            <RefreshBtn />
+            {momentumData?.isLiveSession && momentumData?.lastCandleTimeIST && !isLoadingMomentum && (
+              <span className="text-xs text-muted-foreground font-mono hidden lg:block">
+                last candle {momentumData.lastCandleTimeIST} IST
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-3">
+              {momentumData?.isLiveSession && updatedIST && !isLoadingMomentum && (
+                <span className="text-xs text-muted-foreground hidden xl:block">refreshed {updatedIST}</span>
+              )}
+              <AlertBtn />
+              <RefreshBtn />
+            </div>
           </div>
+          {/* Stale data strip — desktop */}
+          {sessionDateFull && !isLoadingMomentum && (
+            <div className="px-4 pb-2.5 flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-pulse" />
+                <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Previous Session</span>
+              </div>
+              <span className="text-border/60">·</span>
+              <span className="text-[11px] text-amber-300/90 font-semibold">
+                {sessionDateFull.dayOfWeek}, {sessionDateFull.long}
+              </span>
+              <span className="text-[11px] text-muted-foreground/50 font-mono">({sessionDateFull.daysAgo})</span>
+              {momentumData?.lastCandleTimeIST && (
+                <>
+                  <span className="text-border/60">·</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    Last candle <span className="text-foreground/70 font-semibold">{momentumData.lastCandleTimeIST} IST</span>
+                  </span>
+                </>
+              )}
+              {updatedIST && (
+                <>
+                  <span className="text-border/60">·</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    Refreshed <span className="text-foreground/60">{updatedIST}</span>
+                  </span>
+                </>
+              )}
+              <span className="text-border/60">·</span>
+              <span className="text-[11px] text-muted-foreground/50 italic">Signals are from last trading session</span>
+            </div>
+          )}
         </div>
 
         {/* Top 5 Intraday Picks */}
