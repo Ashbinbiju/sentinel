@@ -471,11 +471,18 @@ router.get("/momentum-picks", async (req, res) => {
               ind.ema20 !== null
             ) {
               // Score: prioritise momentum (changePct) + VWAP proximity (fresher crossover = tighter margin)
+              //        + volume tier (high volume = conviction; low volume = noise penalty)
               const vwapMarginPct =
                 ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
-              // We want freshly crossed stocks (small positive margin) with good momentum
+              const volumeBonus =
+                ind.volumeRatio === null ? 0
+                : ind.volumeRatio >= 1.5 ? 1.5   // strong volume — confirmed breakout
+                : ind.volumeRatio >= 1.0 ? 0.4   // average volume — neutral
+                : -0.8;                           // weak volume — penalise ranking
               const score =
-                stock.changePct * 1.5 - Math.max(0, vwapMarginPct - 0.5) * 2;
+                stock.changePct * 1.5
+                - Math.max(0, vwapMarginPct - 0.5) * 2
+                + volumeBonus;
 
               topPickCandidates.push({
                 symbol: stock.symbol,
