@@ -9,9 +9,9 @@ import {
   getGetMomentumPicksQueryKey,
   type TopPick,
 } from "@workspace/api-client-react";
-import { formatPercent, getColorClass, formatCurrency } from "@/lib/format";
+import { formatPercent, getColorClass } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw, Bell, BellOff } from "lucide-react";
+import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw, Bell, BellOff, BarChart2 } from "lucide-react";
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -83,7 +83,7 @@ function ISTClock() {
         {String(t.h).padStart(2, "0")}:{String(t.m).padStart(2, "0")} IST
       </span>
       <span className={`text-xs ${open ? "text-emerald-400" : "text-muted-foreground"}`}>
-        {open ? "Market Open" : "Closed"}
+        {open ? "Open" : "Closed"}
       </span>
     </div>
   );
@@ -91,24 +91,26 @@ function ISTClock() {
 
 // ── Top 5 Pick Card ──────────────────────────────────────────────────────────
 
-function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
+function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: number; fullWidth?: boolean }) {
   const href = `https://www.tradingview.com/chart/?symbol=NSE%3A${pick.symbol}`;
-  const riskAmt = pick.entry - pick.sl;
   const t1Pct = ((pick.target1 - pick.entry) / pick.entry) * 100;
   const t2Pct = ((pick.target2 - pick.entry) / pick.entry) * 100;
 
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer"
-      className="block shrink-0 w-[78vw] max-w-[280px] sm:flex-1 sm:w-auto sm:min-w-[180px] sm:max-w-none group">
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`block group ${fullWidth ? "w-full" : "shrink-0 w-[78vw] max-w-[280px] sm:flex-1 sm:w-auto sm:min-w-[180px] sm:max-w-none"}`}
+    >
       <div className="relative rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 via-card to-card overflow-hidden hover:border-emerald-400/40 transition-all duration-200 shadow-[0_0_20px_rgba(16,185,129,0.06)]">
-        {/* Top accent bar */}
         <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60" />
 
         <div className="p-4">
-          {/* Rank + symbol + sector */}
+          {/* Rank + symbol + sector + % */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center shrink-0">
+              <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold flex items-center justify-center shrink-0">
                 {rank}
               </span>
               <div>
@@ -124,7 +126,7 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
           {/* Entry price */}
           <div className="mb-3">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Entry</div>
-            <div className="font-mono text-lg font-bold text-foreground">₹{pick.entry.toFixed(2)}</div>
+            <div className={`font-mono font-bold text-foreground ${fullWidth ? "text-2xl" : "text-lg"}`}>₹{pick.entry.toFixed(2)}</div>
           </div>
 
           {/* SL / T1 / T2 grid */}
@@ -155,11 +157,11 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
             </div>
           </div>
 
-          {/* Smart exit rule */}
+          {/* Smart exit */}
           <div className="bg-muted/20 rounded-lg p-2 border border-border/30">
             <div className="flex items-start gap-1.5">
               <Zap className="w-3 h-3 text-amber-400/70 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
+              <p className={`text-[10px] text-muted-foreground leading-relaxed ${fullWidth ? "" : "line-clamp-2"}`}>
                 {pick.smartExit}
               </p>
             </div>
@@ -181,13 +183,11 @@ interface ToastSignal {
 
 function SignalToastItem({ toast, onDone }: { toast: ToastSignal; onDone: () => void }) {
   const [visible, setVisible] = useState(true);
-
   useEffect(() => {
     const hide = setTimeout(() => setVisible(false), 3800);
     const remove = setTimeout(onDone, 4300);
     return () => { clearTimeout(hide); clearTimeout(remove); };
   }, []);
-
   return (
     <div className={`transition-all duration-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}>
       <div className="flex items-center gap-3 bg-card border border-emerald-500/40 rounded-xl px-4 py-3 shadow-[0_0_24px_rgba(16,185,129,0.15)] min-w-[240px]">
@@ -218,12 +218,11 @@ function SignalToastContainer({ toasts, onRemove }: { toasts: ToastSignal[]; onR
   );
 }
 
-// ── Audio chime (Web Audio API — no external file needed) ────────────────────
+// ── Audio chime ───────────────────────────────────────────────────────────────
 
 function playChime() {
   try {
     const ctx = new AudioContext();
-    // Two-tone rising chime: C5 then E5
     const notes = [523.25, 659.25];
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -240,11 +239,13 @@ function playChime() {
     });
     setTimeout(() => ctx.close(), 1000);
   } catch {
-    // AudioContext not available — silent fail
+    // silent
   }
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
+
+type MobileTab = "picks" | "signals" | "sectors";
 
 export default function Dashboard() {
   const { data: sectorsData, isLoading: isLoadingSectors, isFetching: isFetchingSectors, refetch: refetchSectors } = useGetSectors({
@@ -258,26 +259,19 @@ export default function Dashboard() {
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const isRefreshing = manualRefreshing || isFetchingSectors || isFetchingMomentum;
 
-  // ── Signal toasts ──
   const [toasts, setToasts] = useState<ToastSignal[]>([]);
   const toastIdRef = useRef(0);
 
   function addToasts(newSignals: Array<{ symbol: string; sectorName: string; entry: number }>) {
-    setToasts((prev) => [
-      ...prev,
-      ...newSignals.map((s) => ({ ...s, id: ++toastIdRef.current })),
-    ]);
+    setToasts((prev) => [...prev, ...newSignals.map((s) => ({ ...s, id: ++toastIdRef.current }))]);
   }
-
   function removeToast(id: number) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
 
-  // ── Alert toggle (persisted) ──
   const [alertsOn, setAlertsOn] = useState<boolean>(() => {
     try { return localStorage.getItem("sentinel_alerts") !== "off"; } catch { return true; }
   });
-
   function toggleAlerts() {
     setAlertsOn((prev) => {
       const next = !prev;
@@ -286,36 +280,30 @@ export default function Dashboard() {
     });
   }
 
-  // ── New-signal detection ──
+  // Mobile tab state
+  const [mobileTab, setMobileTab] = useState<MobileTab>("picks");
+
   const prevSignalsRef = useRef<Set<string>>(new Set());
   const isFirstFetch = useRef(true);
 
   useEffect(() => {
     if (!momentumData?.sectors) return;
-
     const current = new Set<string>();
     const newSignals: Array<{ symbol: string; sectorName: string; entry: number }> = [];
-
     for (const sector of momentumData.sectors) {
       for (const stock of sector.stocks) {
         if (stock.entrySignal === true) {
           current.add(stock.symbol);
           if (!isFirstFetch.current && !prevSignalsRef.current.has(stock.symbol)) {
-            newSignals.push({
-              symbol: stock.symbol,
-              sectorName: sector.sectorName,
-              entry: stock.price ?? 0,
-            });
+            newSignals.push({ symbol: stock.symbol, sectorName: sector.sectorName, entry: stock.price ?? 0 });
           }
         }
       }
     }
-
     if (!isFirstFetch.current && newSignals.length > 0) {
       if (alertsOn) playChime();
       addToasts(newSignals);
     }
-
     isFirstFetch.current = false;
     prevSignalsRef.current = current;
   }, [momentumData, alertsOn]);
@@ -328,212 +316,406 @@ export default function Dashboard() {
   }
 
   const sessionLabel = momentumData?.indicatorDate
-    ? momentumData.isLiveSession
-      ? "Live Today"
-      : formatSessionDate(momentumData.indicatorDate)
+    ? momentumData.isLiveSession ? "Live" : formatSessionDate(momentumData.indicatorDate)
     : null;
 
   const updatedIST = momentumData?.fetchedAt ? toISTDisplay(momentumData.fetchedAt) : null;
   const topPicks = momentumData?.topPicks ?? [];
   const hasTopPicks = topPicks.length > 0;
 
+  // ── Shared action buttons ─────────────────────────────────────────────────
+  const AlertBtn = () => (
+    <button
+      onClick={toggleAlerts}
+      title={alertsOn ? "Alerts on" : "Alerts muted"}
+      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-xs
+        ${alertsOn
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+          : "border-border/40 bg-card text-muted-foreground/50"}`}
+    >
+      {alertsOn ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+      <span className="hidden sm:inline">{alertsOn ? "Alerts on" : "Muted"}</span>
+    </button>
+  );
+
+  const RefreshBtn = () => (
+    <button
+      onClick={handleRefresh}
+      disabled={isRefreshing}
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border/40 bg-card hover:bg-accent/30 disabled:opacity-50 transition-all text-xs text-muted-foreground"
+    >
+      <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
+      <span className="hidden sm:inline">{isRefreshing ? "Scanning…" : "Refresh"}</span>
+    </button>
+  );
+
+  // ── Mobile tab bar ────────────────────────────────────────────────────────
+  const tabs: { id: MobileTab; label: string; Icon: React.ElementType }[] = [
+    { id: "picks", label: "Picks", Icon: Zap },
+    { id: "signals", label: "Signals", Icon: TrendingUp },
+    { id: "sectors", label: "Sectors", Icon: BarChart2 },
+  ];
+
   return (
     <Layout>
       <SignalToastContainer toasts={toasts} onRemove={removeToast} />
-      <Ticker />
 
-      {/* ── Top bar: session info + IST clock ── */}
-      <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-4">
-        <ISTClock />
-        {sessionLabel && !isLoadingMomentum && (
-          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${
-            momentumData?.isLiveSession
-              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-              : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-          }`}>
-            {momentumData?.isLiveSession ? "●" : "◌"} <span className="hidden sm:inline">{sessionLabel}</span>
-          </span>
-        )}
-        {momentumData?.lastCandleTimeIST && !isLoadingMomentum && (
-          <span className="text-xs text-muted-foreground font-mono hidden md:block">
-            last candle {momentumData.lastCandleTimeIST} IST
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {updatedIST && !isLoadingMomentum && (
-            <span className="text-xs text-muted-foreground hidden lg:block">
-              refreshed {updatedIST}
+      {/* ══════════════ MOBILE LAYOUT (< md) ══════════════ */}
+      <div className="md:hidden flex flex-col min-h-[calc(100vh-3.5rem)]">
+        {/* Scrolling ticker */}
+        <Ticker />
+
+        {/* Compact mobile session bar */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-background/80 backdrop-blur-sm">
+          <ISTClock />
+          {sessionLabel && !isLoadingMomentum && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${
+              momentumData?.isLiveSession
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+            }`}>
+              {sessionLabel}
             </span>
           )}
-          <button
-            onClick={toggleAlerts}
-            title={alertsOn ? "Alerts on — click to mute" : "Alerts muted — click to enable"}
-            className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg border transition-all duration-150 text-xs
-              ${alertsOn
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                : "border-border/40 bg-card text-muted-foreground/50 hover:bg-accent/30 hover:text-muted-foreground"
-              }`}
-          >
-            {alertsOn ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{alertsOn ? "Alerts on" : "Muted"}</span>
-          </button>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg border border-border/40 bg-card hover:bg-accent/30 hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 text-xs text-muted-foreground hover:text-emerald-400"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
-            <span className="hidden sm:inline">{isRefreshing ? "Scanning…" : "Refresh"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Top 5 Intraday Picks ── */}
-      <div className="border-b border-border/30 bg-gradient-to-r from-emerald-950/20 via-background to-background">
-        <div className="px-4 pt-4 pb-1 flex items-center gap-2">
-          <Zap className="w-4 h-4 text-emerald-400" />
-          <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Top 5 Intraday Picks</h2>
+          <div className="ml-auto flex items-center gap-2">
+            <AlertBtn />
+            <RefreshBtn />
+          </div>
         </div>
 
-        {isLoadingMomentum ? (
-          <div className="flex gap-3 px-4 pb-4 overflow-x-auto">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="shrink-0 w-[78vw] max-w-[240px] sm:flex-1 h-[220px] rounded-xl" />
-            ))}
-          </div>
-        ) : hasTopPicks ? (
-          <div className="flex gap-3 px-4 pb-4 overflow-x-auto">
-            {topPicks.map((pick, i) => (
-              <TopPickCard key={pick.symbol} pick={pick} rank={i + 1} />
-            ))}
-          </div>
-        ) : (
-          <div className="px-4 pb-4">
-            <div className="rounded-xl border border-border/30 bg-card/30 p-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                {momentumData?.isLiveSession
-                  ? "No entry signals yet — VWAP+EMA20 both need to align above the close. EMA20 requires 20 candles (~11:00 AM IST)."
-                  : "Showing last session's signals. Top picks appear once VWAP and EMA20 align."}
-              </p>
+        {/* Tab content — scrollable */}
+        <div className="flex-1 overflow-y-auto pb-20">
+
+          {/* ── PICKS TAB ── */}
+          {mobileTab === "picks" && (
+            <div className="px-3 pt-4 pb-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Top 5 Intraday Picks</h2>
+              </div>
+              {isLoadingMomentum ? (
+                [1,2,3,4,5].map((i) => <Skeleton key={i} className="w-full h-48 rounded-xl" />)
+              ) : hasTopPicks ? (
+                topPicks.map((pick, i) => (
+                  <TopPickCard key={pick.symbol} pick={pick} rank={i + 1} fullWidth />
+                ))
+              ) : (
+                <div className="rounded-xl border border-border/30 bg-card/30 p-8 text-center">
+                  <Zap className="w-8 h-8 text-emerald-400/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {momentumData?.isLiveSession
+                      ? "No entry signals yet — VWAP+EMA20 both need to align. EMA20 requires ~20 candles (11:00 AM IST)."
+                      : "No picks this session. Top picks appear once VWAP and EMA20 align."}
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* ── Main content: sectors + sidebar ── */}
-      <div className="px-3 sm:px-4 py-4 sm:py-6">
-        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
-          {/* Sectors + stocks */}
-          <div className="flex-1 min-w-0 space-y-6">
-            {isLoadingMomentum ? (
-              <div className="space-y-6">
-                {[1, 2].map((i) => (
+          {/* ── SIGNALS TAB ── */}
+          {mobileTab === "signals" && (
+            <div className="px-3 pt-4 pb-4 space-y-6">
+              {isLoadingMomentum ? (
+                [1, 2].map((i) => (
                   <div key={i} className="space-y-3">
-                    <Skeleton className="h-7 w-40" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                      {[1, 2, 3, 4].map((j) => <Skeleton key={j} className="h-32 w-full rounded-xl" />)}
-                    </div>
+                    <Skeleton className="h-6 w-32" />
+                    <Skeleton className="h-28 w-full rounded-xl" />
+                    <Skeleton className="h-28 w-full rounded-xl" />
                   </div>
-                ))}
-              </div>
-            ) : momentumData?.sectors.length === 0 ? (
-              <div className="p-12 text-center border border-border/30 rounded-xl bg-card/30 text-muted-foreground">
-                No momentum stocks found in the current market window.
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {momentumData?.sectors.map((sector) => (
-                  <div key={sector.sectorKeyword}>
-                    {(() => {
-                      const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
-                      return (<>
-                    <div className="flex items-center gap-3 mb-3 pb-2 border-b border-border/30">
-                      <div className={`w-1 h-5 rounded-full ${sector.sectorChangePct >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
-                      <h3 className="font-bold text-foreground">{cleanSectorName(sector.sectorName)}</h3>
-                      <span className={`text-sm font-mono font-semibold ${getColorClass(sector.sectorChangePct)}`}>
-                        {formatPercent(sector.sectorChangePct)}
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-auto">
-                        {entryStocks.length} signal{entryStocks.length !== 1 ? "s" : ""}
-                      </span>
+                ))
+              ) : momentumData?.sectors.length === 0 ? (
+                <div className="p-10 text-center text-sm text-muted-foreground">
+                  No signals found for this session.
+                </div>
+              ) : (
+                momentumData?.sectors.map((sector) => {
+                  const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
+                  if (entryStocks.length === 0) return null;
+                  return (
+                    <div key={sector.sectorKeyword}>
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/30">
+                        <div className={`w-1 h-4 rounded-full ${sector.sectorChangePct >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                        <span className="font-bold text-sm text-foreground">{cleanSectorName(sector.sectorName)}</span>
+                        <span className={`text-xs font-mono font-semibold ${getColorClass(sector.sectorChangePct)}`}>
+                          {formatPercent(sector.sectorChangePct)}
+                        </span>
+                        <span className="ml-auto text-xs text-muted-foreground">{entryStocks.length} signal{entryStocks.length !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {entryStocks.map((stock) => (
+                          <StockCard key={stock.symbol} stock={stock} />
+                        ))}
+                      </div>
                     </div>
-                    {(() => {
-                      return entryStocks.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                          {entryStocks.map((stock) => (
-                            <StockCard key={stock.symbol} stock={stock} />
-                          ))}
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* ── SECTORS TAB ── */}
+          {mobileTab === "sectors" && (
+            <div className="px-3 pt-4 pb-4 space-y-4">
+              {/* Sector performance */}
+              <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/30 bg-muted/20 flex items-center gap-2">
+                  <BarChart2 className="w-3.5 h-3.5 text-muted-foreground" />
+                  <h3 className="font-semibold text-sm">Sector Performance</h3>
+                </div>
+                <div className="divide-y divide-border/20">
+                  {isLoadingSectors ? (
+                    <div className="space-y-2 p-3">
+                      {[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-9 w-full" />)}
+                    </div>
+                  ) : (
+                    sectorsData
+                      ?.filter((s, i, arr) => arr.findIndex((x) => x.keyword === s.keyword) === i)
+                      .map((sector) => (
+                        <div key={sector.keyword} className="flex items-center justify-between px-4 py-3">
+                          <span className="text-sm text-foreground/80">{cleanSectorName(sector.name)}</span>
+                          <span className={`text-sm font-mono font-semibold ${getColorClass(sector.changePct)}`}>
+                            {formatPercent(sector.changePct)}
+                          </span>
                         </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">
-                          No entry signals in this sector yet.
-                        </p>
-                      );
-                    })()}
-                    </>); })()}
-                  </div>
-                ))}
+                      ))
+                  )}
+                </div>
               </div>
+
+              {/* Smart Exit Rules */}
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
+                </div>
+                <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                  <p>• Exit if any 5-min candle closes <span className="text-foreground/70 font-medium">below VWAP</span></p>
+                  <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
+                  <p>• Book full at T2 or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
+                  <p>• SL is set <span className="text-foreground/70 font-medium">0.4% below VWAP</span> support</p>
+                </div>
+              </div>
+
+              {/* Signal Key */}
+              <div className="rounded-xl border border-border/30 bg-card p-4 space-y-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
+                <div className="space-y-2 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono text-xs">VWAP ↑</span>
+                    <span>Close above VWAP</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono text-xs">EMA ↑</span>
+                    <span>Close above EMA20</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2 py-0.5">ENTRY</span>
+                    <span>Both aligned — trade setup</span>
+                  </div>
+                </div>
+              </div>
+
+              {updatedIST && !isLoadingMomentum && (
+                <p className="text-center text-xs text-muted-foreground pb-2">
+                  Last refreshed {updatedIST}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Fixed bottom tab bar */}
+        <div className="fixed bottom-0 inset-x-0 z-40 h-16 bg-card/95 backdrop-blur-sm border-t border-border flex safe-area-inset-bottom">
+          {tabs.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setMobileTab(id)}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-150 ${
+                mobileTab === id
+                  ? "text-emerald-400"
+                  : "text-muted-foreground/50 hover:text-muted-foreground"
+              }`}
+            >
+              <Icon className={`w-5 h-5 transition-all ${mobileTab === id ? "drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" : ""}`} />
+              <span className="text-[10px] font-semibold tracking-wide">{label}</span>
+              {mobileTab === id && (
+                <div className="absolute bottom-0 w-8 h-0.5 bg-emerald-400 rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ══════════════ DESKTOP LAYOUT (≥ md) ══════════════ */}
+      <div className="hidden md:block">
+        <Ticker />
+
+        {/* Session bar */}
+        <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm px-4 py-2 flex items-center gap-4">
+          <ISTClock />
+          {sessionLabel && !isLoadingMomentum && (
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
+              momentumData?.isLiveSession
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+            }`}>
+              {momentumData?.isLiveSession ? "● " : "◌ "}{sessionLabel}
+            </span>
+          )}
+          {momentumData?.lastCandleTimeIST && !isLoadingMomentum && (
+            <span className="text-xs text-muted-foreground font-mono hidden lg:block">
+              last candle {momentumData.lastCandleTimeIST} IST
+            </span>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            {updatedIST && !isLoadingMomentum && (
+              <span className="text-xs text-muted-foreground hidden xl:block">refreshed {updatedIST}</span>
             )}
+            <AlertBtn />
+            <RefreshBtn />
           </div>
+        </div>
 
-          {/* Sidebar */}
-          <div className="w-full lg:w-72 shrink-0 space-y-4">
-            {/* Sector Performance */}
-            <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border/30 bg-muted/20 flex items-center gap-2">
-                <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
-                <h3 className="font-semibold text-sm">Sector Performance</h3>
+        {/* Top 5 Intraday Picks */}
+        <div className="border-b border-border/30 bg-gradient-to-r from-emerald-950/20 via-background to-background">
+          <div className="px-4 pt-4 pb-1 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-emerald-400" />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Top 5 Intraday Picks</h2>
+          </div>
+          {isLoadingMomentum ? (
+            <div className="flex gap-3 px-4 pb-4">
+              {[1,2,3,4,5].map((i) => (
+                <Skeleton key={i} className="flex-1 min-w-[180px] h-[220px] rounded-xl" />
+              ))}
+            </div>
+          ) : hasTopPicks ? (
+            <div className="flex gap-3 px-4 pb-4">
+              {topPicks.map((pick, i) => (
+                <TopPickCard key={pick.symbol} pick={pick} rank={i + 1} />
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 pb-4">
+              <div className="rounded-xl border border-border/30 bg-card/30 p-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {momentumData?.isLiveSession
+                    ? "No entry signals yet — VWAP+EMA20 both need to align above the close. EMA20 requires 20 candles (~11:00 AM IST)."
+                    : "Showing last session's signals. Top picks appear once VWAP and EMA20 align."}
+                </p>
               </div>
-              <div className="divide-y divide-border/20">
-                {isLoadingSectors ? (
-                  <div className="space-y-2 p-3">
-                    {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
-                  </div>
-                ) : (
-                  sectorsData
-                    ?.filter((s, i, arr) => arr.findIndex((x) => x.keyword === s.keyword) === i)
-                    .map((sector) => (
-                    <div key={sector.keyword} className="flex items-center justify-between px-4 py-2.5 hover:bg-accent/20 transition-colors">
-                      <span className="text-sm text-foreground/80">{cleanSectorName(sector.name)}</span>
-                      <span className={`text-sm font-mono font-semibold ${getColorClass(sector.changePct)}`}>
-                        {formatPercent(sector.changePct)}
-                      </span>
+            </div>
+          )}
+        </div>
+
+        {/* Main content: sectors + sidebar */}
+        <div className="px-4 py-6">
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Sectors + stocks */}
+            <div className="flex-1 min-w-0 space-y-6">
+              {isLoadingMomentum ? (
+                <div className="space-y-6">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="space-y-3">
+                      <Skeleton className="h-7 w-40" />
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {[1, 2, 3, 4].map((j) => <Skeleton key={j} className="h-32 w-full rounded-xl" />)}
+                      </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : momentumData?.sectors.length === 0 ? (
+                <div className="p-12 text-center border border-border/30 rounded-xl bg-card/30 text-muted-foreground">
+                  No momentum stocks found in the current market window.
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {momentumData?.sectors.map((sector) => {
+                    const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
+                    return (
+                      <div key={sector.sectorKeyword}>
+                        <div className="flex items-center gap-3 mb-3 pb-2 border-b border-border/30">
+                          <div className={`w-1 h-5 rounded-full ${sector.sectorChangePct >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+                          <h3 className="font-bold text-foreground">{cleanSectorName(sector.sectorName)}</h3>
+                          <span className={`text-sm font-mono font-semibold ${getColorClass(sector.sectorChangePct)}`}>
+                            {formatPercent(sector.sectorChangePct)}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {entryStocks.length} signal{entryStocks.length !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        {entryStocks.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                            {entryStocks.map((stock) => (
+                              <StockCard key={stock.symbol} stock={stock} />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">
+                            No entry signals in this sector yet.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Smart Exit Legend — hidden on mobile */}
-            <div className="hidden sm:block rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
+            {/* Sidebar */}
+            <div className="w-full lg:w-72 shrink-0 space-y-4">
+              <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/30 bg-muted/20 flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
+                  <h3 className="font-semibold text-sm">Sector Performance</h3>
+                </div>
+                <div className="divide-y divide-border/20">
+                  {isLoadingSectors ? (
+                    <div className="space-y-2 p-3">
+                      {[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
+                    </div>
+                  ) : (
+                    sectorsData
+                      ?.filter((s, i, arr) => arr.findIndex((x) => x.keyword === s.keyword) === i)
+                      .map((sector) => (
+                        <div key={sector.keyword} className="flex items-center justify-between px-4 py-2.5 hover:bg-accent/20 transition-colors">
+                          <span className="text-sm text-foreground/80">{cleanSectorName(sector.name)}</span>
+                          <span className={`text-sm font-mono font-semibold ${getColorClass(sector.changePct)}`}>
+                            {formatPercent(sector.changePct)}
+                          </span>
+                        </div>
+                      ))
+                  )}
+                </div>
               </div>
-              <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                <p>• Exit if any 5-min candle closes <span className="text-foreground/70 font-medium">below VWAP</span></p>
-                <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
-                <p>• Book full at T2 or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
-                <p>• SL is set <span className="text-foreground/70 font-medium">0.4% below VWAP</span> support</p>
-              </div>
-            </div>
 
-            {/* Signal legend — hidden on mobile */}
-            <div className="hidden sm:block rounded-xl border border-border/30 bg-card p-4 space-y-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
-              <div className="space-y-1.5 text-[11px] text-muted-foreground">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono">VWAP ↑</span>
-                  <span>Close above VWAP</span>
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono">EMA ↑</span>
-                  <span>Close above EMA20</span>
+                <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                  <p>• Exit if any 5-min candle closes <span className="text-foreground/70 font-medium">below VWAP</span></p>
+                  <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
+                  <p>• Book full at T2 or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
+                  <p>• SL is set <span className="text-foreground/70 font-medium">0.4% below VWAP</span> support</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2">ENTRY</span>
-                  <span>Both aligned — trade setup</span>
+              </div>
+
+              <div className="rounded-xl border border-border/30 bg-card p-4 space-y-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
+                <div className="space-y-1.5 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono">VWAP ↑</span>
+                    <span>Close above VWAP</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono">EMA ↑</span>
+                    <span>Close above EMA20</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2">ENTRY</span>
+                    <span>Both aligned — trade setup</span>
+                  </div>
                 </div>
               </div>
             </div>
