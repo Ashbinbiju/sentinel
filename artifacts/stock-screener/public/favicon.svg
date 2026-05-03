@@ -1,3 +1,25 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 32" fill="none">
+  <rect width="36" height="32" rx="6" fill="#0a0f0a"/>
+
+  <!-- Candle 1 — bear (red) -->
+  <line x1="6" y1="14" x2="6" y2="16" stroke="#f87171" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="3.5" y="16" width="5" height="8" rx="0.8" fill="#f87171" fill-opacity="0.9"/>
+  <line x1="6" y1="24" x2="6" y2="27" stroke="#f87171" stroke-width="1.2" stroke-linecap="round"/>
+
+  <!-- Candle 2 — bull (green) -->
+  <line x1="17" y1="8" x2="17" y2="11" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="14.5" y="11" width="5" height="12" rx="0.8" fill="#34d399" fill-opacity="0.9"/>
+  <line x1="17" y1="23" x2="17" y2="26" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/>
+
+  <!-- Candle 3 — bull (green), tallest -->
+  <line x1="28" y1="3" x2="28" y2="6" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/>
+  <rect x="25.5" y="6" width="5" height="14" rx="0.8" fill="#34d399" fill-opacity="0.95"/>
+  <line x1="28" y1="20" x2="28" y2="24" stroke="#34d399" stroke-width="1.2" stroke-linecap="round"/>
+
+  <!-- Trend line -->
+  <polyline points="6,14 17,8 28,3" stroke="#34d399" stroke-width="1" stroke-opacity="0.35" stroke-dasharray="2 2" stroke-linecap="round"/>
+
+  <!-- Signal crosshair -->
+  <circle cx="28" cy="3" r="2.5" stroke="#34d399" stroke-width="1.1" stroke-opacity="0.9" fill="none"/>
+  <circle cx="28" cy="3" r="0.9" fill="#34d399" fill-opacity="0.95"/>
 </svg>
