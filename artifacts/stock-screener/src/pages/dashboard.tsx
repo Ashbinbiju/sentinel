@@ -1,16 +1,11 @@
-import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { Ticker } from "@/components/ticker";
 import { StockCard } from "@/components/stock-card";
-import { StockChartModal } from "@/components/stock-chart-modal";
 import { useGetSectors, getGetSectorsQueryKey, useGetMomentumPicks, getGetMomentumPicksQueryKey } from "@workspace/api-client-react";
-import type { StockItem } from "@workspace/api-client-react";
 import { formatPercent, getColorClass } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const [selectedStock, setSelectedStock] = useState<StockItem | null>(null);
-
   const { data: sectorsData, isLoading: isLoadingSectors } = useGetSectors({
     query: { refetchInterval: 30000, queryKey: getGetSectorsQueryKey() }
   });
@@ -59,11 +54,7 @@ export default function Dashboard() {
                     {sector.stocks.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                         {sector.stocks.map(stock => (
-                          <StockCard
-                            key={stock.symbol}
-                            stock={stock}
-                            onClick={setSelectedStock}
-                          />
+                          <StockCard key={stock.symbol} stock={stock} />
                         ))}
                       </div>
                     ) : (
@@ -103,11 +94,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      <StockChartModal
-        stock={selectedStock}
-        onClose={() => setSelectedStock(null)}
-      />
     </Layout>
   );
 }
