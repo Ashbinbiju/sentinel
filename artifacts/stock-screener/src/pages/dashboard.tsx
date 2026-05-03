@@ -158,6 +158,10 @@ function formatDuration(totalMins: number): string {
   return `${m}m`;
 }
 
+const CLOCK_PRE_MIN  = 9 * 60;        // 09:00 — pre-market starts
+const CLOCK_OPEN_MIN = 9 * 60 + 15;   // 09:15 — market opens
+const CLOCK_CLOSE_MIN = 15 * 60 + 30; // 15:30 — market closes
+
 function ISTClock() {
   const [t, setT] = useState(getNowIST);
   useEffect(() => {
@@ -165,14 +169,16 @@ function ISTClock() {
     return () => clearInterval(id);
   }, []);
 
-  const OPEN_MIN  = 9 * 60 + 15;   // 09:15
-  const CLOSE_MIN = 15 * 60 + 30;  // 15:30
   const mins = t.h * 60 + t.m;
-  const open = mins >= OPEN_MIN && mins < CLOSE_MIN;
+  const isOpen    = mins >= CLOCK_OPEN_MIN  && mins < CLOCK_CLOSE_MIN;
+  const isPreMkt  = mins >= CLOCK_PRE_MIN   && mins < CLOCK_OPEN_MIN;
 
+  let dot: string;
   let sessionTag: React.ReactNode;
-  if (open) {
-    const minsLeft = CLOSE_MIN - mins - 1;
+
+  if (isOpen) {
+    dot = "bg-emerald-400 animate-pulse";
+    const minsLeft = CLOCK_CLOSE_MIN - mins - 1;
     sessionTag = (
       <span className="flex items-center gap-1.5">
         <span className="text-xs text-emerald-400 font-medium">Open</span>
@@ -181,18 +187,28 @@ function ISTClock() {
         </span>
       </span>
     );
+  } else if (isPreMkt) {
+    dot = "bg-amber-400 animate-pulse";
+    // seconds-precision countdown
+    const secsLeft = (CLOCK_OPEN_MIN - mins - 1) * 60 + (60 - t.s);
+    const mm = Math.floor(secsLeft / 60);
+    const ss = secsLeft % 60;
+    sessionTag = (
+      <span className="flex items-center gap-1.5">
+        <span className="text-xs text-amber-400 font-semibold">Pre-market</span>
+        <span className="hidden sm:inline text-[10px] text-amber-400/70 font-mono tabular-nums">
+          opens in {mm}:{String(ss).padStart(2, "0")}
+        </span>
+      </span>
+    );
   } else {
-    // Figure out mins until next open
-    let minsUntilOpen: number;
+    dot = "bg-muted-foreground/25";
     let opensLabel: string;
-    if (mins < OPEN_MIN) {
-      minsUntilOpen = OPEN_MIN - mins;
-      opensLabel = `opens in ${formatDuration(minsUntilOpen)}`;
+    if (mins < CLOCK_PRE_MIN) {
+      opensLabel = `opens in ${formatDuration(CLOCK_OPEN_MIN - mins)}`;
     } else {
-      // After 15:30 — next open is tomorrow at 09:15
-      const minsLeftToday = 24 * 60 - mins;
-      minsUntilOpen = minsLeftToday + OPEN_MIN;
-      opensLabel = minsUntilOpen > 14 * 60 ? "opens tomorrow" : `opens in ${formatDuration(minsUntilOpen)}`;
+      const minsUntil = (24 * 60 - mins) + CLOCK_OPEN_MIN;
+      opensLabel = minsUntil > 14 * 60 ? "opens tomorrow" : `opens in ${formatDuration(minsUntil)}`;
     }
     sessionTag = (
       <span className="flex items-center gap-1.5">
@@ -206,11 +222,62 @@ function ISTClock() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${open ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground/25"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
       <span className="font-mono text-sm font-medium tabular-nums text-foreground/80">
         {String(t.h).padStart(2, "0")}:{String(t.m).padStart(2, "0")} IST
       </span>
       {sessionTag}
+    </div>
+  );
+}
+
+// ── Pre-market banner (09:00–09:15) ──────────────────────────────────────────
+
+function PreMarketBanner() {
+  const [t, setT] = useState(getNowIST);
+  useEffect(() => {
+    const id = setInterval(() => setT(getNowIST()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const mins = t.h * 60 + t.m;
+  if (mins < CLOCK_PRE_MIN || mins >= CLOCK_OPEN_MIN) return null;
+
+  const PRE_TOTAL_SECS = 15 * 60; // 900s window
+  const elapsedSecs = (mins - CLOCK_PRE_MIN) * 60 + t.s;
+  const remaining = PRE_TOTAL_SECS - elapsedSecs;
+  const mm = Math.floor(remaining / 60);
+  const ss = remaining % 60;
+  const pct = Math.min(100, (elapsedSecs / PRE_TOTAL_SECS) * 100);
+
+  return (
+    <div className="border-b border-amber-500/25 bg-amber-500/[0.07]">
+      {/* Draining progress bar */}
+      <div className="h-0.5 w-full bg-amber-500/15">
+        <div
+          className="h-full bg-amber-400/60 rounded-r-full transition-all duration-1000 ease-linear"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="px-4 py-2 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+          <span className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">Pre-Market</span>
+        </div>
+        <span className="text-[11px] text-amber-300/80 font-mono tabular-nums font-semibold shrink-0">
+          opens in {mm}:{String(ss).padStart(2, "0")}
+        </span>
+        <span className="hidden sm:inline text-border/50 shrink-0">·</span>
+        <span className="hidden sm:inline text-[10px] text-amber-200/50 shrink-0">
+          Review signals &amp; have orders ready
+        </span>
+        <div className="ml-auto shrink-0">
+          <div className="flex items-center gap-1 text-[10px] text-amber-400/60 font-mono">
+            <span className="text-amber-400/80 font-bold">{Math.round(pct)}%</span>
+            <span>pre-open</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -579,6 +646,9 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Pre-market banner */}
+        <PreMarketBanner />
+
         {/* Tab content — scrollable */}
         <div className="flex-1 overflow-y-auto pb-20">
 
@@ -768,6 +838,8 @@ export default function Dashboard() {
               <RefreshBtn />
             </div>
           </div>
+          {/* Pre-market banner — desktop */}
+          <PreMarketBanner />
           {/* Stale data strip — desktop */}
           {sessionDateFull && !isLoadingMomentum && (
             <div className="px-4 pb-2.5 flex items-center gap-2 flex-wrap">
