@@ -53,28 +53,6 @@ export function Layout({ children }: { children: ReactNode }) {
                 SENTINEL
               </span>
             </Link>
-            <nav className="flex space-x-1">
-              <Link
-                href="/"
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  location === "/"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/history"
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  location === "/history"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                }`}
-              >
-                History
-              </Link>
-            </nav>
           </div>
         </div>
       </header>
