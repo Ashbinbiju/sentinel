@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SectorWithStocks } from "./sectorWithStocks";
+import type { TopPick } from "./topPick";
 
 export interface MomentumPicksResponse {
   /** ISO timestamp (UTC) of when data was fetched */
@@ -22,5 +23,7 @@ export interface MomentumPicksResponse {
    * @nullable
    */
   lastCandleTimeIST?: string | null;
+  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score) */
+  topPicks: TopPick[];
   sectors: SectorWithStocks[];
 }

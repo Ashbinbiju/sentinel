@@ -33,6 +33,55 @@ export interface StockItem {
   confirmedClose?: number | null;
   /** @nullable */
   entrySignal?: boolean | null;
+  /**
+   * Stop loss price (0.4% below VWAP support level)
+   * @nullable
+   */
+  sl?: number | null;
+  /**
+   * First target price (1:1.5 Risk:Reward)
+   * @nullable
+   */
+  target1?: number | null;
+  /**
+   * Second target price (1:2.5 Risk:Reward)
+   * @nullable
+   */
+  target2?: number | null;
+  /**
+   * Risk percentage from entry to SL
+   * @nullable
+   */
+  riskPct?: number | null;
+  /**
+   * Plain-English smart exit rule for this trade
+   * @nullable
+   */
+  smartExit?: string | null;
+}
+
+/**
+ * One of the top 5 intraday picks across all sectors
+ */
+export interface TopPick {
+  symbol: string;
+  sectorName: string;
+  ltp: number;
+  changePct: number;
+  /** Confirmed close (entry price) */
+  entry: number;
+  /** Stop loss price */
+  sl: number;
+  /** First target (1:1.5 RR) */
+  target1: number;
+  /** Second target (1:2.5 RR) */
+  target2: number;
+  /** Risk % from entry to SL */
+  riskPct: number;
+  /** Smart exit rule */
+  smartExit: string;
+  vwap: number;
+  ema20: number;
 }
 
 export interface SectorWithStocks {
@@ -57,6 +106,8 @@ export interface MomentumPicksResponse {
    * @nullable
    */
   lastCandleTimeIST?: string | null;
+  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score) */
+  topPicks: TopPick[];
   sectors: SectorWithStocks[];
 }
 

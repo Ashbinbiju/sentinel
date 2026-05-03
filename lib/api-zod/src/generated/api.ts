@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -16,7 +15,6 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Fetches real-time performance of major market indices (NIFTY 50, BANKNIFTY etc.)
  * @summary Get broad market indices
  */
 export const GetMarketIndicesResponseItem = zod.object({
@@ -27,7 +25,6 @@ export const GetMarketIndicesResponseItem = zod.object({
 export const GetMarketIndicesResponse = zod.array(GetMarketIndicesResponseItem);
 
 /**
- * Retrieves daily percentage change for all major NSE sectors
  * @summary Get sector performance
  */
 export const GetSectorsResponseItem = zod.object({
@@ -38,8 +35,8 @@ export const GetSectorsResponseItem = zod.object({
 export const GetSectorsResponse = zod.array(GetSectorsResponseItem);
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change, enriched with VWAP and EMA20 signals from 5-minute candles
- * @summary Get momentum stock picks
+ * Returns filtered stocks from top 4 sectors with 0.3%–3.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
+ * @summary Get momentum stock picks with SL/Target
  */
 export const GetMomentumPicksResponse = zod.object({
   fetchedAt: zod
@@ -58,6 +55,28 @@ export const GetMomentumPicksResponse = zod.object({
     .string()
     .nullish()
     .describe("IST time (HH:MM) of the last confirmed candle used for signals"),
+  topPicks: zod
+    .array(
+      zod
+        .object({
+          symbol: zod.string(),
+          sectorName: zod.string(),
+          ltp: zod.number(),
+          changePct: zod.number(),
+          entry: zod.number().describe("Confirmed close (entry price)"),
+          sl: zod.number().describe("Stop loss price"),
+          target1: zod.number().describe("First target (1:1.5 RR)"),
+          target2: zod.number().describe("Second target (1:2.5 RR)"),
+          riskPct: zod.number().describe("Risk % from entry to SL"),
+          smartExit: zod.string().describe("Smart exit rule"),
+          vwap: zod.number(),
+          ema20: zod.number(),
+        })
+        .describe("One of the top 5 intraday picks across all sectors"),
+    )
+    .describe(
+      "Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score)",
+    ),
   sectors: zod.array(
     zod.object({
       sectorName: zod.string(),
@@ -72,6 +91,26 @@ export const GetMomentumPicksResponse = zod.object({
           ema20: zod.number().nullish(),
           confirmedClose: zod.number().nullish(),
           entrySignal: zod.boolean().nullish(),
+          sl: zod
+            .number()
+            .nullish()
+            .describe("Stop loss price (0.4% below VWAP support level)"),
+          target1: zod
+            .number()
+            .nullish()
+            .describe("First target price (1:1.5 Risk:Reward)"),
+          target2: zod
+            .number()
+            .nullish()
+            .describe("Second target price (1:2.5 Risk:Reward)"),
+          riskPct: zod
+            .number()
+            .nullish()
+            .describe("Risk percentage from entry to SL"),
+          smartExit: zod
+            .string()
+            .nullish()
+            .describe("Plain-English smart exit rule for this trade"),
         }),
       ),
     }),

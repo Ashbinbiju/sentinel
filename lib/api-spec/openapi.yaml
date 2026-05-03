@@ -18,7 +18,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -31,7 +30,6 @@ paths:
       operationId: getMarketIndices
       tags: [stocks]
       summary: Get broad market indices
-      description: Fetches real-time performance of major market indices (NIFTY 50, BANKNIFTY etc.)
       responses:
         "200":
           description: Market indices data
@@ -52,7 +50,6 @@ paths:
       operationId: getSectors
       tags: [stocks]
       summary: Get sector performance
-      description: Retrieves daily percentage change for all major NSE sectors
       responses:
         "200":
           description: Sector performance data
@@ -72,8 +69,8 @@ paths:
     get:
       operationId: getMomentumPicks
       tags: [stocks]
-      summary: Get momentum stock picks
-      description: Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change, enriched with VWAP and EMA20 signals from 5-minute candles
+      summary: Get momentum stock picks with SL/Target
+      description: Returns filtered stocks from top 4 sectors with 0.3%–3.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
       responses:
         "200":
           description: Momentum stock picks grouped by sector
@@ -139,10 +136,72 @@ components:
           type: ["number", "null"]
         entrySignal:
           type: ["boolean", "null"]
+        sl:
+          type: ["number", "null"]
+          description: Stop loss price (0.4% below VWAP support level)
+        target1:
+          type: ["number", "null"]
+          description: First target price (1:1.5 Risk:Reward)
+        target2:
+          type: ["number", "null"]
+          description: Second target price (1:2.5 Risk:Reward)
+        riskPct:
+          type: ["number", "null"]
+          description: Risk percentage from entry to SL
+        smartExit:
+          type: ["string", "null"]
+          description: Plain-English smart exit rule for this trade
       required:
         - symbol
         - ltp
         - changePct
+    TopPick:
+      type: object
+      description: One of the top 5 intraday picks across all sectors
+      properties:
+        symbol:
+          type: string
+        sectorName:
+          type: string
+        ltp:
+          type: number
+        changePct:
+          type: number
+        entry:
+          type: number
+          description: Confirmed close (entry price)
+        sl:
+          type: number
+          description: Stop loss price
+        target1:
+          type: number
+          description: First target (1:1.5 RR)
+        target2:
+          type: number
+          description: Second target (1:2.5 RR)
+        riskPct:
+          type: number
+          description: Risk % from entry to SL
+        smartExit:
+          type: string
+          description: Smart exit rule
+        vwap:
+          type: number
+        ema20:
+          type: number
+      required:
+        - symbol
+        - sectorName
+        - ltp
+        - changePct
+        - entry
+        - sl
+        - target1
+        - target2
+        - riskPct
+        - smartExit
+        - vwap
+        - ema20
     SectorWithStocks:
       type: object
       properties:
@@ -176,6 +235,11 @@ components:
         lastCandleTimeIST:
           type: ["string", "null"]
           description: IST time (HH:MM) of the last confirmed candle used for signals
+        topPicks:
+          type: array
+          description: Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score)
+          items:
+            $ref: "#/components/schemas/TopPick"
         sectors:
           type: array
           items:
@@ -183,6 +247,7 @@ components:
       required:
         - fetchedAt
         - isLiveSession
+        - topPicks
         - sectors
     ErrorResponse:
       type: object

@@ -28,8 +28,7 @@ interface Candle {
   v: number;
 }
 
-// IST = UTC + 5:30
-const IST_OFFSET_SECS = 19800;
+const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
 
 function getISTDateStr(epochSecs: number): string {
@@ -44,8 +43,11 @@ function getTodayISTDateStr(): string {
   return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+function r2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 async function fetchCandles(symbol: string): Promise<Candle[]> {
-  // 7-day window — catches the most recent session even through long weekends & holidays
   const to = Math.floor(Date.now() / 1000);
   const from = to - 7 * 24 * 3600;
   const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=78&currencyCode=INR`;
@@ -74,7 +76,6 @@ async function fetchCandles(symbol: string): Promise<Candle[]> {
     v: data.v?.[i] ?? 0,
   }));
 
-  // Find the most recent IST date that has non-zero volume (= actual trading session)
   let lastTradingDate: string | null = null;
   for (let i = all.length - 1; i >= 0; i--) {
     if (all[i].v > 0) {
@@ -84,7 +85,6 @@ async function fetchCandles(symbol: string): Promise<Candle[]> {
   }
   if (!lastTradingDate) return [];
 
-  // Return only candles from that IST trading session with non-zero volume
   return all.filter((c) => c.v > 0 && getISTDateStr(c.t) === lastTradingDate);
 }
 
@@ -110,11 +110,54 @@ function calculateEMA(closes: number[], period = 20): number | null {
   return ema;
 }
 
+/**
+ * Compute SL, T1, T2, and smart exit for an entry signal.
+ *
+ * SL  = 0.4% below VWAP (the key support level), but at least 0.5% below entry.
+ * T1  = entry + 1.5 × risk   (1:1.5 R:R — take partial profit)
+ * T2  = entry + 2.5 × risk   (1:2.5 R:R — extended target, let runner ride)
+ *
+ * SmartExit: exit immediately if any 5-min candle closes below VWAP.
+ * Once T1 is hit, move SL to breakeven (entry price).
+ */
+function computeTradeParams(
+  entry: number,
+  vwap: number,
+): {
+  sl: number;
+  target1: number;
+  target2: number;
+  riskPct: number;
+  smartExit: string;
+} {
+  // SL = 0.4% below VWAP, but floor at 0.5% below entry
+  const slFromVwap = vwap * 0.996;
+  const slFloor = entry * 0.995;
+  const sl = r2(Math.min(slFromVwap, slFloor));
+
+  const risk = entry - sl;
+  const target1 = r2(entry + 1.5 * risk);
+  const target2 = r2(entry + 2.5 * risk);
+  const riskPct = r2((risk / entry) * 100);
+
+  const smartExit =
+    `Exit if 5-min candle closes below VWAP (₹${r2(vwap)}). ` +
+    `At T1 (₹${target1}), move SL to entry (₹${r2(entry)}) and trail. ` +
+    `Book full profit at T2 (₹${target2}) or exit by 15:15 IST.`;
+
+  return { sl, target1, target2, riskPct, smartExit };
+}
+
 interface IndicatorResult {
   vwap: number | null;
   ema20: number | null;
   confirmedClose: number | null;
   entrySignal: boolean | null;
+  sl: number | null;
+  target1: number | null;
+  target2: number | null;
+  riskPct: number | null;
+  smartExit: string | null;
   indicatorDate: string | null;
   lastCandleTimeIST: string | null;
 }
@@ -125,17 +168,19 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     ema20: null,
     confirmedClose: null,
     entrySignal: null,
+    sl: null,
+    target1: null,
+    target2: null,
+    riskPct: null,
+    smartExit: null,
     indicatorDate: null,
     lastCandleTimeIST: null,
   };
 
   try {
     const candles = await fetchCandles(symbol);
-
-    // Need at least 2 candles: one confirmed + one current (in-progress)
     if (candles.length < 2) return empty;
 
-    // All candles except the last (which may be in-progress)
     const confirmed = candles.slice(0, -1);
     const last = confirmed[confirmed.length - 1];
     const confirmedClose = last.c;
@@ -149,11 +194,34 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         ? confirmedClose > vwap && confirmedClose > ema20
         : null;
 
+    const vwapR = vwap !== null ? r2(vwap) : null;
+    const ema20R = ema20 !== null ? r2(ema20) : null;
+
+    let sl: number | null = null;
+    let target1: number | null = null;
+    let target2: number | null = null;
+    let riskPct: number | null = null;
+    let smartExit: string | null = null;
+
+    if (entrySignal && vwap !== null) {
+      const tradeParams = computeTradeParams(confirmedClose, vwap);
+      sl = tradeParams.sl;
+      target1 = tradeParams.target1;
+      target2 = tradeParams.target2;
+      riskPct = tradeParams.riskPct;
+      smartExit = tradeParams.smartExit;
+    }
+
     return {
-      vwap: vwap !== null ? Math.round(vwap * 100) / 100 : null,
-      ema20: ema20 !== null ? Math.round(ema20 * 100) / 100 : null,
+      vwap: vwapR,
+      ema20: ema20R,
       confirmedClose,
       entrySignal,
+      sl,
+      target1,
+      target2,
+      riskPct,
+      smartExit,
       indicatorDate: getISTDateStr(last.t),
       lastCandleTimeIST: getISTTimeStr(last.t),
     };
@@ -177,7 +245,10 @@ async function runWithConcurrency<T>(
     }
   }
 
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker(),
+  );
   await Promise.all(workers);
   return results;
 }
@@ -199,12 +270,13 @@ router.get("/market-indices", async (req, res) => {
       ltp: number;
       changePct: number;
     }>;
-    const indices = data.map((item) => ({
-      symbol: item.symbol,
-      ltp: item.ltp,
-      changePct: item.changePct,
-    }));
-    return res.json(indices);
+    return res.json(
+      data.map((item) => ({
+        symbol: item.symbol,
+        ltp: item.ltp,
+        changePct: item.changePct,
+      })),
+    );
   } catch (err) {
     req.log.error({ err }, "Failed to fetch market indices");
     return res.status(500).json({ error: "Failed to fetch market indices" });
@@ -228,13 +300,13 @@ router.get("/sectors", async (req, res) => {
       datasets: number[];
     };
 
-    const sectors = data.labels.map((name, i) => ({
-      name,
-      keyword: data.keywords[i],
-      changePct: data.datasets[i] ?? 0,
-    }));
-
-    return res.json(sectors);
+    return res.json(
+      data.labels.map((name, i) => ({
+        name,
+        keyword: data.keywords[i],
+        changePct: data.datasets[i] ?? 0,
+      })),
+    );
   } catch (err) {
     req.log.error({ err }, "Failed to fetch sectors");
     return res.status(500).json({ error: "Failed to fetch sector data" });
@@ -248,9 +320,9 @@ router.get("/momentum-picks", async (req, res) => {
       { headers: HEADERS },
     );
     if (!sectorResponse.ok) {
-      return res
-        .status(502)
-        .json({ error: `Upstream sector API responded with ${sectorResponse.status}` });
+      return res.status(502).json({
+        error: `Upstream sector API responded with ${sectorResponse.status}`,
+      });
     }
     const sectorData = (await sectorResponse.json()) as {
       labels: string[];
@@ -268,16 +340,38 @@ router.get("/momentum-picks", async (req, res) => {
       .sort((a, b) => b.changePct - a.changePct)
       .slice(0, 4);
 
-    // Collect indicator metadata from first successful enrichment
     let indicatorDate: string | null = null;
     let lastCandleTimeIST: string | null = null;
+
+    // Candidates for top 5 picks (entry signal stocks across all sectors)
+    const topPickCandidates: Array<{
+      symbol: string;
+      sectorName: string;
+      ltp: number;
+      changePct: number;
+      entry: number;
+      sl: number;
+      target1: number;
+      target2: number;
+      riskPct: number;
+      smartExit: string;
+      vwap: number;
+      ema20: number;
+      score: number;
+    }> = [];
 
     const sectorResults = await Promise.all(
       top4.map(async (sector) => {
         try {
           const url = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
           const r = await fetch(url, { headers: HEADERS });
-          if (!r.ok) return { ...sector, stocks: [] };
+          if (!r.ok)
+            return {
+              sectorName: sector.name,
+              sectorKeyword: sector.keyword,
+              sectorChangePct: sector.changePct,
+              stocks: [],
+            };
 
           const constituentData = (await r.json()) as {
             indexConstituents?: Array<{
@@ -293,7 +387,8 @@ router.get("/momentum-picks", async (req, res) => {
           };
 
           const seen = new Set<string>();
-          const all: Array<{ symbol: string; ltp: number; changePct: number }> = [];
+          const all: Array<{ symbol: string; ltp: number; changePct: number }> =
+            [];
           for (const stock of [
             ...(constituentData.indexConstituents ?? []),
             ...(constituentData.nonIndexConstituents ?? []),
@@ -310,9 +405,12 @@ router.get("/momentum-picks", async (req, res) => {
           });
 
           const symbols = filtered.map((s) => s.symbol);
-          const indicators = await runWithConcurrency(symbols, 5, enrichWithIndicators);
+          const indicators = await runWithConcurrency(
+            symbols,
+            5,
+            enrichWithIndicators,
+          );
 
-          // Capture session metadata from first result that has it
           for (const ind of indicators) {
             if (ind.indicatorDate && !indicatorDate) {
               indicatorDate = ind.indicatorDate;
@@ -320,15 +418,60 @@ router.get("/momentum-picks", async (req, res) => {
             }
           }
 
-          const stocks = filtered.map((stock, i) => ({
-            symbol: stock.symbol,
-            ltp: stock.ltp,
-            changePct: stock.changePct,
-            vwap: indicators[i].vwap,
-            ema20: indicators[i].ema20,
-            confirmedClose: indicators[i].confirmedClose,
-            entrySignal: indicators[i].entrySignal,
-          }));
+          const stocks = filtered.map((stock, i) => {
+            const ind = indicators[i];
+
+            // Collect entry signal stocks for top picks
+            if (
+              ind.entrySignal &&
+              ind.confirmedClose !== null &&
+              ind.sl !== null &&
+              ind.target1 !== null &&
+              ind.target2 !== null &&
+              ind.riskPct !== null &&
+              ind.smartExit !== null &&
+              ind.vwap !== null &&
+              ind.ema20 !== null
+            ) {
+              // Score: prioritise momentum (changePct) + VWAP proximity (fresher crossover = tighter margin)
+              const vwapMarginPct =
+                ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
+              // We want freshly crossed stocks (small positive margin) with good momentum
+              const score =
+                stock.changePct * 1.5 - Math.max(0, vwapMarginPct - 0.5) * 2;
+
+              topPickCandidates.push({
+                symbol: stock.symbol,
+                sectorName: sector.name,
+                ltp: stock.ltp,
+                changePct: stock.changePct,
+                entry: ind.confirmedClose,
+                sl: ind.sl,
+                target1: ind.target1,
+                target2: ind.target2,
+                riskPct: ind.riskPct,
+                smartExit: ind.smartExit,
+                vwap: ind.vwap,
+                ema20: ind.ema20,
+                score,
+              });
+            }
+
+            return {
+              symbol: stock.symbol,
+              ltp: stock.ltp,
+              changePct: stock.changePct,
+              vwap: ind.vwap,
+              ema20: ind.ema20,
+              confirmedClose: ind.confirmedClose,
+              entrySignal: ind.entrySignal,
+              sl: ind.sl,
+              target1: ind.target1,
+              target2: ind.target2,
+              riskPct: ind.riskPct,
+              smartExit: ind.smartExit,
+            };
+          });
 
           return {
             sectorName: sector.name,
@@ -347,6 +490,18 @@ router.get("/momentum-picks", async (req, res) => {
       }),
     );
 
+    // Build top 5 picks — deduplicated, sorted by score
+    const seen = new Set<string>();
+    const topPicks = topPickCandidates
+      .sort((a, b) => b.score - a.score)
+      .filter((p) => {
+        if (seen.has(p.symbol)) return false;
+        seen.add(p.symbol);
+        return true;
+      })
+      .slice(0, 5)
+      .map(({ score: _score, ...rest }) => rest);
+
     const todayIST = getTodayISTDateStr();
     const isLiveSession = indicatorDate === todayIST;
 
@@ -355,6 +510,7 @@ router.get("/momentum-picks", async (req, res) => {
       indicatorDate,
       isLiveSession,
       lastCandleTimeIST,
+      topPicks,
       sectors: sectorResults,
     });
   } catch (err) {

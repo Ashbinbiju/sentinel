@@ -18,4 +18,29 @@ export interface StockItem {
   confirmedClose?: number | null;
   /** @nullable */
   entrySignal?: boolean | null;
+  /**
+   * Stop loss price (0.4% below VWAP support level)
+   * @nullable
+   */
+  sl?: number | null;
+  /**
+   * First target price (1:1.5 Risk:Reward)
+   * @nullable
+   */
+  target1?: number | null;
+  /**
+   * Second target price (1:2.5 Risk:Reward)
+   * @nullable
+   */
+  target2?: number | null;
+  /**
+   * Risk percentage from entry to SL
+   * @nullable
+   */
+  riskPct?: number | null;
+  /**
+   * Plain-English smart exit rule for this trade
+   * @nullable
+   */
+  smartExit?: string | null;
 }

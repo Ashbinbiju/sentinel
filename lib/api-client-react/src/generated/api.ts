@@ -31,7 +31,6 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -107,7 +106,6 @@ export function useHealthCheck<
 }
 
 /**
- * Fetches real-time performance of major market indices (NIFTY 50, BANKNIFTY etc.)
  * @summary Get broad market indices
  */
 export const getGetMarketIndicesUrl = () => {
@@ -183,7 +181,6 @@ export function useGetMarketIndices<
 }
 
 /**
- * Retrieves daily percentage change for all major NSE sectors
  * @summary Get sector performance
  */
 export const getGetSectorsUrl = () => {
@@ -259,8 +256,8 @@ export function useGetSectors<
 }
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change, enriched with VWAP and EMA20 signals from 5-minute candles
- * @summary Get momentum stock picks
+ * Returns filtered stocks from top 4 sectors with 0.3%–3.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
+ * @summary Get momentum stock picks with SL/Target
  */
 export const getGetMomentumPicksUrl = () => {
   return `/api/stocks/momentum-picks`;
@@ -311,7 +308,7 @@ export type GetMomentumPicksQueryResult = NonNullable<
 export type GetMomentumPicksQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get momentum stock picks
+ * @summary Get momentum stock picks with SL/Target
  */
 
 export function useGetMomentumPicks<
