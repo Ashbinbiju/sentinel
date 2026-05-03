@@ -150,23 +150,67 @@ function CountdownRing({
 
 // ── IST Live Clock ────────────────────────────────────────────────────────────
 
+function formatDuration(totalMins: number): string {
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
 function ISTClock() {
   const [t, setT] = useState(getNowIST);
   useEffect(() => {
     const id = setInterval(() => setT(getNowIST()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  const OPEN_MIN  = 9 * 60 + 15;   // 09:15
+  const CLOSE_MIN = 15 * 60 + 30;  // 15:30
   const mins = t.h * 60 + t.m;
-  const open = mins >= 9 * 60 + 15 && mins < 15 * 60 + 30;
+  const open = mins >= OPEN_MIN && mins < CLOSE_MIN;
+
+  let sessionTag: React.ReactNode;
+  if (open) {
+    const minsLeft = CLOSE_MIN - mins - 1;
+    sessionTag = (
+      <span className="flex items-center gap-1.5">
+        <span className="text-xs text-emerald-400 font-medium">Open</span>
+        <span className="hidden sm:inline text-[10px] text-emerald-400/55 font-mono tabular-nums">
+          closes in {formatDuration(minsLeft)}
+        </span>
+      </span>
+    );
+  } else {
+    // Figure out mins until next open
+    let minsUntilOpen: number;
+    let opensLabel: string;
+    if (mins < OPEN_MIN) {
+      minsUntilOpen = OPEN_MIN - mins;
+      opensLabel = `opens in ${formatDuration(minsUntilOpen)}`;
+    } else {
+      // After 15:30 — next open is tomorrow at 09:15
+      const minsLeftToday = 24 * 60 - mins;
+      minsUntilOpen = minsLeftToday + OPEN_MIN;
+      opensLabel = minsUntilOpen > 14 * 60 ? "opens tomorrow" : `opens in ${formatDuration(minsUntilOpen)}`;
+    }
+    sessionTag = (
+      <span className="flex items-center gap-1.5">
+        <span className="text-xs text-muted-foreground">Closed</span>
+        <span className="hidden sm:inline text-[10px] text-muted-foreground/50 font-mono tabular-nums">
+          {opensLabel}
+        </span>
+      </span>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2">
-      <span className={`w-1.5 h-1.5 rounded-full ${open ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground/30"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${open ? "bg-emerald-400 animate-pulse" : "bg-muted-foreground/25"}`} />
       <span className="font-mono text-sm font-medium tabular-nums text-foreground/80">
         {String(t.h).padStart(2, "0")}:{String(t.m).padStart(2, "0")} IST
       </span>
-      <span className={`text-xs ${open ? "text-emerald-400" : "text-muted-foreground"}`}>
-        {open ? "Open" : "Closed"}
-      </span>
+      {sessionTag}
     </div>
   );
 }
