@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import { formatPercent, getColorClass, formatCurrency } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Target, ShieldAlert, Clock, Zap, ChevronRight } from "lucide-react";
+import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw } from "lucide-react";
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -173,13 +173,20 @@ function TopPickCard({ pick, rank }: { pick: TopPick; rank: number }) {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { data: sectorsData, isLoading: isLoadingSectors } = useGetSectors({
+  const { data: sectorsData, isLoading: isLoadingSectors, refetch: refetchSectors } = useGetSectors({
     query: { refetchInterval: 30000, queryKey: getGetSectorsQueryKey() },
   });
 
-  const { data: momentumData, isLoading: isLoadingMomentum } = useGetMomentumPicks({
+  const { data: momentumData, isLoading: isLoadingMomentum, refetch: refetchMomentum } = useGetMomentumPicks({
     query: { refetchInterval: 30000, queryKey: getGetMomentumPicksQueryKey() },
   });
+
+  const isRefreshing = isLoadingSectors || isLoadingMomentum;
+
+  function handleRefresh() {
+    refetchSectors();
+    refetchMomentum();
+  }
 
   const sessionLabel = momentumData?.indicatorDate
     ? momentumData.isLiveSession
@@ -212,11 +219,21 @@ export default function Dashboard() {
             last candle {momentumData.lastCandleTimeIST} IST
           </span>
         )}
-        {updatedIST && !isLoadingMomentum && (
-          <span className="text-xs text-muted-foreground ml-auto hidden sm:block">
-            refreshed {updatedIST}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {updatedIST && !isLoadingMomentum && (
+            <span className="text-xs text-muted-foreground hidden sm:block">
+              refreshed {updatedIST}
+            </span>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/40 bg-card hover:bg-accent/30 hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 text-xs text-muted-foreground hover:text-emerald-400"
+          >
+            <RefreshCw className={`w-3 h-3 ${isRefreshing ? "animate-spin text-emerald-400" : ""}`} />
+            <span>{isRefreshing ? "Scanning…" : "Refresh"}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Top 5 Intraday Picks ── */}
