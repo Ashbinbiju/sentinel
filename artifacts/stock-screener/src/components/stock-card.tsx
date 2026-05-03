@@ -1,10 +1,20 @@
 import type { StockItem } from "@workspace/api-client-react";
-import { formatCurrency, formatPercent, getColorClass, getBgColorClass } from "@/lib/format";
+import { formatCurrency, formatPercent, getBgColorClass } from "@/lib/format";
 import { Card } from "@/components/ui/card";
+import { BarChart2 } from "lucide-react";
 
-export function StockCard({ stock }: { stock: StockItem }) {
+interface StockCardProps {
+  stock: StockItem;
+  onClick?: (stock: StockItem) => void;
+}
+
+export function StockCard({ stock, onClick }: StockCardProps) {
   return (
-    <Card className="p-3 bg-card hover:bg-accent/50 transition-colors border-border/50 flex flex-col justify-between">
+    <Card
+      data-testid={`card-stock-${stock.symbol}`}
+      onClick={() => onClick?.(stock)}
+      className="p-3 bg-card hover:bg-accent/50 transition-colors border-border/50 flex flex-col justify-between cursor-pointer group"
+    >
       <div className="flex justify-between items-start mb-2">
         <h4 className="font-bold text-foreground truncate mr-2" title={stock.symbol}>
           {stock.symbol}
@@ -18,6 +28,7 @@ export function StockCard({ stock }: { stock: StockItem }) {
           <span className="text-xs text-muted-foreground uppercase tracking-wider">LTP</span>
           <span className="font-mono text-foreground font-medium">{formatCurrency(stock.ltp)}</span>
         </div>
+        <BarChart2 className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
       </div>
     </Card>
   );
