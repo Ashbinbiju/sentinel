@@ -1,9 +1,35 @@
+import React from "react";
 import { Layout } from "@/components/layout";
 import { Ticker } from "@/components/ticker";
 import { StockCard } from "@/components/stock-card";
 import { useGetSectors, getGetSectorsQueryKey, useGetMomentumPicks, getGetMomentumPicksQueryKey } from "@workspace/api-client-react";
 import { formatPercent, getColorClass } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+
+function toISTDisplay(isoUtc: string): string {
+  try {
+    return new Date(isoUtc).toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }) + " IST";
+  } catch {
+    return "";
+  }
+}
+
+function formatSessionDate(dateStr: string): string {
+  try {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function Dashboard() {
   const { data: sectorsData, isLoading: isLoadingSectors } = useGetSectors({
@@ -14,6 +40,18 @@ export default function Dashboard() {
     query: { refetchInterval: 30000, queryKey: getGetMomentumPicksQueryKey() }
   });
 
+  const sessionLabel = momentumData?.indicatorDate
+    ? momentumData.isLiveSession
+      ? "Live Today"
+      : formatSessionDate(momentumData.indicatorDate)
+    : null;
+
+  const lastCandleIST = momentumData?.lastCandleTimeIST
+    ? momentumData.lastCandleTimeIST + " IST"
+    : null;
+
+  const updatedIST = momentumData?.fetchedAt ? toISTDisplay(momentumData.fetchedAt) : null;
+
   return (
     <Layout>
       <Ticker />
@@ -21,7 +59,40 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row gap-6">
           {/* Main Content */}
           <div className="flex-1 space-y-6">
-            <h2 className="text-2xl font-bold tracking-tight">Momentum Screener</h2>
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <h2 className="text-2xl font-bold tracking-tight">Momentum Screener</h2>
+
+              {!isLoadingMomentum && sessionLabel && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                      momentumData?.isLiveSession
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
+                        : "bg-amber-500/15 text-amber-400 border-amber-500/40"
+                    }`}
+                  >
+                    {momentumData?.isLiveSession ? "● " : "◌ "}{sessionLabel}
+                  </span>
+                  {lastCandleIST && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      last candle {lastCandleIST}
+                    </span>
+                  )}
+                  {updatedIST && (
+                    <span className="text-xs text-muted-foreground">
+                      · refreshed {updatedIST}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* EMA20 note when session is live but early */}
+            {!isLoadingMomentum && momentumData?.isLiveSession && (
+              <p className="text-xs text-muted-foreground -mt-3">
+                VWAP fires from the 2nd candle (9:20 AM IST) · EMA20 needs 20 candles (~11:00 AM IST)
+              </p>
+            )}
 
             {isLoadingMomentum ? (
               <div className="space-y-6">
@@ -29,7 +100,7 @@ export default function Dashboard() {
                   <div key={i} className="space-y-3">
                     <Skeleton className="h-8 w-48" />
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                      {[1, 2, 3, 4, 5].map(j => <Skeleton key={j} className="h-20 w-full" />)}
+                      {[1, 2, 3, 4, 5].map(j => <Skeleton key={j} className="h-24 w-full" />)}
                     </div>
                   </div>
                 ))}
@@ -91,9 +162,49 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+
+            {/* IST Clock */}
+            <ISTClock />
           </div>
         </div>
       </div>
     </Layout>
   );
+}
+
+function ISTClock() {
+  const [time, setTime] = React.useState(() => getNowIST());
+
+  React.useEffect(() => {
+    const id = setInterval(() => setTime(getNowIST()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isMarketHours =
+    time.h * 60 + time.m >= 9 * 60 + 15 &&
+    time.h * 60 + time.m < 15 * 60 + 30;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 text-center space-y-1">
+      <p className="text-xs text-muted-foreground uppercase tracking-wider">India Time</p>
+      <p className="font-mono text-2xl font-bold tracking-widest">
+        {String(time.h).padStart(2, "0")}:{String(time.m).padStart(2, "0")}:{String(time.s).padStart(2, "0")}
+      </p>
+      <p className={`text-xs font-medium ${isMarketHours ? "text-emerald-400" : "text-muted-foreground"}`}>
+        {isMarketHours ? "● Market Open" : "◌ Market Closed"}
+      </p>
+      {isMarketHours && (
+        <p className="text-[10px] text-muted-foreground">NSE · 9:15 – 15:30 IST</p>
+      )}
+    </div>
+  );
+}
+
+function getNowIST(): { h: number; m: number; s: number } {
+  const now = new Date(Date.now() + 19800000); // +5:30
+  return {
+    h: now.getUTCHours(),
+    m: now.getUTCMinutes(),
+    s: now.getUTCSeconds(),
+  };
 }

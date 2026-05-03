@@ -73,7 +73,7 @@ paths:
       operationId: getMomentumPicks
       tags: [stocks]
       summary: Get momentum stock picks
-      description: Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum), enriched with VWAP and EMA20 signals from 5-minute candles
+      description: Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change, enriched with VWAP and EMA20 signals from 5-minute candles
       responses:
         "200":
           description: Momentum stock picks grouped by sector
@@ -166,12 +166,23 @@ components:
       properties:
         fetchedAt:
           type: string
+          description: ISO timestamp (UTC) of when data was fetched
+        indicatorDate:
+          type: ["string", "null"]
+          description: IST date of the trading session used for indicators (YYYY-MM-DD)
+        isLiveSession:
+          type: boolean
+          description: True if indicator data is from today's live session in IST
+        lastCandleTimeIST:
+          type: ["string", "null"]
+          description: IST time (HH:MM) of the last confirmed candle used for signals
         sectors:
           type: array
           items:
             $ref: "#/components/schemas/SectorWithStocks"
       required:
         - fetchedAt
+        - isLiveSession
         - sectors
     ErrorResponse:
       type: object

@@ -38,11 +38,26 @@ export const GetSectorsResponseItem = zod.object({
 export const GetSectorsResponse = zod.array(GetSectorsResponseItem);
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change (early momentum), enriched with VWAP and EMA20 signals from 5-minute candles
+ * Returns filtered stocks from top 4 sectors with 0.3% to 3.0% change, enriched with VWAP and EMA20 signals from 5-minute candles
  * @summary Get momentum stock picks
  */
 export const GetMomentumPicksResponse = zod.object({
-  fetchedAt: zod.string(),
+  fetchedAt: zod
+    .string()
+    .describe("ISO timestamp (UTC) of when data was fetched"),
+  indicatorDate: zod
+    .string()
+    .nullish()
+    .describe(
+      "IST date of the trading session used for indicators (YYYY-MM-DD)",
+    ),
+  isLiveSession: zod
+    .boolean()
+    .describe("True if indicator data is from today's live session in IST"),
+  lastCandleTimeIST: zod
+    .string()
+    .nullish()
+    .describe("IST time (HH:MM) of the last confirmed candle used for signals"),
   sectors: zod.array(
     zod.object({
       sectorName: zod.string(),

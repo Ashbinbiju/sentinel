@@ -8,6 +8,19 @@
 import type { SectorWithStocks } from "./sectorWithStocks";
 
 export interface MomentumPicksResponse {
+  /** ISO timestamp (UTC) of when data was fetched */
   fetchedAt: string;
+  /**
+   * IST date of the trading session used for indicators (YYYY-MM-DD)
+   * @nullable
+   */
+  indicatorDate?: string | null;
+  /** True if indicator data is from today's live session in IST */
+  isLiveSession: boolean;
+  /**
+   * IST time (HH:MM) of the last confirmed candle used for signals
+   * @nullable
+   */
+  lastCandleTimeIST?: string | null;
   sectors: SectorWithStocks[];
 }
