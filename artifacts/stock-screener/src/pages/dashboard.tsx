@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { Ticker } from "@/components/ticker";
 import { StockCard } from "@/components/stock-card";
-import { useGetSectors, getGetSectorsQueryKey, useGetMomentumPicks, getGetMomentumPicksQueryKey } from "@workspace/api-client-react";
+import { useGetSectors, getGetSectorsQueryKey, useGetMomentumPicks, getGetMomentumPicksQueryKey, getGetMarketIndicesQueryKey } from "@workspace/api-client-react";
 import { formatPercent, getColorClass } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { useSavedPicks } from "@/hooks/use-saved-picks";
