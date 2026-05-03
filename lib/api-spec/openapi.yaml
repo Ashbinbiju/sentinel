@@ -160,6 +160,12 @@ components:
           type: ["string", "null"]
           enum: ["upper", "lower", null]
           description: Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+        volumeRatio:
+          type: ["number", "null"]
+          description: Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)
+        volumeOk:
+          type: ["boolean", "null"]
+          description: True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise
       required:
         - symbol
         - ltp
@@ -207,6 +213,12 @@ components:
           type: ["string", "null"]
           enum: ["upper", "lower", null]
           description: Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
+        volumeRatio:
+          type: ["number", "null"]
+          description: Last confirmed candle volume divided by session average volume
+        volumeOk:
+          type: ["boolean", "null"]
+          description: True if volumeRatio >= 1.5 (strong volume confirmation)
       required:
         - symbol
         - sectorName

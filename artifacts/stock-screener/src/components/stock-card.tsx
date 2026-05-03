@@ -89,7 +89,7 @@ export function StockCard({ stock }: StockCardProps) {
           )}
 
           {/* Indicator badges */}
-          <div className="flex gap-1 mb-2">
+          <div className="flex gap-1 mb-2 flex-wrap">
             {stock.vwap != null ? (
               <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border font-medium
                 ${aboveVwap ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" : "bg-rose-500/10 text-rose-400 border-rose-500/25"}`}
@@ -107,6 +107,21 @@ export function StockCard({ stock }: StockCardProps) {
               </span>
             ) : (
               <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border bg-muted/20 text-muted-foreground/40 border-border/20">EMA —</span>
+            )}
+            {stock.volumeRatio != null ? (
+              <span
+                className={`text-[9px] font-mono px-1.5 py-0.5 rounded border font-medium ${
+                  stock.volumeOk
+                    ? "bg-sky-500/10 text-sky-400 border-sky-500/25"
+                    : stock.volumeRatio >= 0.8
+                    ? "bg-muted/20 text-muted-foreground/60 border-border/25"
+                    : "bg-rose-500/8 text-rose-400/70 border-rose-500/20"
+                }`}
+                title={`Volume: ${stock.volumeRatio.toFixed(1)}× session avg`}>
+                VOL {stock.volumeOk ? "↑" : stock.volumeRatio >= 0.8 ? "✓" : "↓"} {stock.volumeRatio.toFixed(1)}×
+              </span>
+            ) : (
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border bg-muted/20 text-muted-foreground/40 border-border/20">VOL —</span>
             )}
           </div>
 

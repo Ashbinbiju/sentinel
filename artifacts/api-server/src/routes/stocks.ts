@@ -173,6 +173,8 @@ interface IndicatorResult {
   lastCandleTimeIST: string | null;
   sparkline: number[];
   circuitLimit: "upper" | "lower" | null;
+  volumeRatio: number | null;
+  volumeOk: boolean | null;
 }
 
 async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
@@ -190,6 +192,8 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     lastCandleTimeIST: null,
     sparkline: [],
     circuitLimit: null,
+    volumeRatio: null,
+    volumeOk: null,
   };
 
   try {
@@ -231,6 +235,12 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       smartExit = tradeParams.smartExit;
     }
 
+    // Volume confirmation: compare last candle volume to session average
+    const avgVolume = confirmed.reduce((sum, c) => sum + c.v, 0) / confirmed.length;
+    const lastVolume = last.v;
+    const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
+    const volumeOk = volumeRatio !== null ? volumeRatio >= 1.5 : null;
+
     return {
       vwap: vwapR,
       ema20: ema20R,
@@ -245,6 +255,8 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       lastCandleTimeIST: getISTTimeStr(last.t),
       sparkline,
       circuitLimit: detectCircuitLimit(confirmed),
+      volumeRatio,
+      volumeOk,
     };
   } catch {
     return empty;
@@ -380,6 +392,8 @@ router.get("/momentum-picks", async (req, res) => {
       ema20: number;
       sparkline: number[];
       circuitLimit: "upper" | "lower" | null;
+      volumeRatio: number | null;
+      volumeOk: boolean | null;
       score: number;
     }> = [];
 
@@ -478,6 +492,8 @@ router.get("/momentum-picks", async (req, res) => {
                 ema20: ind.ema20,
                 sparkline: ind.sparkline,
                 circuitLimit: ind.circuitLimit,
+                volumeRatio: ind.volumeRatio,
+                volumeOk: ind.volumeOk,
                 score,
               });
             }
@@ -497,6 +513,8 @@ router.get("/momentum-picks", async (req, res) => {
               smartExit: ind.smartExit,
               sparkline: ind.sparkline,
               circuitLimit: ind.circuitLimit,
+              volumeRatio: ind.volumeRatio,
+              volumeOk: ind.volumeOk,
             };
           });
 

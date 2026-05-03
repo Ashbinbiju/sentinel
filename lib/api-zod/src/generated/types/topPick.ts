@@ -36,4 +36,14 @@ export interface TopPick {
    * @nullable
    */
   circuitLimit?: TopPickCircuitLimit;
+  /**
+   * Last confirmed candle volume divided by session average volume
+   * @nullable
+   */
+  volumeRatio?: number | null;
+  /**
+   * True if volumeRatio >= 1.5 (strong volume confirmation)
+   * @nullable
+   */
+  volumeOk?: boolean | null;
 }

@@ -87,6 +87,18 @@ export const GetMomentumPicksResponse = zod.object({
             .describe(
               "Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise",
             ),
+          volumeRatio: zod
+            .number()
+            .nullish()
+            .describe(
+              "Last confirmed candle volume divided by session average volume",
+            ),
+          volumeOk: zod
+            .boolean()
+            .nullish()
+            .describe(
+              "True if volumeRatio >= 1.5 (strong volume confirmation)",
+            ),
         })
         .describe("One of the top 5 intraday picks across all sectors"),
     )
@@ -142,6 +154,18 @@ export const GetMomentumPicksResponse = zod.object({
             .nullish()
             .describe(
               "Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise",
+            ),
+          volumeRatio: zod
+            .number()
+            .nullish()
+            .describe(
+              "Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)",
+            ),
+          volumeOk: zod
+            .boolean()
+            .nullish()
+            .describe(
+              "True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise",
             ),
         }),
       ),

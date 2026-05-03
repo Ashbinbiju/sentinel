@@ -51,4 +51,14 @@ export interface StockItem {
    * @nullable
    */
   circuitLimit?: StockItemCircuitLimit;
+  /**
+   * Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)
+   * @nullable
+   */
+  volumeRatio?: number | null;
+  /**
+   * True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise
+   * @nullable
+   */
+  volumeOk?: boolean | null;
 }

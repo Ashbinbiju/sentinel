@@ -355,6 +355,26 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
             </div>
           )}
 
+          {/* Volume badge row */}
+          {pick.volumeRatio != null && (
+            <div className="flex items-center gap-2 mb-3">
+              <span
+                className={`text-[9px] font-mono px-2 py-0.5 rounded border font-medium ${
+                  pick.volumeOk
+                    ? "bg-sky-500/10 text-sky-400 border-sky-500/25"
+                    : pick.volumeRatio >= 0.8
+                    ? "bg-muted/20 text-muted-foreground/60 border-border/25"
+                    : "bg-rose-500/8 text-rose-400/70 border-rose-500/20"
+                }`}
+                title={`Volume: ${pick.volumeRatio.toFixed(1)}× session average`}>
+                VOL {pick.volumeOk ? "↑" : pick.volumeRatio >= 0.8 ? "✓" : "↓"} {pick.volumeRatio.toFixed(1)}×
+              </span>
+              <span className="text-[10px] text-muted-foreground/50">
+                {pick.volumeOk ? "Volume confirmed" : pick.volumeRatio >= 0.8 ? "Average volume" : "Low volume — trade with caution"}
+              </span>
+            </div>
+          )}
+
           {/* SL / T1 / T2 grid */}
           <div className="grid grid-cols-3 gap-1.5 mb-3">
             <div className="flex flex-col gap-0.5 bg-rose-500/10 rounded-lg px-2 py-1.5 border border-rose-500/15">
