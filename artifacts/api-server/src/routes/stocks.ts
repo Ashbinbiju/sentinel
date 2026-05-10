@@ -639,4 +639,23 @@ router.get("/momentum-picks", async (req, res) => {
   }
 });
 
+// ── GET /stocks/trades/today ──────────────────────────────────────────────────
+// Returns all trade signals recorded in the DB for today (IST).
+// Used by the UI to show the "Trade Status" widget in the top-right corner.
+router.get("/trades/today", async (req, res) => {
+  try {
+    const today = getTodayISTDateStr();
+    const trades = await db
+      .select()
+      .from(tradesTable)
+      .where(eq(tradesTable.date, today))
+      .orderBy(tradesTable.signalTime);
+
+    return res.json({ date: today, trades });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch today's trades");
+    return res.status(500).json({ error: "Failed to fetch today's trades" });
+  }
+});
+
 export default router;
