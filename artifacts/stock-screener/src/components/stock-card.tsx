@@ -128,7 +128,11 @@ export function StockCard({ stock }: StockCardProps) {
           {/* SL / Target row — only for entry signals */}
           {entry && stock.sl != null && stock.target1 != null && stock.target2 != null && (
             <div className="mt-2 pt-2 border-t border-emerald-500/15 space-y-1">
-              <div className="grid grid-cols-3 gap-1 text-[9px]">
+              <div className="grid grid-cols-4 gap-1 text-[9px]">
+                <div className="flex flex-col items-center gap-0.5 bg-sky-500/10 rounded px-1 py-1">
+                  <span className="text-sky-400/60 uppercase tracking-wide font-semibold">EP</span>
+                  <span className="font-mono text-sky-300 font-bold text-[10px]">₹{stock.confirmedClose?.toFixed(1) || '-'}</span>
+                </div>
                 <div className="flex flex-col items-center gap-0.5 bg-rose-500/10 rounded px-1 py-1">
                   <span className="text-rose-400/60 uppercase tracking-wide font-semibold">SL</span>
                   <span className="font-mono text-rose-300 font-bold text-[10px]">₹{stock.sl.toFixed(1)}</span>
