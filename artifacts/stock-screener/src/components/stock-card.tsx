@@ -128,7 +128,13 @@ export function StockCard({ stock }: StockCardProps) {
           {/* SL / Target row — only for entry signals */}
           {entry && stock.sl != null && stock.target1 != null && stock.target2 != null && (
             <div className="mt-2 pt-2 border-t border-emerald-500/15 space-y-1">
-              <div className="grid grid-cols-4 gap-1 text-[9px]">
+              <div className="grid grid-cols-5 gap-1 text-[9px]">
+                <div className="flex flex-col items-center gap-0.5 bg-slate-500/10 rounded px-1 py-1 overflow-hidden">
+                  <span className="text-slate-400/60 uppercase tracking-wide font-semibold">Time</span>
+                  <span className="font-mono text-slate-300 font-bold text-[9px] whitespace-nowrap">
+                    {stock.signalTime ? new Date(stock.signalTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '-'}
+                  </span>
+                </div>
                 <div className="flex flex-col items-center gap-0.5 bg-sky-500/10 rounded px-1 py-1">
                   <span className="text-sky-400/60 uppercase tracking-wide font-semibold">EP</span>
                   <span className="font-mono text-sky-300 font-bold text-[10px]">₹{stock.confirmedClose?.toFixed(1) || '-'}</span>

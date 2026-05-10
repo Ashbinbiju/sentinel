@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
+import { db, tradesTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -176,6 +178,7 @@ interface IndicatorResult {
   circuitLimit: "upper" | "lower" | null;
   volumeRatio: number | null;
   volumeOk: boolean | null;
+  signalTime: string | null;
 }
 
 async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
@@ -195,15 +198,27 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     circuitLimit: null,
     volumeRatio: null,
     volumeOk: null,
+    signalTime: null,
   };
 
   try {
+    const today = getTodayISTDateStr();
+
+    // Check DB for existing signal today
+    const existingTrades = await db
+      .select()
+      .from(tradesTable)
+      .where(and(eq(tradesTable.symbol, symbol), eq(tradesTable.date, today)))
+      .limit(1);
+    
+    const existingTrade = existingTrades.length > 0 ? existingTrades[0] : null;
+
     const candles = await fetchCandles(symbol);
     if (candles.length < 2) return empty;
 
     const confirmed = candles.slice(0, -1);
     const last = confirmed[confirmed.length - 1];
-    const confirmedClose = last.c;
+    let confirmedClose = last.c;
 
     const vwap = calculateVWAP(confirmed);
     const closes = confirmed.map((c) => c.c);
@@ -213,27 +228,62 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const step = Math.max(1, Math.floor(closes.length / 40));
     const sparkline = closes.filter((_, i) => i % step === 0 || i === closes.length - 1).map(r2);
 
-    const entrySignal =
-      vwap !== null && ema20 !== null
-        ? confirmedClose > vwap && confirmedClose > ema20
-        : null;
-
-    const vwapR = vwap !== null ? r2(vwap) : null;
-    const ema20R = ema20 !== null ? r2(ema20) : null;
-
     let sl: number | null = null;
     let target1: number | null = null;
     let target2: number | null = null;
     let riskPct: number | null = null;
     let smartExit: string | null = null;
+    let signalTime: string | null = null;
+    let entrySignal: boolean | null = null;
 
-    if (entrySignal && vwap !== null) {
-      const tradeParams = computeTradeParams(confirmedClose, vwap);
-      sl = tradeParams.sl;
-      target1 = tradeParams.target1;
-      target2 = tradeParams.target2;
-      riskPct = tradeParams.riskPct;
-      smartExit = tradeParams.smartExit;
+    const vwapR = vwap !== null ? r2(vwap) : null;
+    const ema20R = ema20 !== null ? r2(ema20) : null;
+
+    if (existingTrade) {
+      entrySignal = true;
+      sl = Number(existingTrade.sl);
+      target1 = Number(existingTrade.target1);
+      target2 = Number(existingTrade.target2);
+      
+      const entryPrice = Number(existingTrade.entryPrice);
+      const risk = entryPrice - sl;
+      riskPct = r2((risk / entryPrice) * 100);
+      smartExit = `[SAVED] Entered at ₹${entryPrice}. Exit if 5-min candle closes below VWAP. At T1 (₹${target1}), move SL to entry.`;
+      signalTime = existingTrade.signalTime;
+      
+      // Override confirmedClose so the UI shows the saved entry price
+      confirmedClose = entryPrice;
+    } else {
+      entrySignal =
+        vwap !== null && ema20 !== null
+          ? confirmedClose > vwap && confirmedClose > ema20
+          : null;
+
+      if (entrySignal && vwap !== null) {
+        const tradeParams = computeTradeParams(confirmedClose, vwap);
+        sl = tradeParams.sl;
+        target1 = tradeParams.target1;
+        target2 = tradeParams.target2;
+        riskPct = tradeParams.riskPct;
+        smartExit = tradeParams.smartExit;
+        signalTime = new Date().toISOString();
+
+        try {
+          await db.insert(tradesTable).values({
+            symbol,
+            date: today,
+            signalTime,
+            entryPrice: String(confirmedClose),
+            sl: String(sl),
+            target1: String(target1),
+            target2: String(target2),
+            status: "PENDING"
+          }).onConflictDoNothing();
+        } catch (dbErr) {
+          // Log DB error but don't fail the request
+          console.error(`Failed to insert trade for ${symbol}`, dbErr);
+        }
+      }
     }
 
     // Volume confirmation: compare last candle volume to session average
@@ -258,6 +308,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       circuitLimit: detectCircuitLimit(confirmed),
       volumeRatio,
       volumeOk,
+      signalTime,
     };
   } catch {
     return empty;
@@ -395,6 +446,7 @@ router.get("/momentum-picks", async (req, res) => {
       circuitLimit: "upper" | "lower" | null;
       volumeRatio: number | null;
       volumeOk: boolean | null;
+      signalTime: string | null;
       score: number;
     }> = [];
 
@@ -502,6 +554,7 @@ router.get("/momentum-picks", async (req, res) => {
                 circuitLimit: ind.circuitLimit,
                 volumeRatio: ind.volumeRatio,
                 volumeOk: ind.volumeOk,
+                signalTime: ind.signalTime,
                 score,
               });
             }
@@ -523,6 +576,7 @@ router.get("/momentum-picks", async (req, res) => {
               circuitLimit: ind.circuitLimit,
               volumeRatio: ind.volumeRatio,
               volumeOk: ind.volumeOk,
+              signalTime: ind.signalTime,
             };
           });
 

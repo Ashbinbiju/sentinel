@@ -88,6 +88,8 @@ export interface StockItem {
    * @nullable
    */
   volumeOk?: boolean | null;
+  /** Exact time the signal was generated */
+  signalTime?: string | null;
 }
 
 /**
@@ -142,6 +144,8 @@ export interface TopPick {
    * @nullable
    */
   volumeOk?: boolean | null;
+  /** Exact time the signal was generated */
+  signalTime?: string | null;
 }
 
 export interface SectorWithStocks {
