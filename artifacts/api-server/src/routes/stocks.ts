@@ -50,13 +50,13 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-async function fetchCandles(symbol: string): Promise<Candle[]> {
+async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[], historicalCandles: Candle[] } | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - 7 * 24 * 3600;
   const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=78&currencyCode=INR`;
 
   const response = await fetch(url, { headers: MC_HEADERS });
-  if (!response.ok) return [];
+  if (!response.ok) return null;
 
   const data = (await response.json()) as {
     s: string;
@@ -68,7 +68,7 @@ async function fetchCandles(symbol: string): Promise<Candle[]> {
     v?: number[];
   };
 
-  if (data.s !== "ok" || !data.t || data.t.length === 0) return [];
+  if (data.s !== "ok" || !data.t || data.t.length === 0) return null;
 
   const all: Candle[] = data.t.map((t, i) => ({
     t,
@@ -86,9 +86,12 @@ async function fetchCandles(symbol: string): Promise<Candle[]> {
       break;
     }
   }
-  if (!lastTradingDate) return [];
+  if (!lastTradingDate) return null;
 
-  return all.filter((c) => c.v > 0 && getISTDateStr(c.t) === lastTradingDate);
+  const validHistorical = all.filter((c) => c.v > 0);
+  const sessionCandles = validHistorical.filter((c) => getISTDateStr(c.t) === lastTradingDate);
+
+  return { sessionCandles, historicalCandles: validHistorical };
 }
 
 function calculateVWAP(candles: Candle[]): number | null {
@@ -213,20 +216,25 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     
     const existingTrade = existingTrades.length > 0 ? existingTrades[0] : null;
 
-    const candles = await fetchCandles(symbol);
-    if (candles.length < 2) return empty;
+    const candleData = await fetchCandles(symbol);
+    if (!candleData || candleData.sessionCandles.length < 2) return empty;
 
-    const confirmed = candles.slice(0, -1);
-    const last = confirmed[confirmed.length - 1];
+    const { sessionCandles, historicalCandles } = candleData;
+
+    const confirmedSession = sessionCandles.slice(0, -1);
+    const confirmedHistorical = historicalCandles.slice(0, -1);
+
+    const last = confirmedSession[confirmedSession.length - 1];
     let confirmedClose = last.c;
 
-    const vwap = calculateVWAP(confirmed);
-    const closes = confirmed.map((c) => c.c);
-    const ema20 = calculateEMA(closes);
+    const vwap = calculateVWAP(confirmedSession);
+    const sessionCloses = confirmedSession.map((c) => c.c);
+    const historicalCloses = confirmedHistorical.map((c) => c.c);
+    const ema20 = calculateEMA(historicalCloses);
 
     // Downsample sparkline to at most 40 points to keep payload lean
-    const step = Math.max(1, Math.floor(closes.length / 40));
-    const sparkline = closes.filter((_, i) => i % step === 0 || i === closes.length - 1).map(r2);
+    const step = Math.max(1, Math.floor(sessionCloses.length / 40));
+    const sparkline = sessionCloses.filter((_, i) => i % step === 0 || i === sessionCloses.length - 1).map(r2);
 
     let sl: number | null = null;
     let target1: number | null = null;
@@ -287,7 +295,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     }
 
     // Volume confirmation: compare last candle volume to session average
-    const avgVolume = confirmed.reduce((sum, c) => sum + c.v, 0) / confirmed.length;
+    const avgVolume = confirmedSession.reduce((sum, c) => sum + c.v, 0) / confirmedSession.length;
     const lastVolume = last.v;
     const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
     const volumeOk = volumeRatio !== null ? volumeRatio >= 1.5 : null;
@@ -305,7 +313,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       indicatorDate: getISTDateStr(last.t),
       lastCandleTimeIST: getISTTimeStr(last.t),
       sparkline,
-      circuitLimit: detectCircuitLimit(confirmed),
+      circuitLimit: detectCircuitLimit(confirmedSession),
       volumeRatio,
       volumeOk,
       signalTime,
