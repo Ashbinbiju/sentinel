@@ -72,8 +72,15 @@ async function main() {
           }
 
           // 6. Check Balance & Calculate Quantity
-          const balance = await broker.getAccountBalance();
-          console.log(`[BOT] Current Available Margin: ₹${balance}`);
+          let balance: number;
+          if (process.env.DRY_RUN === "true") {
+            // Use simulated capital for dry run (real account may be empty)
+            balance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
+            console.log(`[BOT] [DRY RUN] Using simulated capital: ₹${balance}`);
+          } else {
+            balance = await broker.getAccountBalance();
+            console.log(`[BOT] Current Available Margin: ₹${balance}`);
+          }
           
           if (balance < 100) {
             console.warn("[BOT] Insufficient balance to place trade.");
