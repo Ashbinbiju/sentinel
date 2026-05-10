@@ -13,7 +13,7 @@ catalogs:
       specifier: ^5.90.21
       version: 5.90.21
     '@types/node':
-      specifier: ^25.3.5
+      specifier: ^25.3.3
       version: 25.3.5
     '@types/react':
       specifier: ^19.2.0
@@ -551,9 +551,6 @@ importers:
       '@types/pg':
         specifier: ^8.18.0
         version: 8.18.0
-      dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.9
