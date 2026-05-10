@@ -53,7 +53,7 @@ function r2(n: number): number {
 async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[], historicalCandles: Candle[] } | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - 7 * 24 * 3600;
-  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=78&currencyCode=INR`;
+  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=390&currencyCode=INR`;
 
   const response = await fetch(url, { headers: MC_HEADERS });
   if (!response.ok) return null;
