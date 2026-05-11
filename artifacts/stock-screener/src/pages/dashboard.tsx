@@ -613,6 +613,17 @@ export default function Dashboard() {
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const isRefreshing = manualRefreshing || isFetchingSectors || isFetchingMomentum;
 
+  // ── Keep-alive ping (prevents Render free tier from spinning down) ───────────
+  useEffect(() => {
+    const ping = () => {
+      const base = import.meta.env.VITE_API_URL || "";
+      fetch(`${base}/api/healthz`).catch(() => {}); // silent, fire-and-forget
+    };
+    ping(); // ping immediately on load
+    const id = setInterval(ping, 4 * 60 * 1000); // then every 4 minutes
+    return () => clearInterval(id);
+  }, []);
+
   // ── Auto-poll countdown ────────────────────────────────────────────────────
   const [countdown, setCountdown] = useState(POLL_INTERVAL);
   const [marketOpen, setMarketOpen] = useState(isMarketOpen);
