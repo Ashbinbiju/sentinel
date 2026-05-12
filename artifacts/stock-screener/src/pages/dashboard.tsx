@@ -46,6 +46,7 @@ function getNowIST() {
 function toISTTime(utcString: string): string {
   try {
     let s = utcString;
+    s = s.split('.')[0]; // strip fractional seconds to prevent Safari falling back to local-time parsing
     if (!s.includes("T")) s = s.replace(" ", "T");
     if (!s.endsWith("Z")) s += "Z";
     const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
@@ -58,6 +59,7 @@ function toISTTime(utcString: string): string {
 function toISTDisplay(isoUtc: string): string {
   try {
     let s = isoUtc;
+    s = s.split('.')[0];
     if (!s.includes("T")) s = s.replace(" ", "T");
     if (!s.endsWith("Z")) s += "Z";
     const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
@@ -794,7 +796,7 @@ export default function Dashboard() {
         <Ticker />
 
         {/* Compact mobile session bar */}
-        <div className="border-b border-border/30 bg-background/80 backdrop-blur-sm">
+        <div className="relative z-50 border-b border-border/30 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center gap-2 px-3 py-2">
             <ISTClock />
             {momentumData?.isLiveSession && sessionLabel && !isLoadingMomentum && (
