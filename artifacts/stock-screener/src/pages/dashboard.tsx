@@ -533,8 +533,9 @@ function TodayTradesWidget() {
     return () => clearInterval(id);
   }, []);
 
-  const count = trades.length;
   const MAX = 2;
+  const count = Math.min(trades.length, MAX);
+  const displayedTrades = trades.slice(0, MAX);
 
   return (
     <div className="relative">
@@ -553,32 +554,32 @@ function TodayTradesWidget() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border border-border/50 bg-card shadow-xl shadow-black/30 overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 bg-muted/20">
+        <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border border-border/80 bg-slate-950 shadow-2xl overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 bg-slate-900/50">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-xs font-bold text-foreground uppercase tracking-wider">Today's Trades</span>
-            <span className="ml-auto text-[10px] text-muted-foreground font-mono">{count}/{MAX} used</span>
+            <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Today's Trades</span>
+            <span className="ml-auto text-[10px] text-slate-400 font-mono">{count}/{MAX} used</span>
           </div>
           {count === 0 ? (
             <div className="px-4 py-6 text-center">
-              <Activity className="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground">No trades taken today yet.</p>
-              <p className="text-[10px] text-muted-foreground/50 mt-1">Bot will place up to {MAX} trades when signals fire.</p>
+              <Activity className="w-6 h-6 text-slate-600 mx-auto mb-2" />
+              <p className="text-xs text-slate-400">No trades taken today yet.</p>
+              <p className="text-[10px] text-slate-500 mt-1">Bot will place up to {MAX} trades when signals fire.</p>
             </div>
           ) : (
             <div className="divide-y divide-border/20">
-              {trades.map((t) => {
+              {displayedTrades.map((t) => {
                 const timeIST = toISTTime(t.signalTime);
                 return (
                   <div key={t.id} className="px-3 py-2.5">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-bold text-sm text-foreground">{t.symbol}</span>
+                      <span className="font-bold text-sm text-slate-200">{t.symbol}</span>
                       <span className="text-[10px] font-mono text-emerald-400/70">{timeIST} IST</span>
                     </div>
                     <div className="grid grid-cols-4 gap-1">
                       <div className="flex flex-col">
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-wide">Entry</span>
-                        <span className="text-[11px] font-mono font-semibold text-foreground">₹{parseFloat(t.entryPrice).toFixed(2)}</span>
+                        <span className="text-[9px] text-slate-500 uppercase tracking-wide">Entry</span>
+                        <span className="text-[11px] font-mono font-semibold text-slate-200">₹{parseFloat(t.entryPrice).toFixed(2)}</span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] text-rose-400/70 uppercase tracking-wide">SL</span>
@@ -599,8 +600,8 @@ function TodayTradesWidget() {
             </div>
           )}
           {count < MAX && (
-            <div className="px-3 py-2 bg-muted/10 border-t border-border/20">
-              <p className="text-[10px] text-muted-foreground/60 text-center">{MAX - count} trade slot{MAX - count !== 1 ? "s" : ""} remaining today</p>
+            <div className="px-3 py-2 bg-slate-900/30 border-t border-border/20">
+              <p className="text-[10px] text-slate-400 text-center">{MAX - count} trade slot{MAX - count !== 1 ? "s" : ""} remaining today</p>
             </div>
           )}
         </div>
