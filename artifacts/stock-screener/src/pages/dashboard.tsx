@@ -355,17 +355,17 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
             </span>
           </div>
 
-          {/* Entry price */}
+          {/* Current price */}
           <div className="mb-2">
             <div className="flex items-center justify-between mb-0.5">
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Entry</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Current</div>
               {pick.signalTime && (
                 <span className="text-[9px] font-mono text-slate-400/70 bg-slate-500/10 border border-slate-500/20 px-1.5 py-0.5 rounded" title="Signal time (IST)">
                   🕐 {toISTTime(pick.signalTime)} IST
                 </span>
               )}
             </div>
-            <div className={`font-mono font-bold text-foreground ${fullWidth ? "text-2xl" : "text-lg"}`}>₹{pick.entry.toFixed(2)}</div>
+            <div className={`font-mono font-bold text-foreground ${fullWidth ? "text-2xl" : "text-lg"}`}>₹{pick.ltp.toFixed(2)}</div>
           </div>
 
           {/* Sparkline */}
@@ -395,30 +395,36 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
             </div>
           )}
 
-          {/* SL / T1 / T2 grid */}
-          <div className="grid grid-cols-3 gap-1.5 mb-3">
-            <div className="flex flex-col gap-0.5 bg-rose-500/10 rounded-lg px-2 py-1.5 border border-rose-500/15">
+          {/* EP / SL / T1 / T2 grid */}
+          <div className="grid grid-cols-4 gap-1 mb-3">
+            <div className="flex flex-col justify-between bg-sky-500/10 rounded-lg px-1.5 py-1.5 border border-sky-500/15">
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-sky-400/70 font-semibold uppercase tracking-wide">EP</span>
+              </div>
+              <span className="font-mono text-[11px] font-bold text-sky-300">₹{pick.entry.toFixed(1)}</span>
+            </div>
+            <div className="flex flex-col gap-0.5 bg-rose-500/10 rounded-lg px-1.5 py-1.5 border border-rose-500/15">
               <div className="flex items-center gap-1">
                 <ShieldAlert className="w-2.5 h-2.5 text-rose-400/70" />
                 <span className="text-[9px] text-rose-400/70 font-semibold uppercase tracking-wide">SL</span>
               </div>
-              <span className="font-mono text-xs font-bold text-rose-300">₹{pick.sl.toFixed(1)}</span>
+              <span className="font-mono text-[11px] font-bold text-rose-300">₹{pick.sl.toFixed(1)}</span>
               <span className="text-[8px] text-rose-400/50">-{pick.riskPct.toFixed(1)}%</span>
             </div>
-            <div className="flex flex-col gap-0.5 bg-emerald-500/10 rounded-lg px-2 py-1.5 border border-emerald-500/15">
+            <div className="flex flex-col gap-0.5 bg-emerald-500/10 rounded-lg px-1.5 py-1.5 border border-emerald-500/15">
               <div className="flex items-center gap-1">
                 <Target className="w-2.5 h-2.5 text-emerald-400/70" />
                 <span className="text-[9px] text-emerald-400/70 font-semibold uppercase tracking-wide">T1</span>
               </div>
-              <span className="font-mono text-xs font-bold text-emerald-300">₹{pick.target1.toFixed(1)}</span>
+              <span className="font-mono text-[11px] font-bold text-emerald-300">₹{pick.target1.toFixed(1)}</span>
               <span className="text-[8px] text-emerald-400/50">+{t1Pct.toFixed(1)}%</span>
             </div>
-            <div className="flex flex-col gap-0.5 bg-emerald-500/15 rounded-lg px-2 py-1.5 border border-emerald-500/20">
+            <div className="flex flex-col gap-0.5 bg-emerald-500/15 rounded-lg px-1.5 py-1.5 border border-emerald-500/20">
               <div className="flex items-center gap-1">
                 <TrendingUp className="w-2.5 h-2.5 text-emerald-400/70" />
                 <span className="text-[9px] text-emerald-400/70 font-semibold uppercase tracking-wide">T2</span>
               </div>
-              <span className="font-mono text-xs font-bold text-emerald-300">₹{pick.target2.toFixed(1)}</span>
+              <span className="font-mono text-[11px] font-bold text-emerald-300">₹{pick.target2.toFixed(1)}</span>
               <span className="text-[8px] text-emerald-400/50">+{t2Pct.toFixed(1)}%</span>
             </div>
           </div>
