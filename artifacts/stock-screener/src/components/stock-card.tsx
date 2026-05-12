@@ -132,7 +132,7 @@ export function StockCard({ stock }: StockCardProps) {
                 <div className="flex flex-col items-center gap-0.5 bg-slate-500/10 rounded px-1 py-1 overflow-hidden">
                   <span className="text-slate-400/60 uppercase tracking-wide font-semibold">Time</span>
                   <span className="font-mono text-slate-300 font-bold text-[9px] whitespace-nowrap">
-                    {stock.signalTime ? new Date(stock.signalTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '-'}
+                    {stock.signalTime ? new Date(stock.signalTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}
                   </span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5 bg-sky-500/10 rounded px-1 py-1">
