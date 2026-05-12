@@ -45,7 +45,10 @@ function getNowIST() {
 
 function toISTTime(utcString: string): string {
   try {
-    const d = new Date(new Date(utcString).getTime() + 19800000); // UTC+5:30
+    let s = utcString;
+    if (!s.includes("T")) s = s.replace(" ", "T");
+    if (!s.endsWith("Z")) s += "Z";
+    const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
     return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
   } catch {
     return "-";
@@ -54,7 +57,10 @@ function toISTTime(utcString: string): string {
 
 function toISTDisplay(isoUtc: string): string {
   try {
-    const d = new Date(new Date(isoUtc).getTime() + 19800000); // UTC+5:30
+    let s = isoUtc;
+    if (!s.includes("T")) s = s.replace(" ", "T");
+    if (!s.endsWith("Z")) s += "Z";
+    const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
     const hh = String(d.getUTCHours()).padStart(2, "0");
     const mm = String(d.getUTCMinutes()).padStart(2, "0");
     return `${hh}:${mm} IST`;
@@ -554,7 +560,10 @@ function TodayTradesWidget() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-xl border border-border/80 bg-slate-950 shadow-2xl overflow-hidden">
+        <div 
+          className="absolute right-0 top-full mt-2 z-50 w-72 rounded-xl shadow-2xl overflow-hidden"
+          style={{ backgroundColor: "#020617", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 bg-slate-900/50">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Today's Trades</span>

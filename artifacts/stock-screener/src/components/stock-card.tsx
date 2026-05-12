@@ -5,7 +5,10 @@ import { Sparkline } from "@/components/sparkline";
 
 function toISTTime(utcString: string): string {
   try {
-    const d = new Date(new Date(utcString).getTime() + 19800000); // UTC+5:30
+    let s = utcString;
+    if (!s.includes("T")) s = s.replace(" ", "T");
+    if (!s.endsWith("Z")) s += "Z";
+    const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
     return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
   } catch {
     return "-";
