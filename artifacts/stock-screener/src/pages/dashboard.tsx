@@ -344,7 +344,14 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
 
           {/* Entry price */}
           <div className="mb-2">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Entry</div>
+            <div className="flex items-center justify-between mb-0.5">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Entry</div>
+              {pick.signalTime && (
+                <span className="text-[9px] font-mono text-slate-400/70 bg-slate-500/10 border border-slate-500/20 px-1.5 py-0.5 rounded" title="Signal time (IST)">
+                  🕐 {new Date(pick.signalTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })} IST
+                </span>
+              )}
+            </div>
             <div className={`font-mono font-bold text-foreground ${fullWidth ? "text-2xl" : "text-lg"}`}>₹{pick.entry.toFixed(2)}</div>
           </div>
 
