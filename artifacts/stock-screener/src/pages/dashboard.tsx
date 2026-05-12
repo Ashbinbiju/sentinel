@@ -43,16 +43,21 @@ function getNowIST() {
   return { h: now.getUTCHours(), m: now.getUTCMinutes(), s: now.getUTCSeconds() };
 }
 
+function toISTTime(utcString: string): string {
+  try {
+    const d = new Date(new Date(utcString).getTime() + 19800000); // UTC+5:30
+    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  } catch {
+    return "-";
+  }
+}
+
 function toISTDisplay(isoUtc: string): string {
   try {
-    return (
-      new Date(isoUtc).toLocaleTimeString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }) + " IST"
-    );
+    const d = new Date(new Date(isoUtc).getTime() + 19800000); // UTC+5:30
+    const hh = String(d.getUTCHours()).padStart(2, "0");
+    const mm = String(d.getUTCMinutes()).padStart(2, "0");
+    return `${hh}:${mm} IST`;
   } catch {
     return "";
   }
@@ -348,7 +353,7 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Entry</div>
               {pick.signalTime && (
                 <span className="text-[9px] font-mono text-slate-400/70 bg-slate-500/10 border border-slate-500/20 px-1.5 py-0.5 rounded" title="Signal time (IST)">
-                  🕐 {new Date(pick.signalTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })} IST
+                  🕐 {toISTTime(pick.signalTime)} IST
                 </span>
               )}
             </div>
@@ -563,7 +568,7 @@ function TodayTradesWidget() {
           ) : (
             <div className="divide-y divide-border/20">
               {trades.map((t) => {
-                const timeIST = (() => { try { return new Date(t.signalTime).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }); } catch { return "-"; } })();
+                const timeIST = toISTTime(t.signalTime);
                 return (
                   <div key={t.id} className="px-3 py-2.5">
                     <div className="flex items-center justify-between mb-1.5">

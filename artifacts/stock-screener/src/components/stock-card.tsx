@@ -3,6 +3,15 @@ import type { StockItem } from "@workspace/api-client-react";
 import { formatCurrency, formatPercent, getColorClass } from "@/lib/format";
 import { Sparkline } from "@/components/sparkline";
 
+function toISTTime(utcString: string): string {
+  try {
+    const d = new Date(new Date(utcString).getTime() + 19800000); // UTC+5:30
+    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  } catch {
+    return "-";
+  }
+}
+
 interface StockCardProps {
   stock: StockItem;
 }
@@ -132,7 +141,7 @@ export function StockCard({ stock }: StockCardProps) {
                 <div className="flex flex-col items-center gap-0.5 bg-slate-500/10 rounded px-1 py-1 overflow-hidden">
                   <span className="text-slate-400/60 uppercase tracking-wide font-semibold">Time</span>
                   <span className="font-mono text-slate-300 font-bold text-[9px] whitespace-nowrap">
-                    {stock.signalTime ? new Date(stock.signalTime).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '-'}
+                    {stock.signalTime ? toISTTime(stock.signalTime) : "-"}
                   </span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5 bg-sky-500/10 rounded px-1 py-1">
