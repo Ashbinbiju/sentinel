@@ -213,7 +213,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       .from(tradesTable)
       .where(and(eq(tradesTable.symbol, symbol), eq(tradesTable.date, today)))
       .limit(1);
-    
+
     const existingTrade = existingTrades.length > 0 ? existingTrades[0] : null;
 
     const candleData = await fetchCandles(symbol);
@@ -252,13 +252,13 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       sl = Number(existingTrade.sl);
       target1 = Number(existingTrade.target1);
       target2 = Number(existingTrade.target2);
-      
+
       const entryPrice = Number(existingTrade.entryPrice);
       const risk = entryPrice - sl;
       riskPct = r2((risk / entryPrice) * 100);
       smartExit = `[SAVED] Entered at ₹${entryPrice}. Exit if 5-min candle closes below VWAP. At T1 (₹${target1}), move SL to entry.`;
       signalTime = existingTrade.signalTime;
-      
+
       // Override confirmedClose so the UI shows the saved entry price
       confirmedClose = entryPrice;
     } else {
@@ -537,9 +537,9 @@ router.get("/momentum-picks", async (req, res) => {
                 ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
               const volumeBonus =
                 ind.volumeRatio === null ? 0
-                : ind.volumeRatio >= 1.5 ? 1.5   // strong volume — confirmed breakout
-                : ind.volumeRatio >= 1.0 ? 0.4   // average volume — neutral
-                : -0.8;                           // weak volume — penalise ranking
+                  : ind.volumeRatio >= 1.5 ? 1.5   // strong volume — confirmed breakout
+                    : ind.volumeRatio >= 1.0 ? 0.4   // average volume — neutral
+                      : -0.8;                           // weak volume — penalise ranking
               const score =
                 stock.changePct * 1.5
                 - Math.max(0, vwapMarginPct - 0.5) * 2
@@ -657,6 +657,8 @@ router.get("/trades/today", async (req, res) => {
       if (!candleData) return { ...trade, hitTime: null };
       
       const signalTimeMs = new Date(trade.signalTime).getTime();
+      if (Number.isNaN(signalTimeMs)) return { ...trade, hitTime: null };
+      
       // Look at session candles that closed at or after the signal time
       const postSignalCandles = candleData.sessionCandles.filter(c => c.t * 1000 >= signalTimeMs);
       
@@ -694,11 +696,12 @@ router.get("/trades/today", async (req, res) => {
       }
       
       if (newStatus !== trade.status && trade.status !== "TARGET 2 HIT" && trade.status !== "SL HIT" && trade.status !== "T1 HIT & TRAILING SL HIT") {
+        trade.status = newStatus;
         // Fire and forget DB update
         db.update(tradesTable)
           .set({ status: newStatus })
           .where(eq(tradesTable.id, trade.id))
-          .catch(e => console.error(`Failed to update trade status for ${trade.symbol}`, e));
+          .catch(e => req.log.error({ err: e, symbol: trade.symbol }, "Failed to update trade status"));
       }
       
       return { ...trade, status: newStatus, hitTime };

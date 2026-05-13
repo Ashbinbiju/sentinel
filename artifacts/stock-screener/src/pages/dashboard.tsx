@@ -613,19 +613,19 @@ function TodayTradesWidget() {
                     <div className="grid grid-cols-4 gap-1">
                       <div className="flex flex-col">
                         <span className="text-[9px] text-slate-500 uppercase tracking-wide">Entry</span>
-                        <span className="text-[11px] font-mono font-semibold text-slate-200">₹{parseFloat(t.entryPrice).toFixed(2)}</span>
+                        <span className="text-[11px] font-mono font-semibold text-slate-200">₹{(parseFloat(t.entryPrice) || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] text-rose-400/70 uppercase tracking-wide">SL</span>
-                        <span className="text-[11px] font-mono font-semibold text-rose-300">₹{parseFloat(t.sl).toFixed(1)}</span>
+                        <span className="text-[11px] font-mono font-semibold text-rose-300">₹{(parseFloat(t.sl) || 0).toFixed(1)}</span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] text-emerald-400/70 uppercase tracking-wide">T1</span>
-                        <span className="text-[11px] font-mono font-semibold text-emerald-300">₹{parseFloat(t.target1).toFixed(1)}</span>
+                        <span className="text-[11px] font-mono font-semibold text-emerald-300">₹{(parseFloat(t.target1) || 0).toFixed(1)}</span>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] text-emerald-400/70 uppercase tracking-wide">T2</span>
-                        <span className="text-[11px] font-mono font-semibold text-emerald-300">₹{parseFloat(t.target2).toFixed(1)}</span>
+                        <span className="text-[11px] font-mono font-semibold text-emerald-300">₹{(parseFloat(t.target2) || 0).toFixed(1)}</span>
                       </div>
                     </div>
                   </div>
@@ -702,19 +702,19 @@ function TodayPerformanceSection() {
               <div className="grid grid-cols-4 gap-2 mt-auto">
                 <div className="flex flex-col gap-1">
                   <span className="text-[9px] text-muted-foreground uppercase tracking-wide">EP</span>
-                  <span className="font-mono text-[11px] font-semibold text-foreground">₹{parseFloat(t.entryPrice).toFixed(1)}</span>
+                  <span className="font-mono text-[11px] font-semibold text-foreground">₹{(parseFloat(t.entryPrice) || 0).toFixed(1)}</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[9px] text-rose-400/70 uppercase tracking-wide">SL</span>
-                  <span className="font-mono text-[11px] font-semibold text-rose-400">₹{parseFloat(t.sl).toFixed(1)}</span>
+                  <span className="font-mono text-[11px] font-semibold text-rose-400">₹{(parseFloat(t.sl) || 0).toFixed(1)}</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[9px] text-emerald-400/70 uppercase tracking-wide">T1</span>
-                  <span className="font-mono text-[11px] font-semibold text-emerald-400">₹{parseFloat(t.target1).toFixed(1)}</span>
+                  <span className="font-mono text-[11px] font-semibold text-emerald-400">₹{(parseFloat(t.target1) || 0).toFixed(1)}</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <span className="text-[9px] text-emerald-400/70 uppercase tracking-wide">T2</span>
-                  <span className="font-mono text-[11px] font-semibold text-emerald-400">₹{parseFloat(t.target2).toFixed(1)}</span>
+                  <span className="font-mono text-[11px] font-semibold text-emerald-400">₹{(parseFloat(t.target2) || 0).toFixed(1)}</span>
                 </div>
               </div>
             </div>
