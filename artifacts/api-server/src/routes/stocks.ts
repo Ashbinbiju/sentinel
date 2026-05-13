@@ -716,6 +716,19 @@ router.get("/trades/today", async (req, res) => {
         }
       }
       
+      const nowIST = new Date(Date.now() + 19800000);
+      const isAfterMarket = nowIST.getUTCHours() > 15 || (nowIST.getUTCHours() === 15 && nowIST.getUTCMinutes() >= 30);
+      
+      if (isAfterMarket && newStatus === "ACTIVE") {
+        newStatus = "SQUARED OFF";
+        const lastCandle = postSignalCandles[postSignalCandles.length - 1];
+        if (lastCandle) {
+          hitTime = getISTTimeStr(lastCandle.t);
+        } else {
+          hitTime = "15:30";
+        }
+      }
+      
       if (newStatus !== trade.status) {
         trade.status = newStatus;
         // Fire and forget DB update
