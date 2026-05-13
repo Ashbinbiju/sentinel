@@ -71,6 +71,16 @@ function toISTDisplay(isoUtc: string): string {
   }
 }
 
+function formatHitTime(timeStr: string | null | undefined): string {
+  if (!timeStr) return "";
+  const [hStr, mStr] = timeStr.split(":");
+  let h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `at ${h}:${mStr} ${ampm}`;
+}
+
 function formatSessionDate(dateStr: string): string {
   try {
     const [y, m, d] = dateStr.split("-").map(Number);
@@ -665,15 +675,17 @@ function TodayPerformanceSection() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {trades.map((t) => {
           const timeIST = toISTTime(t.signalTime);
+          const hitTimeText = t.hitTime ? ` ${formatHitTime(t.hitTime)}` : "";
+          
           let statusBadge = null;
           if (t.status === "TARGET 2 HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold tracking-wider uppercase">T2 Hit 🎯</span>;
+            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold tracking-wider uppercase">T2 Hit 🎯{hitTimeText}</span>;
           } else if (t.status === "TARGET 1 HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-wider uppercase">T1 Hit ✓</span>;
+            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-wider uppercase">T1 Hit ✓{hitTimeText}</span>;
           } else if (t.status === "SL HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold tracking-wider uppercase">SL Hit 🛑</span>;
+            statusBadge = <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold tracking-wider uppercase">SL Hit 🛑{hitTimeText}</span>;
           } else if (t.status === "T1 HIT & TRAILING SL HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold tracking-wider uppercase">Breakeven ⚖️</span>;
+            statusBadge = <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold tracking-wider uppercase">Breakeven ⚖️{hitTimeText}</span>;
           } else {
             statusBadge = <span className="px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-bold tracking-wider uppercase">Active ⏳</span>;
           }
