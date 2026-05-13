@@ -662,14 +662,35 @@ router.get("/trades/today", async (req, res) => {
       // Look at session candles that closed at or after the signal time
       const postSignalCandles = candleData.sessionCandles.filter(c => c.t * 1000 >= signalTimeMs);
       
-      let newStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
-      let maxTargetReached = trade.status === "TARGET 1 HIT" ? 1 : 0;
       let hitTime: string | null = null;
       
       const target1 = Number(trade.target1);
       const target2 = Number(trade.target2);
       const entryPrice = Number(trade.entryPrice);
       const originalSl = Number(trade.sl);
+      
+      const isTerminal = trade.status === "TARGET 2 HIT" || trade.status === "SL HIT" || trade.status === "T1 HIT & TRAILING SL HIT";
+
+      if (isTerminal) {
+        // Just find the hitTime for the existing terminal status without modifying the status
+        if (trade.status === "TARGET 2 HIT") {
+          const c = postSignalCandles.find(c => c.h >= target2);
+          if (c) hitTime = getISTTimeStr(c.t);
+        } else if (trade.status === "SL HIT") {
+          const c = postSignalCandles.find(c => c.l <= originalSl);
+          if (c) hitTime = getISTTimeStr(c.t);
+        } else if (trade.status === "T1 HIT & TRAILING SL HIT") {
+          const t1CandleIdx = postSignalCandles.findIndex(c => c.h >= target1);
+          if (t1CandleIdx !== -1) {
+            const slCandle = postSignalCandles.slice(t1CandleIdx).find(c => c.l <= entryPrice);
+            if (slCandle) hitTime = getISTTimeStr(slCandle.t);
+          }
+        }
+        return { ...trade, hitTime };
+      }
+      
+      let newStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
+      let maxTargetReached = trade.status === "TARGET 1 HIT" ? 1 : 0;
       
       for (const c of postSignalCandles) {
         if (c.h >= target2) {
@@ -695,7 +716,7 @@ router.get("/trades/today", async (req, res) => {
         }
       }
       
-      if (newStatus !== trade.status && trade.status !== "TARGET 2 HIT" && trade.status !== "SL HIT" && trade.status !== "T1 HIT & TRAILING SL HIT") {
+      if (newStatus !== trade.status) {
         trade.status = newStatus;
         // Fire and forget DB update
         db.update(tradesTable)
