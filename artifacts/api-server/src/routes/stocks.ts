@@ -645,11 +645,69 @@ router.get("/momentum-picks", async (req, res) => {
 router.get("/trades/today", async (req, res) => {
   try {
     const today = getTodayISTDateStr();
-    const trades = await db
+    let trades = await db
       .select()
       .from(tradesTable)
       .where(eq(tradesTable.date, today))
       .orderBy(tradesTable.signalTime);
+
+    // Evaluate dynamic status for active/pending trades
+    trades = await Promise.all(trades.map(async (trade) => {
+      // Don't re-evaluate if it's already a terminal state
+      if (
+        trade.status === "TARGET 2 HIT" ||
+        trade.status === "SL HIT" ||
+        trade.status === "T1 HIT & TRAILING SL HIT"
+      ) {
+        return trade;
+      }
+      
+      const candleData = await fetchCandles(trade.symbol);
+      if (!candleData) return trade;
+      
+      const signalTimeMs = new Date(trade.signalTime).getTime();
+      // Look at session candles that closed at or after the signal time
+      const postSignalCandles = candleData.sessionCandles.filter(c => c.t * 1000 >= signalTimeMs);
+      
+      let newStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
+      let maxTargetReached = trade.status === "TARGET 1 HIT" ? 1 : 0;
+      const target1 = Number(trade.target1);
+      const target2 = Number(trade.target2);
+      const entryPrice = Number(trade.entryPrice);
+      const originalSl = Number(trade.sl);
+      
+      for (const c of postSignalCandles) {
+        if (c.h >= target2) {
+          newStatus = "TARGET 2 HIT";
+          break;
+        }
+        if (c.h >= target1 && maxTargetReached < 1) {
+          maxTargetReached = 1;
+          newStatus = "TARGET 1 HIT";
+        }
+        
+        const currentSl = maxTargetReached >= 1 ? entryPrice : originalSl;
+        if (c.l <= currentSl) {
+          if (maxTargetReached >= 1) {
+             newStatus = "T1 HIT & TRAILING SL HIT";
+          } else {
+             newStatus = "SL HIT";
+          }
+          break;
+        }
+      }
+      
+      if (newStatus !== trade.status) {
+        trade.status = newStatus;
+        // Fire and forget DB update
+        db.update(tradesTable)
+          .set({ status: newStatus })
+          .where(eq(tradesTable.id, trade.id))
+          .catch(e => console.error(`Failed to update trade status for ${trade.symbol}`, e));
+      }
+      
+      return trade;
+    }));
 
     return res.json({ date: today, trades });
   } catch (err) {

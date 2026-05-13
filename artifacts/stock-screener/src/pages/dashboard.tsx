@@ -590,7 +590,14 @@ function TodayTradesWidget() {
                 return (
                   <div key={t.id} className="px-3 py-2.5">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-bold text-sm text-slate-200">{t.symbol}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-200">{t.symbol}</span>
+                        {t.status === "TARGET 2 HIT" && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 rounded">T2 HIT</span>}
+                        {t.status === "TARGET 1 HIT" && <span className="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 rounded">T1 HIT</span>}
+                        {t.status === "SL HIT" && <span className="text-[8px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1 rounded">SL HIT</span>}
+                        {t.status === "T1 HIT & TRAILING SL HIT" && <span className="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1 rounded">BE</span>}
+                        {(!t.status || t.status === "PENDING" || t.status === "ACTIVE") && <span className="text-[8px] bg-slate-500/10 text-slate-400 border border-slate-500/20 px-1 rounded">ACT</span>}
+                      </div>
                       <span className="text-[10px] font-mono text-emerald-400/70">{timeIST} IST</span>
                     </div>
                     <div className="grid grid-cols-4 gap-1">
@@ -623,6 +630,85 @@ function TodayTradesWidget() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Today's Performance Section ────────────────────────────────────────────────
+
+function TodayPerformanceSection() {
+  const [trades, setTrades] = useState<TodayTrade[]>([]);
+  
+  useEffect(() => {
+    async function fetchTrades() {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const res = await fetch(`${base}/api/stocks/trades/today`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setTrades(data.trades ?? []);
+      } catch { /* silent */ }
+    }
+    fetchTrades();
+    const id = setInterval(fetchTrades, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (trades.length === 0) return null;
+
+  return (
+    <div className="mt-8 border-t border-border/30 pt-8 pb-4">
+      <div className="flex items-center gap-2 mb-6">
+        <Target className="w-5 h-5 text-emerald-400" />
+        <h2 className="text-lg font-bold text-foreground">Today's Trades & Performance</h2>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {trades.map((t) => {
+          const timeIST = toISTTime(t.signalTime);
+          let statusBadge = null;
+          if (t.status === "TARGET 2 HIT") {
+            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold tracking-wider uppercase">T2 Hit 🎯</span>;
+          } else if (t.status === "TARGET 1 HIT") {
+            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-wider uppercase">T1 Hit ✓</span>;
+          } else if (t.status === "SL HIT") {
+            statusBadge = <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold tracking-wider uppercase">SL Hit 🛑</span>;
+          } else if (t.status === "T1 HIT & TRAILING SL HIT") {
+            statusBadge = <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold tracking-wider uppercase">Breakeven ⚖️</span>;
+          } else {
+            statusBadge = <span className="px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-bold tracking-wider uppercase">Active ⏳</span>;
+          }
+
+          return (
+            <div key={t.id} className="relative rounded-xl border border-border/40 bg-card hover:bg-accent/20 transition-all p-4 shadow-sm flex flex-col justify-between min-h-[110px]">
+              <div className="flex items-start justify-between mb-3 gap-2">
+                <div>
+                  <div className="font-bold text-base text-foreground">{t.symbol}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{timeIST} IST</div>
+                </div>
+                <div className="shrink-0">{statusBadge}</div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-auto">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wide">EP</span>
+                  <span className="font-mono text-[11px] font-semibold text-foreground">₹{parseFloat(t.entryPrice).toFixed(1)}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-rose-400/70 uppercase tracking-wide">SL</span>
+                  <span className="font-mono text-[11px] font-semibold text-rose-400">₹{parseFloat(t.sl).toFixed(1)}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-emerald-400/70 uppercase tracking-wide">T1</span>
+                  <span className="font-mono text-[11px] font-semibold text-emerald-400">₹{parseFloat(t.target1).toFixed(1)}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] text-emerald-400/70 uppercase tracking-wide">T2</span>
+                  <span className="font-mono text-[11px] font-semibold text-emerald-400">₹{parseFloat(t.target2).toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1217,6 +1303,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+          
+          <TodayPerformanceSection />
         </div>
       </div>
     </Layout>
