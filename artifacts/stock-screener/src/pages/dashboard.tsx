@@ -649,6 +649,7 @@ function TodayTradesWidget() {
 
 function TodayPerformanceSection() {
   const [trades, setTrades] = useState<TodayTrade[]>([]);
+  const [filter, setFilter] = useState<"All" | "Winners" | "Losers" | "Active" | "Breakeven">("All");
   
   useEffect(() => {
     async function fetchTrades() {
@@ -667,15 +668,49 @@ function TodayPerformanceSection() {
 
   if (trades.length === 0) return null;
 
+  const filteredTrades = trades.filter((t) => {
+    if (filter === "All") return true;
+    if (filter === "Winners") return t.status === "TARGET 1 HIT" || t.status === "TARGET 2 HIT";
+    if (filter === "Losers") return t.status === "SL HIT";
+    if (filter === "Breakeven") return t.status === "T1 HIT & TRAILING SL HIT";
+    if (filter === "Active") return !t.status || t.status === "PENDING" || t.status === "ACTIVE";
+    return true;
+  });
+
   return (
     <div className="mt-8 border-t border-border/30 pt-8 pb-4">
-      <div className="flex items-center gap-2 mb-6">
-        <Target className="w-5 h-5 text-emerald-400" />
-        <h2 className="text-lg font-bold text-foreground">Today's Trades & Performance</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-lg font-bold text-foreground">Today's Trades & Performance</h2>
+        </div>
+        
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Filter:</span>
+          {(["All", "Winners", "Losers", "Breakeven", "Active"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-2.5 py-1 rounded border text-[10px] font-bold tracking-wider uppercase transition-colors whitespace-nowrap ${
+                filter === f 
+                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" 
+                  : "bg-slate-800/30 text-slate-400 border-border/40 hover:bg-slate-800/80"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {trades.map((t) => {
-          const timeIST = toISTTime(t.signalTime);
+      
+      {filteredTrades.length === 0 ? (
+        <div className="text-center py-8 border border-border/20 rounded-xl bg-slate-900/20">
+          <p className="text-sm text-slate-400">No {filter.toLowerCase()} trades found.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredTrades.map((t) => {
+            const timeIST = toISTTime(t.signalTime);
           const hitTimeText = t.hitTime ? ` ${formatHitTime(t.hitTime)}` : "";
           
           let statusBadge = null;
@@ -721,7 +756,8 @@ function TodayPerformanceSection() {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
