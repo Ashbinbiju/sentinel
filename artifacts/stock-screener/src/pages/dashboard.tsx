@@ -525,6 +525,36 @@ function playChime() {
   }
 }
 
+function getStatusBadge(status: string, size: "sm" | "md" = "sm", hitTimeText: string = "") {
+  const baseClasses = size === "sm" 
+    ? "text-[8px] px-1 rounded" 
+    : "px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase";
+  
+  if (status === "TARGET 2 HIT") {
+    return <span className={`${baseClasses} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30`}>
+      {size === "sm" ? "T2 HIT" : `T2 Hit 🎯${hitTimeText}`}
+    </span>;
+  }
+  if (status === "TARGET 1 HIT") {
+    return <span className={`${baseClasses} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20`}>
+      {size === "sm" ? "T1 HIT" : `T1 Hit ✓${hitTimeText}`}
+    </span>;
+  }
+  if (status === "SL HIT") {
+    return <span className={`${baseClasses} bg-rose-500/10 text-rose-400 border border-rose-500/20`}>
+      {size === "sm" ? "SL HIT" : `SL Hit 🛑${hitTimeText}`}
+    </span>;
+  }
+  if (status === "T1 HIT & TRAILING SL HIT") {
+    return <span className={`${baseClasses} bg-amber-500/10 text-amber-400 border border-amber-500/20`}>
+      {size === "sm" ? "BE" : `Breakeven ⚖️${hitTimeText}`}
+    </span>;
+  }
+  return <span className={`${baseClasses} bg-slate-500/10 text-slate-400 border border-slate-500/20`}>
+    {size === "sm" ? "ACT" : "Active ⏳"}
+  </span>;
+}
+
 // ── Today's Trades Widget ─────────────────────────────────────────────────────
 
 interface TodayTrade {
@@ -603,11 +633,7 @@ function TodayTradesWidget() {
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-slate-200">{t.symbol}</span>
-                        {t.status === "TARGET 2 HIT" && <span className="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1 rounded">T2 HIT</span>}
-                        {t.status === "TARGET 1 HIT" && <span className="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 rounded">T1 HIT</span>}
-                        {t.status === "SL HIT" && <span className="text-[8px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1 rounded">SL HIT</span>}
-                        {t.status === "T1 HIT & TRAILING SL HIT" && <span className="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1 rounded">BE</span>}
-                        {(!t.status || t.status === "PENDING" || t.status === "ACTIVE") && <span className="text-[8px] bg-slate-500/10 text-slate-400 border border-slate-500/20 px-1 rounded">ACT</span>}
+                        {getStatusBadge(t.status, "sm")}
                       </div>
                       <span className="text-[10px] font-mono text-emerald-400/70">{timeIST} IST</span>
                     </div>
@@ -711,20 +737,8 @@ function TodayPerformanceSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredTrades.map((t) => {
             const timeIST = toISTTime(t.signalTime);
-          const hitTimeText = t.hitTime ? ` ${formatHitTime(t.hitTime)}` : "";
-          
-          let statusBadge = null;
-          if (t.status === "TARGET 2 HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold tracking-wider uppercase">T2 Hit 🎯{hitTimeText}</span>;
-          } else if (t.status === "TARGET 1 HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold tracking-wider uppercase">T1 Hit ✓{hitTimeText}</span>;
-          } else if (t.status === "SL HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold tracking-wider uppercase">SL Hit 🛑{hitTimeText}</span>;
-          } else if (t.status === "T1 HIT & TRAILING SL HIT") {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold tracking-wider uppercase">Breakeven ⚖️{hitTimeText}</span>;
-          } else {
-            statusBadge = <span className="px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/20 text-[10px] font-bold tracking-wider uppercase">Active ⏳</span>;
-          }
+            const hitTimeText = t.hitTime ? ` ${formatHitTime(t.hitTime)}` : "";
+            const statusBadge = getStatusBadge(t.status, "md", hitTimeText);
 
           return (
             <div key={t.id} className="relative rounded-xl border border-border/40 bg-card hover:bg-accent/20 transition-all p-4 shadow-sm flex flex-col justify-between min-h-[110px]">
