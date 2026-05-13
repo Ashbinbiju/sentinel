@@ -536,6 +536,7 @@ interface TodayTrade {
   target2: string;
   signalTime: string;
   status: string;
+  hitTime?: string | null;
 }
 
 function TodayTradesWidget() {
