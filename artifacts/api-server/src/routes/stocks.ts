@@ -717,7 +717,7 @@ router.get("/trades/today", async (req, res) => {
       }
       
       const nowIST = new Date(Date.now() + 19800000);
-      const isAfterMarket = nowIST.getUTCHours() > 15 || (nowIST.getUTCHours() === 15 && nowIST.getUTCMinutes() >= 30);
+      const isAfterMarket = nowIST.getUTCHours() > 15 || (nowIST.getUTCHours() === 15 && nowIST.getUTCMinutes() >= 15);
       
       if (isAfterMarket && newStatus === "ACTIVE") {
         newStatus = "SQUARED OFF";
@@ -725,7 +725,7 @@ router.get("/trades/today", async (req, res) => {
         if (lastCandle) {
           hitTime = getISTTimeStr(lastCandle.t);
         } else {
-          hitTime = "15:30";
+          hitTime = "15:15";
         }
       }
       
