@@ -154,15 +154,15 @@ function computeTradeParams(
   return { sl, target1, target2, riskPct, smartExit };
 }
 
-function detectCircuitLimit(candles: Candle[]): "upper" | "lower" | null {
+function detectCircuitLimit(candles: Candle[], prevClose: number): "upper" | "lower" | null {
   if (candles.length < 3) return null;
   const last3 = candles.slice(-3);
   // All three last candles have identical close → price is frozen at a circuit limit
   const frozen = last3[0].c;
   const allSame = last3.every((c) => Math.abs(c.c - frozen) <= 0.01);
   if (!allSame) return null;
-  // Direction: frozen price vs first candle open of the session
-  return frozen >= candles[0].o ? "upper" : "lower";
+  // Direction: frozen price vs previous day's close
+  return frozen >= prevClose ? "upper" : "lower";
 }
 
 interface IndicatorResult {
@@ -300,6 +300,9 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
     const volumeOk = volumeRatio !== null ? volumeRatio >= 1.5 : null;
 
+    const sessionStartIndex = confirmedHistorical.findIndex(c => c.t === confirmedSession[0]?.t);
+    const prevClose = sessionStartIndex > 0 ? confirmedHistorical[sessionStartIndex - 1].c : (confirmedSession[0]?.o ?? 0);
+
     return {
       vwap: vwapR,
       ema20: ema20R,
@@ -313,7 +316,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       indicatorDate: getISTDateStr(last.t),
       lastCandleTimeIST: getISTTimeStr(last.t),
       sparkline,
-      circuitLimit: detectCircuitLimit(confirmedSession),
+      circuitLimit: detectCircuitLimit(confirmedSession, prevClose),
       volumeRatio,
       volumeOk,
       signalTime,

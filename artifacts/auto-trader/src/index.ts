@@ -24,6 +24,8 @@ async function main() {
   console.log("=== SENTINEL AUTO-TRADER STARTING ===");
   console.log(`Dry Run Mode: ${process.env.DRY_RUN === "true" ? "ON" : "OFF"}`);
 
+  let simulatedBalance: number | null = null;
+
   // 1. Load Scrip Master
   await initializeScripMaster();
 
@@ -74,8 +76,11 @@ async function main() {
           // 6. Check Balance & Calculate Quantity
           let balance: number;
           if (process.env.DRY_RUN === "true") {
-            // Use simulated capital for dry run (real account may be empty)
-            balance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
+            // Use simulated capital for dry run and persist it across loop iterations
+            if (simulatedBalance === null) {
+              simulatedBalance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
+            }
+            balance = simulatedBalance;
             console.log(`[BOT] [DRY RUN] Using simulated capital: ₹${balance}`);
           } else {
             balance = await broker.getAccountBalance();
@@ -104,6 +109,12 @@ async function main() {
             executedSymbols.add(pick.symbol);
             tradesToday++;
             console.log(`[BOT] Trade ${tradesToday}/${MAX_DAILY_TRADES} executed successfully.`);
+            
+            // Deduct margin used from simulated balance
+            if (process.env.DRY_RUN === "true" && simulatedBalance !== null) {
+              const tradeCost = (quantity * pick.entry) / LEVERAGE;
+              simulatedBalance -= tradeCost;
+            }
           } catch (err) {
             console.error(`[BOT] Failed to execute trade for ${pick.symbol}`, err);
           }
