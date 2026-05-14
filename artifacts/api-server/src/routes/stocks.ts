@@ -659,8 +659,8 @@ router.get("/trades/today", async (req, res) => {
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) return { ...trade, hitTime: null };
       
-      // Look at session candles that closed at or after the signal time
-      const postSignalCandles = candleData.sessionCandles.filter(c => c.t * 1000 >= signalTimeMs);
+      // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
+      const postSignalCandles = candleData.sessionCandles.filter(c => (c.t + 300) * 1000 > signalTimeMs);
       
       let hitTime: string | null = null;
       
