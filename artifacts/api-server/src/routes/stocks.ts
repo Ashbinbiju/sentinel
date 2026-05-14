@@ -50,7 +50,7 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[], historicalCandles: Candle[] } | null> {
+async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[], historicalCandles: Candle[], lastTradingDate: string } | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - 7 * 24 * 3600;
   const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=390&currencyCode=INR`;
@@ -91,7 +91,7 @@ async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[],
   const validHistorical = all.filter((c) => c.v > 0);
   const sessionCandles = validHistorical.filter((c) => getISTDateStr(c.t) === lastTradingDate);
 
-  return { sessionCandles, historicalCandles: validHistorical };
+  return { sessionCandles, historicalCandles: validHistorical, lastTradingDate };
 }
 
 function calculateVWAP(candles: Candle[]): number | null {
@@ -219,7 +219,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const candleData = await fetchCandles(symbol);
     if (!candleData || candleData.sessionCandles.length < 2) return empty;
 
-    const { sessionCandles, historicalCandles } = candleData;
+    const { sessionCandles, historicalCandles, lastTradingDate } = candleData;
 
     const confirmedSession = sessionCandles.slice(0, -1);
     const confirmedHistorical = historicalCandles.slice(0, -1);
@@ -263,7 +263,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       confirmedClose = entryPrice;
     } else {
       entrySignal =
-        vwap !== null && ema20 !== null
+        (vwap !== null && ema20 !== null && lastTradingDate === today)
           ? confirmedClose > vwap && confirmedClose > ema20
           : null;
 
