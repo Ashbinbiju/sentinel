@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
-import { db, tradesTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { db, tradesTable, type Trade } from "@workspace/db";
+import { and, eq, gte, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -262,9 +262,19 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       // Override confirmedClose so the UI shows the saved entry price
       confirmedClose = entryPrice;
     } else {
+      // ── Crossover freshness check ──────────────────────────────────────────
+      // A purely positional check (price > VWAP) fires even if the stock has
+      // been above VWAP since 9:30 AM. We require that at least one of the 3
+      // candles immediately before the confirmed close was BELOW VWAP — proving
+      // a fresh crossover just occurred rather than a stale position.
+      const CROSSOVER_LOOKBACK = 3;
+      const priorCandles = confirmedSession.slice(-(CROSSOVER_LOOKBACK + 1), -1);
+      const crossedVwapRecently =
+        vwap !== null && priorCandles.some((c) => c.c < vwap);
+
       entrySignal =
         (vwap !== null && ema20 !== null && lastTradingDate === today)
-          ? confirmedClose > vwap && confirmedClose > ema20
+          ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently
           : null;
 
       if (entrySignal && vwap !== null) {
@@ -513,7 +523,13 @@ router.get("/momentum-picks", async (req, res) => {
           );
 
           for (const ind of indicators) {
-            if (ind.indicatorDate && !indicatorDate) {
+            if (!ind.indicatorDate) continue;
+            // Keep the most recent indicatorDate + lastCandleTimeIST.
+            // Both are lexicographically sortable (YYYY-MM-DD and HH:MM),
+            // so a plain string comparison is sufficient.
+            const indKey = `${ind.indicatorDate}T${ind.lastCandleTimeIST ?? "00:00"}`;
+            const curKey = `${indicatorDate ?? ""}T${lastCandleTimeIST ?? "00:00"}`;
+            if (indKey > curKey) {
               indicatorDate = ind.indicatorDate;
               lastCandleTimeIST = ind.lastCandleTimeIST;
             }
@@ -738,7 +754,7 @@ router.get("/trades/today", async (req, res) => {
         db.update(tradesTable)
           .set({ status: newStatus })
           .where(eq(tradesTable.id, trade.id))
-          .catch(e => req.log.error({ err: e, symbol: trade.symbol }, "Failed to update trade status"));
+          .catch((e: unknown) => req.log.error({ err: e, symbol: trade.symbol }, "Failed to update trade status"));
       }
       
       return { ...trade, status: newStatus, hitTime };
@@ -748,6 +764,69 @@ router.get("/trades/today", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to fetch today's trades");
     return res.status(500).json({ error: "Failed to fetch today's trades" });
+  }
+});
+
+// ── GET /stocks/trades/history ───────────────────────────────────────────────
+// Returns trades from the last N days grouped by date, with estimated P&L.
+// Used by the History page to show real trade outcomes from the DB.
+router.get("/trades/history", async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"), 10) || 30));
+
+    // Compute start date in IST
+    const startDate = new Date(Date.now() + IST_OFFSET_MS - days * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    const trades = await db
+      .select()
+      .from(tradesTable)
+      .where(gte(tradesTable.date, startDate))
+      .orderBy(desc(tradesTable.date), tradesTable.signalTime);
+
+    // Compute estimated P&L % based on the trade's final status.
+    // For past sessions the status in the DB is already the final resolved value.
+    function computePlPct(trade: Trade): number | null {
+      const entry = Number(trade.entryPrice);
+      const sl    = Number(trade.sl);
+      const t1    = Number(trade.target1);
+      const t2    = Number(trade.target2);
+      if (!entry) return null;
+      switch (trade.status) {
+        case "TARGET 2 HIT":            return r2(((t2 - entry) / entry) * 100);
+        case "TARGET 1 HIT":            return r2(((t1 - entry) / entry) * 100);
+        case "T1 HIT & TRAILING SL HIT": return 0;   // exited at breakeven (entry)
+        case "SL HIT":                  return r2(((sl - entry) / entry) * 100);
+        default:                        return null;  // ACTIVE / PENDING / SQUARED OFF
+      }
+    }
+
+    // Group trades by date
+    const byDate = new Map<string, (typeof trades)[0][]>();
+    for (const trade of trades) {
+      if (!byDate.has(trade.date)) byDate.set(trade.date, []);
+      byDate.get(trade.date)!.push(trade);
+    }
+
+    const daysData = Array.from(byDate.entries()).map(([date, dayTrades]) => {
+      const enriched = dayTrades.map((t) => ({ ...t, plPct: computePlPct(t) }));
+      const terminal  = enriched.filter((t) => t.plPct !== null);
+      const winners   = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
+      const losers    = terminal.filter((t) => (t.plPct ?? 0) < 0).length;
+      const breakeven = terminal.filter((t) => t.plPct === 0).length;
+      const pending   = enriched.filter((t) => t.plPct === null).length;
+      return {
+        date,
+        trades: enriched,
+        summary: { total: enriched.length, winners, losers, breakeven, pending },
+      };
+    });
+
+    return res.json({ days: daysData });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch trade history");
+    return res.status(500).json({ error: "Failed to fetch trade history" });
   }
 });
 

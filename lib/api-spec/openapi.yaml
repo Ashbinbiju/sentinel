@@ -84,6 +84,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /stocks/trades/history:
+    get:
+      operationId: getTradeHistory
+      tags: [stocks]
+      summary: Get historical trade signals from the database
+      description: Returns trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status.
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+            default: 30
+            minimum: 1
+            maximum: 90
+          description: Number of past days to fetch
+      responses:
+        "200":
+          description: Trade history grouped by date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradeHistoryResponse"
+        "500":
+          description: Failed to fetch data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -279,6 +307,78 @@ components:
         - isLiveSession
         - topPicks
         - sectors
+    HistoryTrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        date:
+          type: string
+          description: YYYY-MM-DD (IST)
+        signalTime:
+          type: string
+          description: UTC ISO timestamp of when the signal fired
+        entryPrice:
+          type: string
+        sl:
+          type: string
+        target1:
+          type: string
+        target2:
+          type: string
+        status:
+          type: string
+          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)
+        plPct:
+          type: ["number", "null"]
+          description: Estimated P&L % based on final status. Null for ACTIVE/PENDING/SQUARED OFF trades.
+      required:
+        - id
+        - symbol
+        - date
+        - signalTime
+        - entryPrice
+        - sl
+        - target1
+        - target2
+        - status
+    TradeHistoryDaySummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        winners:
+          type: integer
+        losers:
+          type: integer
+        breakeven:
+          type: integer
+        pending:
+          type: integer
+      required: [total, winners, losers, breakeven, pending]
+    TradeHistoryDay:
+      type: object
+      properties:
+        date:
+          type: string
+          description: YYYY-MM-DD
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryTrade"
+        summary:
+          $ref: "#/components/schemas/TradeHistoryDaySummary"
+      required: [date, trades, summary]
+    TradeHistoryResponse:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradeHistoryDay"
+      required: [days]
     ErrorResponse:
       type: object
       properties:

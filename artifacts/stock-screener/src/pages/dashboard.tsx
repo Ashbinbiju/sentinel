@@ -40,7 +40,12 @@ function cleanSectorName(name: string): string {
 
 function getNowIST() {
   const now = new Date(Date.now() + 19800000);
-  return { h: now.getUTCHours(), m: now.getUTCMinutes(), s: now.getUTCSeconds() };
+  return { 
+    h: now.getUTCHours(), 
+    m: now.getUTCMinutes(), 
+    s: now.getUTCSeconds(),
+    day: now.getUTCDay() 
+  };
 }
 
 function toISTTime(utcString: string): string {
@@ -193,8 +198,9 @@ function ISTClock() {
   }, []);
 
   const mins = t.h * 60 + t.m;
-  const isOpen    = mins >= CLOCK_OPEN_MIN  && mins < CLOCK_CLOSE_MIN;
-  const isPreMkt  = mins >= CLOCK_PRE_MIN   && mins < CLOCK_OPEN_MIN;
+  const isWeekend = t.day === 0 || t.day === 6;
+  const isOpen    = !isWeekend && mins >= CLOCK_OPEN_MIN  && mins < CLOCK_CLOSE_MIN;
+  const isPreMkt  = !isWeekend && mins >= CLOCK_PRE_MIN   && mins < CLOCK_OPEN_MIN;
 
   let dot: string;
   let sessionTag: React.ReactNode;
@@ -227,11 +233,13 @@ function ISTClock() {
   } else {
     dot = "bg-muted-foreground/25";
     let opensLabel: string;
-    if (mins < CLOCK_PRE_MIN) {
+    if (isWeekend) {
+      opensLabel = "opens Monday";
+    } else if (mins < CLOCK_PRE_MIN) {
       opensLabel = `opens in ${formatDuration(CLOCK_OPEN_MIN - mins)}`;
     } else {
       const minsUntil = (24 * 60 - mins) + CLOCK_OPEN_MIN;
-      opensLabel = minsUntil > 14 * 60 ? "opens tomorrow" : `opens in ${formatDuration(minsUntil)}`;
+      opensLabel = minsUntil > 14 * 60 ? (t.day === 5 ? "opens Monday" : "opens tomorrow") : `opens in ${formatDuration(minsUntil)}`;
     }
     sessionTag = (
       <span className="flex items-center gap-1.5">

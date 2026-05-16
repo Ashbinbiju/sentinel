@@ -15,3 +15,25 @@ services:
         sync: false # set manually in Render dashboard
       - key: TELEGRAM_CHAT_ID
         sync: false # set manually in Render dashboard
+
+  # ── Keep-alive cron job ───────────────────────────────────────────────────────
+  # Render free-tier web services spin down after ~15 min of no traffic.
+  # The dashboard keep-alive ping only works while a browser tab is open.
+  # This cron job pings /api/healthz every 4 minutes unconditionally so the
+  # API stays warm regardless of whether anyone has the dashboard open.
+  #
+  # Actual Render URL for this deployment (visible in the Render dashboard).
+  - type: cron
+    name: sentinel-keepalive
+    env: node
+    region: singapore
+    plan: free
+    schedule: "*/4 * * * *" # every 4 minutes, all day
+    buildCommand: "echo 'no build needed'"
+    startCommand: >
+      node -e "
+        const url = 'https://sentinel-sbkm.onrender.com/api/healthz';
+        fetch(url)
+          .then(r => console.log('[keepalive] ping ok -', r.status, url))
+          .catch(e => { console.error('[keepalive] ping failed:', e.message); process.exit(1); });
+      "
