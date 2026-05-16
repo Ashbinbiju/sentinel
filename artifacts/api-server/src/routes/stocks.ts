@@ -528,7 +528,9 @@ router.get("/momentum-picks", async (req, res) => {
             // Both are lexicographically sortable (YYYY-MM-DD and HH:MM),
             // so a plain string comparison is sufficient.
             const indKey = `${ind.indicatorDate}T${ind.lastCandleTimeIST ?? "00:00"}`;
-            const curKey = `${indicatorDate ?? ""}T${lastCandleTimeIST ?? "00:00"}`;
+            const curKey = indicatorDate 
+              ? `${indicatorDate}T${lastCandleTimeIST ?? "00:00"}`
+              : "0000-00-00T00:00";
             if (indKey > curKey) {
               indicatorDate = ind.indicatorDate;
               lastCandleTimeIST = ind.lastCandleTimeIST;
