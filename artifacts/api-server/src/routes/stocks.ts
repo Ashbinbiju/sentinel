@@ -272,8 +272,16 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       const crossedVwapRecently =
         vwap !== null && priorCandles.some((c) => c.c < vwap);
 
+      // ── Time Cutoff Check ────────────────────────────────────────────────
+      // Intraday trades shouldn't be entered after 15:15 IST (09:45 UTC)
+      // Angel One blocks new MIS orders after 15:15, so any signals after this are invalid.
+      const candleDate = new Date(last.t * 1000);
+      const candleHours = candleDate.getUTCHours();
+      const candleMins = candleDate.getUTCMinutes();
+      const isBeforeCutoff = candleHours < 9 || (candleHours === 9 && candleMins <= 45);
+
       entrySignal =
-        (vwap !== null && ema20 !== null && lastTradingDate === today)
+        (vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
           ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently
           : null;
 
@@ -284,7 +292,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         target2 = tradeParams.target2;
         riskPct = tradeParams.riskPct;
         smartExit = tradeParams.smartExit;
-        signalTime = new Date().toISOString();
+        signalTime = candleDate.toISOString();
 
         try {
           await db.insert(tradesTable).values({
