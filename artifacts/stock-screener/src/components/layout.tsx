@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 function SentinelLogo({ className }: { className?: string }) {
   return (
@@ -91,16 +91,39 @@ function SentinelLogo({ className }: { className?: string }) {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card">
-        <div className="px-4 h-14 flex items-center">
+        <div className="px-4 h-14 flex items-center justify-between">
           <Link href="/" className="font-bold text-lg tracking-tight flex items-center gap-2.5 text-foreground group">
             <SentinelLogo className="h-8 w-10 drop-shadow-[0_0_10px_rgba(52,211,153,0.55)] group-hover:drop-shadow-[0_0_18px_rgba(52,211,153,0.85)] transition-all duration-200" />
             <span className="tracking-[0.12em] font-extrabold bg-gradient-to-r from-emerald-300 via-emerald-400 to-emerald-300 bg-clip-text text-transparent">
               SENTINEL
             </span>
           </Link>
+          <nav className="flex items-center gap-1">
+            <Link
+              href="/"
+              className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+                location === "/"
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              }`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              href="/history"
+              className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+                location === "/history"
+                  ? "bg-emerald-500/10 text-emerald-400"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              }`}
+            >
+              History
+            </Link>
+          </nav>
         </div>
       </header>
       <main className="flex-1 overflow-auto">
