@@ -103,9 +103,9 @@ async function main() {
             continue;
           }
 
-          // 7. Execute Trade
+          // 7. Execute Trade (Using Bracket Order / ROBO)
           try {
-            await broker.placeMarketBuy(pick.symbol, token, quantity);
+            await broker.placeRoboOrder(pick.symbol, token, quantity, pick.entry, pick.target1, pick.sl);
             executedSymbols.add(pick.symbol);
             tradesToday++;
             console.log(`[BOT] Trade ${tradesToday}/${MAX_DAILY_TRADES} executed successfully.`);

@@ -94,5 +94,49 @@ export class AngelOneBroker {
     }
   }
 
-  // Future expansion: we can add placeStopLoss and placeTarget methods here once the basic Market Buy is validated.
+  async placeRoboOrder(symbol: string, token: string, quantity: number, entryPrice: number, targetPrice: number, slPrice: number): Promise<string> {
+    console.log(`[BROKER] Placing ROBO (Bracket) BUY for ${symbol} | Qty: ${quantity} | Limit: ${entryPrice} | Tgt: ${targetPrice} | SL: ${slPrice}`);
+    
+    if (process.env.DRY_RUN === "true") {
+      console.log(`[DRY RUN] Order intercepted. Would have placed ROBO order for ${symbol}.`);
+      return "mock-robo-id";
+    }
+
+    try {
+      // Angel One expects absolute points (difference from entry) for squareoff and stoploss
+      const squareoffPoints = Math.abs(targetPrice - entryPrice).toFixed(1);
+      const stoplossPoints = Math.abs(entryPrice - slPrice).toFixed(1);
+      
+      // Use a limit price 0.3% higher than the entry signal to ensure immediate execution like a MARKET order
+      // (Tick size is 0.05 for NSE Equity)
+      const limitPriceNum = entryPrice * 1.003;
+      const limitPrice = (Math.round(limitPriceNum * 20) / 20).toFixed(2);
+
+      const orderData = {
+        variety: "ROBO",
+        tradingsymbol: `${symbol}-EQ`,
+        symboltoken: token,
+        transactiontype: "BUY",
+        exchange: "NSE",
+        ordertype: "LIMIT",
+        producttype: "BO",
+        duration: "DAY",
+        price: limitPrice,
+        squareoff: squareoffPoints,
+        stoploss: stoplossPoints,
+        quantity: quantity.toString(),
+      };
+      
+      const response = await this.smartApi.placeOrder(orderData);
+      if (response && response.status) {
+        console.log(`[BROKER] ROBO Order placed successfully! ID: ${response.data.orderid}`);
+        return response.data.orderid;
+      } else {
+        throw new Error(response.message || "Failed to place ROBO order");
+      }
+    } catch (err) {
+      console.error("[BROKER] ROBO Order Exception:", err);
+      throw err;
+    }
+  }
 }
