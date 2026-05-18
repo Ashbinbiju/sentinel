@@ -447,6 +447,13 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
 
+    // Volume confirmation: compare last candle volume to session average.
+    // New entries require a real spike, not merely average participation.
+    const avgVolume = confirmedSession.reduce((sum, c) => sum + c.v, 0) / confirmedSession.length;
+    const lastVolume = last.v;
+    const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
+    const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
+
     if (existingTrade) {
       entrySignal = true;
       sl = Number(existingTrade.sl);
@@ -482,7 +489,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
 
       entrySignal =
         (vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
-          ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently
+          ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently && volumeOk === true
           : null;
 
       if (entrySignal && vwap !== null) {
@@ -511,12 +518,6 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         }
       }
     }
-
-    // Volume confirmation: compare last candle volume to session average
-    const avgVolume = confirmedSession.reduce((sum, c) => sum + c.v, 0) / confirmedSession.length;
-    const lastVolume = last.v;
-    const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
-    const volumeOk = volumeRatio !== null ? volumeRatio >= 1.5 : null;
 
     const sessionStartIndex = confirmedHistorical.findIndex(c => c.t === confirmedSession[0]?.t);
     const prevClose = sessionStartIndex > 0 ? confirmedHistorical[sessionStartIndex - 1].c : (confirmedSession[0]?.o ?? 0);
@@ -766,7 +767,7 @@ router.get("/momentum-picks", async (req, res) => {
                 ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
               const volumeBonus =
                 ind.volumeRatio === null ? 0
-                  : ind.volumeRatio >= 1.5 ? 1.5   // strong volume — confirmed breakout
+                  : ind.volumeRatio > 1.5 ? 1.5   // strong volume - confirmed breakout
                     : ind.volumeRatio >= 1.0 ? 0.4   // average volume — neutral
                       : -0.8;                           // weak volume — penalise ranking
               const score =
