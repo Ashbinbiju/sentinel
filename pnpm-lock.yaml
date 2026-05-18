@@ -101,6 +101,12 @@ importers:
       pino-http:
         specifier: ^10
         version: 10.5.0
+      smartapi-javascript:
+        specifier: ^1.0.27
+        version: 1.0.27
+      totp-generator:
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10

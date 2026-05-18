@@ -2,6 +2,9 @@ import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
 import { db, tradesTable, type Trade } from "@workspace/db";
 import { and, eq, gte, desc } from "drizzle-orm";
+import { TOTP } from "totp-generator";
+
+const { SmartAPI } = require("smartapi-javascript");
 
 const router = Router();
 
@@ -31,8 +34,39 @@ interface Candle {
   v: number;
 }
 
+interface CandleData {
+  sessionCandles: Candle[];
+  historicalCandles: Candle[];
+  lastTradingDate: string;
+}
+
+interface AngelScripMasterRow {
+  token: string;
+  name: string;
+  symbol: string;
+  exch_seg: string;
+  instrumenttype: string;
+}
+
+type AngelCandleRow = [
+  string | number,
+  string | number,
+  string | number,
+  string | number,
+  string | number,
+  string | number,
+];
+
 const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
+const ANGEL_SCRIP_MASTER_URL =
+  "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json";
+
+let angelSmartApi: any | null = null;
+let angelLoginPromise: Promise<any> | null = null;
+let angelSessionExpiresAt = 0;
+let angelScripMapPromise: Promise<Map<string, string>> | null = null;
+let angelCredentialsWarningShown = false;
 
 function getISTDateStr(epochSecs: number): string {
   return new Date(epochSecs * 1000 + IST_OFFSET_MS).toISOString().slice(0, 10);
@@ -50,7 +84,164 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[], historicalCandles: Candle[], lastTradingDate: string } | null> {
+function hasAngelMarketDataCredentials(): boolean {
+  return Boolean(
+    process.env.ANGEL_API_KEY &&
+      process.env.ANGEL_CLIENT_CODE &&
+      process.env.ANGEL_PASSWORD &&
+      process.env.ANGEL_TOTP_SECRET,
+  );
+}
+
+function formatAngelDate(date: Date): string {
+  return new Date(date.getTime() + IST_OFFSET_MS)
+    .toISOString()
+    .slice(0, 16)
+    .replace("T", " ");
+}
+
+function parseAngelEpochSecs(value: string | number): number | null {
+  if (typeof value === "number") {
+    return Math.floor(value > 1_000_000_000_000 ? value / 1000 : value);
+  }
+
+  const normalized = value.includes("T")
+    ? value
+    : value.replace(" ", "T");
+  const withTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+    ? normalized
+    : `${normalized}+05:30`;
+  const ms = Date.parse(withTimezone);
+  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+}
+
+function buildCandleData(candles: Candle[]): CandleData | null {
+  const validHistorical = candles
+    .filter((c) => c.v > 0)
+    .sort((a, b) => a.t - b.t);
+  let lastTradingDate: string | null = null;
+
+  for (let i = validHistorical.length - 1; i >= 0; i--) {
+    lastTradingDate = getISTDateStr(validHistorical[i].t);
+    break;
+  }
+  if (!lastTradingDate) return null;
+
+  const sessionCandles = validHistorical.filter(
+    (c) => getISTDateStr(c.t) === lastTradingDate,
+  );
+  return { sessionCandles, historicalCandles: validHistorical, lastTradingDate };
+}
+
+async function getAngelScripMap(): Promise<Map<string, string>> {
+  if (!angelScripMapPromise) {
+    angelScripMapPromise = (async () => {
+      const response = await fetch(ANGEL_SCRIP_MASTER_URL);
+      if (!response.ok) {
+        throw new Error(`Angel scrip master responded with ${response.status}`);
+      }
+
+      const rows = (await response.json()) as AngelScripMasterRow[];
+      const map = new Map<string, string>();
+      for (const row of rows) {
+        if (row.exch_seg === "NSE" && row.instrumenttype === "") {
+          map.set(row.name.toUpperCase().trim(), row.token);
+          map.set(row.symbol.replace(/-EQ$/i, "").toUpperCase().trim(), row.token);
+        }
+      }
+      console.log(`[DATA] Loaded ${map.size} Angel One NSE equity token aliases.`);
+      return map;
+    })();
+  }
+
+  return angelScripMapPromise;
+}
+
+async function getAngelSmartApi(): Promise<any> {
+  if (angelSmartApi && Date.now() < angelSessionExpiresAt) return angelSmartApi;
+  if (angelLoginPromise) return angelLoginPromise;
+
+  angelLoginPromise = (async () => {
+    const clientCode = process.env.ANGEL_CLIENT_CODE;
+    const password = process.env.ANGEL_PASSWORD;
+    const totpSecret = process.env.ANGEL_TOTP_SECRET;
+    const apiKey = process.env.ANGEL_API_KEY;
+
+    if (!clientCode || !password || !totpSecret || !apiKey) {
+      throw new Error("Missing Angel One credentials");
+    }
+
+    const smartApi = new SmartAPI({ api_key: apiKey });
+    const totpInfo = await TOTP.generate(totpSecret);
+    const totp = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
+    const session = await smartApi.generateSession(clientCode, password, totp);
+
+    if (!session?.status) {
+      throw new Error(session?.message || "Angel One login failed");
+    }
+
+    angelSmartApi = smartApi;
+    angelSessionExpiresAt = Date.now() + 7 * 60 * 60 * 1000;
+    console.log("[DATA] Angel One SmartAPI market-data login successful.");
+    return smartApi;
+  })();
+
+  try {
+    return await angelLoginPromise;
+  } finally {
+    angelLoginPromise = null;
+  }
+}
+
+async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
+  if (process.env.ANGEL_MARKET_DATA_ENABLED === "false") return null;
+
+  if (!hasAngelMarketDataCredentials()) {
+    if (!angelCredentialsWarningShown) {
+      console.warn("[DATA] Angel One market data disabled: missing credentials.");
+      angelCredentialsWarningShown = true;
+    }
+    return null;
+  }
+
+  const scripMap = await getAngelScripMap();
+  const token = scripMap.get(symbol.toUpperCase().trim());
+  if (!token) throw new Error(`No Angel One token found for ${symbol}`);
+
+  const now = new Date();
+  const from = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+  const smartApi = await getAngelSmartApi();
+  const response = await smartApi.getCandleData({
+    exchange: "NSE",
+    symboltoken: token,
+    interval: "FIVE_MINUTE",
+    fromdate: formatAngelDate(from),
+    todate: formatAngelDate(now),
+  });
+
+  if (!response?.status || !Array.isArray(response.data)) {
+    throw new Error(response?.message || "Angel One returned no candle data");
+  }
+
+  const candles: Candle[] = [];
+  for (const row of response.data as AngelCandleRow[]) {
+    const epochSecs = parseAngelEpochSecs(row[0]);
+    if (epochSecs === null) continue;
+
+    candles.push({
+      t: epochSecs,
+      o: Number(row[1]),
+      h: Number(row[2]),
+      l: Number(row[3]),
+      c: Number(row[4]),
+      v: Number(row[5]),
+    });
+  }
+
+  return buildCandleData(candles);
+}
+
+async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - 7 * 24 * 3600;
   const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=390&currencyCode=INR`;
@@ -79,19 +270,28 @@ async function fetchCandles(symbol: string): Promise<{ sessionCandles: Candle[],
     v: data.v?.[i] ?? 0,
   }));
 
-  let lastTradingDate: string | null = null;
-  for (let i = all.length - 1; i >= 0; i--) {
-    if (all[i].v > 0) {
-      lastTradingDate = getISTDateStr(all[i].t);
-      break;
+  return buildCandleData(all);
+}
+
+async function fetchCandles(symbol: string): Promise<CandleData | null> {
+  try {
+    const angelCandles = await fetchAngelCandles(symbol);
+    if (angelCandles) {
+      console.log(`[DATA] ${symbol}: using Angel One SmartAPI candles.`);
+      return angelCandles;
     }
+  } catch (err) {
+    console.warn(
+      `[DATA] ${symbol}: Angel One candle fetch failed, falling back to Moneycontrol.`,
+      err,
+    );
   }
-  if (!lastTradingDate) return null;
 
-  const validHistorical = all.filter((c) => c.v > 0);
-  const sessionCandles = validHistorical.filter((c) => getISTDateStr(c.t) === lastTradingDate);
-
-  return { sessionCandles, historicalCandles: validHistorical, lastTradingDate };
+  const fallbackCandles = await fetchMoneycontrolCandles(symbol);
+  if (fallbackCandles) {
+    console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
+  }
+  return fallbackCandles;
 }
 
 function calculateVWAP(candles: Candle[]): number | null {

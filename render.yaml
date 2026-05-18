@@ -11,6 +11,18 @@ services:
         value: 10000
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        sync: false # set manually in Render dashboard
+      - key: ANGEL_API_KEY
+        sync: false # set manually in Render dashboard
+      - key: ANGEL_CLIENT_CODE
+        sync: false # set manually in Render dashboard
+      - key: ANGEL_PASSWORD
+        sync: false # set manually in Render dashboard
+      - key: ANGEL_TOTP_SECRET
+        sync: false # set manually in Render dashboard
+      - key: ANGEL_MARKET_DATA_ENABLED
+        value: "true"
       - key: TELEGRAM_BOT_TOKEN
         sync: false # set manually in Render dashboard
       - key: TELEGRAM_CHAT_ID
