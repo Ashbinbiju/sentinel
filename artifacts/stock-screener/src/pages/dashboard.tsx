@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Layout } from "@/components/layout";
 import { Ticker } from "@/components/ticker";
 import { StockCard } from "@/components/stock-card";
@@ -585,6 +586,9 @@ interface TodayTrade {
 function TodayTradesWidget() {
   const [trades, setTrades] = useState<TodayTrade[]>([]);
   const [open, setOpen] = useState(false);
+  const [panelPosition, setPanelPosition] = useState<{ top: number; right: number; width: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchTrades() {
@@ -601,6 +605,46 @@ function TodayTradesWidget() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+
+    function updatePanelPosition() {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const margin = 12;
+      const width = Math.min(288, window.innerWidth - margin * 2);
+      setPanelPosition({
+        top: rect.bottom + 8,
+        right: Math.max(margin, window.innerWidth - rect.right),
+        width,
+      });
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    updatePanelPosition();
+    window.addEventListener("resize", updatePanelPosition);
+    window.addEventListener("scroll", updatePanelPosition, true);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("resize", updatePanelPosition);
+      window.removeEventListener("scroll", updatePanelPosition, true);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
   const MAX = 2;
   const count = Math.min(trades.length, MAX);
   const displayedTrades = trades.slice(0, MAX);
@@ -608,6 +652,7 @@ function TodayTradesWidget() {
   return (
     <div className="relative">
       <button
+        ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
         title="Today's trades"
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-xs ${
@@ -621,10 +666,17 @@ function TodayTradesWidget() {
         <span className="hidden sm:inline">Trades</span>
       </button>
 
-      {open && (
+      {open && panelPosition && createPortal(
         <div 
-          className="absolute right-0 top-full mt-2 z-50 w-72 rounded-xl shadow-2xl overflow-hidden"
-          style={{ backgroundColor: "#020617", border: "1px solid rgba(255,255,255,0.1)" }}
+          ref={panelRef}
+          className="fixed z-[9999] rounded-xl shadow-2xl overflow-hidden"
+          style={{
+            top: panelPosition.top,
+            right: panelPosition.right,
+            width: panelPosition.width,
+            backgroundColor: "#020617",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}
         >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 bg-slate-900/50">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
@@ -678,7 +730,8 @@ function TodayTradesWidget() {
               <p className="text-[10px] text-slate-400 text-center">{MAX - count} trade slot{MAX - count !== 1 ? "s" : ""} remaining today</p>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
