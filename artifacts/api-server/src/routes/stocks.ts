@@ -720,7 +720,7 @@ router.get("/momentum-picks", async (req, res) => {
 
           const filtered = all.filter((stock) => {
             const change = stock.changePct ?? 0;
-            return change >= 0.3 && change < 3.0;
+            return change >= 0.3 && change < 2.0;
           });
 
           const symbols = filtered.map((s) => s.symbol);
