@@ -586,7 +586,7 @@ interface TodayTrade {
 function TodayTradesWidget() {
   const [trades, setTrades] = useState<TodayTrade[]>([]);
   const [open, setOpen] = useState(false);
-  const [panelPosition, setPanelPosition] = useState<{ top: number; right: number; width: number } | null>(null);
+  const [panelPosition, setPanelPosition] = useState<{ top: number; right: number; width: number; maxHeight: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -618,6 +618,7 @@ function TodayTradesWidget() {
         top: rect.bottom + 8,
         right: Math.max(margin, window.innerWidth - rect.right),
         width,
+        maxHeight: Math.max(180, window.innerHeight - rect.bottom - 20),
       });
     }
 
@@ -667,17 +668,27 @@ function TodayTradesWidget() {
       </button>
 
       {open && panelPosition && createPortal(
-        <div 
-          ref={panelRef}
-          className="fixed z-[9999] rounded-xl shadow-2xl overflow-hidden"
-          style={{
-            top: panelPosition.top,
-            right: panelPosition.right,
-            width: panelPosition.width,
-            backgroundColor: "#020617",
-            border: "1px solid rgba(255,255,255,0.1)",
-          }}
-        >
+        <>
+          <div
+            className="fixed inset-0 bg-slate-950/45 backdrop-blur-[1px]"
+            style={{ zIndex: 2147483646 }}
+            aria-hidden="true"
+          />
+          <div 
+            ref={panelRef}
+            className="fixed rounded-xl shadow-2xl overflow-hidden"
+            style={{
+              top: panelPosition.top,
+              right: panelPosition.right,
+              width: panelPosition.width,
+              maxHeight: panelPosition.maxHeight,
+              overflowY: "auto",
+              zIndex: 2147483647,
+              backgroundColor: "#020617",
+              border: "1px solid rgba(255,255,255,0.16)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.7)",
+            }}
+          >
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 bg-slate-900/50">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">Today's Trades</span>
@@ -730,7 +741,8 @@ function TodayTradesWidget() {
               <p className="text-[10px] text-slate-400 text-center">{MAX - count} trade slot{MAX - count !== 1 ? "s" : ""} remaining today</p>
             </div>
           )}
-        </div>,
+          </div>
+        </>,
         document.body,
       )}
     </div>
