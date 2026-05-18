@@ -59,6 +59,9 @@ type AngelCandleRow = [
 
 const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
+const CANDLE_INTERVAL_SECS = 5 * 60;
+const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
+const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const ANGEL_SCRIP_MASTER_URL =
   "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json";
 
@@ -119,18 +122,26 @@ function buildCandleData(candles: Candle[]): CandleData | null {
   const validHistorical = candles
     .filter((c) => c.v > 0)
     .sort((a, b) => a.t - b.t);
-  let lastTradingDate: string | null = null;
+  const tradingDates = Array.from(
+    new Set(validHistorical.map((c) => getISTDateStr(c.t))),
+  ).slice(-INDICATOR_LOOKBACK_TRADING_DAYS);
 
-  for (let i = validHistorical.length - 1; i >= 0; i--) {
-    lastTradingDate = getISTDateStr(validHistorical[i].t);
-    break;
-  }
+  const lastTradingDate = tradingDates.at(-1) ?? null;
   if (!lastTradingDate) return null;
 
+  const tradingDateSet = new Set(tradingDates);
+  const historicalCandles = validHistorical.filter((c) =>
+    tradingDateSet.has(getISTDateStr(c.t)),
+  );
   const sessionCandles = validHistorical.filter(
     (c) => getISTDateStr(c.t) === lastTradingDate,
   );
-  return { sessionCandles, historicalCandles: validHistorical, lastTradingDate };
+  return { sessionCandles, historicalCandles, lastTradingDate };
+}
+
+function getConfirmedCandles(candles: Candle[]): Candle[] {
+  const nowSecs = Math.floor(Date.now() / 1000);
+  return candles.filter((c) => c.t + CANDLE_INTERVAL_SECS <= nowSecs);
 }
 
 async function getAngelScripMap(): Promise<Map<string, string>> {
@@ -209,7 +220,7 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
   if (!token) throw new Error(`No Angel One token found for ${symbol}`);
 
   const now = new Date();
-  const from = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+  const from = new Date(now.getTime() - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
   const smartApi = await getAngelSmartApi();
   const response = await smartApi.getCandleData({
     exchange: "NSE",
@@ -243,8 +254,8 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
 
 async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {
   const to = Math.floor(Date.now() / 1000);
-  const from = to - 7 * 24 * 3600;
-  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=390&currencyCode=INR`;
+  const from = to - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600;
+  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=600&currencyCode=INR`;
 
   const response = await fetch(url, { headers: MC_HEADERS });
   if (!response.ok) return null;
@@ -417,12 +428,13 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const existingTrade = existingTrades.length > 0 ? existingTrades[0] : null;
 
     const candleData = await fetchCandles(symbol);
-    if (!candleData || candleData.sessionCandles.length < 2) return empty;
+    if (!candleData) return empty;
 
     const { sessionCandles, historicalCandles, lastTradingDate } = candleData;
 
-    const confirmedSession = sessionCandles.slice(0, -1);
-    const confirmedHistorical = historicalCandles.slice(0, -1);
+    const confirmedSession = getConfirmedCandles(sessionCandles);
+    const confirmedHistorical = getConfirmedCandles(historicalCandles);
+    if (confirmedSession.length === 0) return empty;
 
     const last = confirmedSession[confirmedSession.length - 1];
     let confirmedClose = last.c;
@@ -890,7 +902,8 @@ router.get("/trades/today", async (req, res) => {
       if (Number.isNaN(signalTimeMs)) return { ...trade, hitTime: null };
       
       // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
-      const postSignalCandles = candleData.sessionCandles.filter(c => (c.t + 300) * 1000 > signalTimeMs);
+      const postSignalCandles = getConfirmedCandles(candleData.sessionCandles)
+        .filter(c => (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs);
       
       let hitTime: string | null = null;
       
