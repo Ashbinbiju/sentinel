@@ -256,7 +256,7 @@ export function useGetSectors<
 }
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3%–3.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
+ * Returns filtered stocks from top 4 sectors with 0.3%–2.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
  * @summary Get momentum stock picks with SL/Target
  */
 export const getGetMomentumPicksUrl = () => {

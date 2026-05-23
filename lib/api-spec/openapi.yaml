@@ -70,7 +70,7 @@ paths:
       operationId: getMomentumPicks
       tags: [stocks]
       summary: Get momentum stock picks with SL/Target
-      description: Returns filtered stocks from top 4 sectors with 0.3%–3.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
+      description: Returns filtered stocks from top 4 sectors with 0.3%–2.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
       responses:
         "200":
           description: Momentum stock picks grouped by sector
