@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
-import { db, tradesTable, type Trade } from "@workspace/db";
+import { db, tradesTable, type Trade, type TradeStatus } from "@workspace/db";
 import { and, eq, gte, desc } from "drizzle-orm";
 import { TOTP } from "totp-generator";
 
@@ -944,22 +944,32 @@ router.get("/trades/today", async (req, res) => {
     // Evaluate dynamic status and hitTime for today's trades
     trades = await Promise.all(trades.map(async (trade) => {
       const forceSquareOff = isIntradaySquareOffTimeIST();
-      const squareOffOpenTrade = () => {
+      const persistTradeStatus = async (status: TradeStatus): Promise<boolean> => {
+        try {
+          await db.update(tradesTable)
+            .set({ status })
+            .where(eq(tradesTable.id, trade.id));
+          return true;
+        } catch (e) {
+          req.log.error({ err: e, symbol: trade.symbol, status }, "Failed to update trade status");
+          return false;
+        }
+      };
+
+      const squareOffOpenTrade = async () => {
         if (trade.status !== "PENDING" && trade.status !== "ACTIVE") return null;
 
-        db.update(tradesTable)
-          .set({ status: "SQUARED OFF" })
-          .where(eq(tradesTable.id, trade.id))
-          .catch((e: unknown) => req.log.error({ err: e, symbol: trade.symbol }, "Failed to update trade status"));
+        const persisted = await persistTradeStatus("SQUARED OFF");
+        if (!persisted) return { ...trade, hitTime: null };
 
-        return { ...trade, status: "SQUARED OFF", hitTime: "15:15" };
+        return { ...trade, status: "SQUARED OFF" as TradeStatus, hitTime: "15:15" };
       };
 
       const candleData = await fetchCandles(trade.symbol);
-      if (!candleData) return forceSquareOff ? squareOffOpenTrade() ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
+      if (!candleData) return forceSquareOff ? (await squareOffOpenTrade()) ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
       
       const signalTimeMs = new Date(trade.signalTime).getTime();
-      if (Number.isNaN(signalTimeMs)) return forceSquareOff ? squareOffOpenTrade() ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
+      if (Number.isNaN(signalTimeMs)) return forceSquareOff ? (await squareOffOpenTrade()) ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
       
       // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
       const postSignalCandles = getConfirmedCandles(candleData.sessionCandles)
@@ -992,7 +1002,7 @@ router.get("/trades/today", async (req, res) => {
         return { ...trade, hitTime };
       }
       
-      let newStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
+      let newStatus: TradeStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
       let maxTargetReached = trade.status === "TARGET 1 HIT" ? 1 : 0;
       
       for (const c of postSignalCandles) {
@@ -1030,12 +1040,8 @@ router.get("/trades/today", async (req, res) => {
       }
       
       if (newStatus !== trade.status) {
-        trade.status = newStatus;
-        // Fire and forget DB update
-        db.update(tradesTable)
-          .set({ status: newStatus })
-          .where(eq(tradesTable.id, trade.id))
-          .catch((e: unknown) => req.log.error({ err: e, symbol: trade.symbol }, "Failed to update trade status"));
+        const persisted = await persistTradeStatus(newStatus);
+        if (!persisted) return { ...trade, hitTime: null };
       }
       
       return { ...trade, status: newStatus, hitTime };
