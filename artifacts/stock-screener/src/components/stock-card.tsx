@@ -1,20 +1,7 @@
 import React from "react";
 import type { StockItem } from "@workspace/api-client-react";
-import { formatCurrency, formatPercent, getColorClass } from "@/lib/format";
+import { formatCurrency, formatPercent, getColorClass, toISTTime } from "@/lib/format";
 import { Sparkline } from "@/components/sparkline";
-
-function toISTTime(utcString: string): string {
-  try {
-    let s = utcString;
-    s = s.split('.')[0];
-    if (!s.includes("T")) s = s.replace(" ", "T");
-    if (!s.endsWith("Z")) s += "Z";
-    const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
-    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-  } catch {
-    return "-";
-  }
-}
 
 interface StockCardProps {
   stock: StockItem;

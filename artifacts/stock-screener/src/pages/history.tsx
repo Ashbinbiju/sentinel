@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Target,
 } from "lucide-react";
+import { toISTTime } from "@/lib/format";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -42,18 +43,6 @@ interface TradeHistoryDay {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function toISTTime(utcString: string): string {
-  try {
-    let s = utcString.split(".")[0];
-    if (!s.includes("T")) s = s.replace(" ", "T");
-    if (!s.endsWith("Z")) s += "Z";
-    const d = new Date(new Date(s).getTime() + 19800000);
-    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-  } catch {
-    return "-";
-  }
-}
 
 function formatDate(dateStr: string): { long: string; dayOfWeek: string; daysAgo: string } {
   try {

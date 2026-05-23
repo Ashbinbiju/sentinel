@@ -10,7 +10,7 @@ import {
   getGetMomentumPicksQueryKey,
   type TopPick,
 } from "@workspace/api-client-react";
-import { formatPercent, getColorClass } from "@/lib/format";
+import { formatPercent, getColorClass, toISTDisplay, toISTTime } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, Target, ShieldAlert, Zap, RefreshCw, Bell, BellOff, BarChart2, Activity } from "lucide-react";
 import { Sparkline } from "@/components/sparkline";
@@ -47,34 +47,6 @@ function getNowIST() {
     s: now.getUTCSeconds(),
     day: now.getUTCDay() 
   };
-}
-
-function toISTTime(utcString: string): string {
-  try {
-    let s = utcString;
-    s = s.split('.')[0]; // strip fractional seconds to prevent Safari falling back to local-time parsing
-    if (!s.includes("T")) s = s.replace(" ", "T");
-    if (!s.endsWith("Z")) s += "Z";
-    const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
-    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-  } catch {
-    return "-";
-  }
-}
-
-function toISTDisplay(isoUtc: string): string {
-  try {
-    let s = isoUtc;
-    s = s.split('.')[0];
-    if (!s.includes("T")) s = s.replace(" ", "T");
-    if (!s.endsWith("Z")) s += "Z";
-    const d = new Date(new Date(s).getTime() + 19800000); // UTC+5:30
-    const hh = String(d.getUTCHours()).padStart(2, "0");
-    const mm = String(d.getUTCMinutes()).padStart(2, "0");
-    return `${hh}:${mm} IST`;
-  } catch {
-    return "";
-  }
 }
 
 function formatHitTime(timeStr: string | null | undefined): string {
