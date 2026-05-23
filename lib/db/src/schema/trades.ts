@@ -19,7 +19,7 @@ export const tradesTable = pgTable("trades", {
   id: serial("id").primaryKey(),
   symbol: text("symbol").notNull(),
   date: text("date").notNull(), // YYYY-MM-DD
-  signalTime: timestamp("signal_time", { mode: "string" }).notNull(),
+  signalTime: timestamp("signal_time", { mode: "string", withTimezone: true }).notNull(),
   entryPrice: numeric("entry_price").notNull(),
   sl: numeric("sl").notNull(),
   target1: numeric("target1").notNull(),
