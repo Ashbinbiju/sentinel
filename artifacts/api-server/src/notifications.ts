@@ -2,10 +2,19 @@ import type { Logger } from "pino";
 
 const IST_OFFSET_MS = 19800 * 1000;
 
-function isMarketHours(): boolean {
+function getNowISTParts(): { h: number; m: number; day: number } {
   const now = new Date(Date.now() + IST_OFFSET_MS);
-  const h = now.getUTCHours();
-  const m = now.getUTCMinutes();
+  return {
+    h: now.getUTCHours(),
+    m: now.getUTCMinutes(),
+    day: now.getUTCDay(),
+  };
+}
+
+function isMarketHours(): boolean {
+  const { h, m, day } = getNowISTParts();
+  if (day === 0 || day === 6) return false;
+
   const mins = h * 60 + m;
   return mins >= 9 * 60 + 15 && mins < 15 * 60 + 30;
 }
@@ -13,6 +22,7 @@ function isMarketHours(): boolean {
 // In-memory set of symbols already notified this session (resets on server restart)
 const notifiedToday = new Set<string>();
 let notifiedDate = "";
+let missingConfigWarned = false;
 
 function getTodayISTDate(): string {
   return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
@@ -40,24 +50,35 @@ interface TopPickForNotify {
   volumeOk: boolean | null;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function buildMessage(pick: TopPickForNotify): string {
+  const symbol = escapeHtml(pick.symbol);
+  const sectorName = escapeHtml(pick.sectorName);
+  const chartUrl = `https://www.tradingview.com/chart/?symbol=NSE%3A${encodeURIComponent(pick.symbol)}`;
   const volLine =
     pick.volumeRatio != null
-      ? `\n📦 Volume: ${pick.volumeRatio.toFixed(1)}× avg${pick.volumeOk ? " ✅" : ""}`
+      ? `\nVolume: ${pick.volumeRatio.toFixed(1)}x avg${pick.volumeOk ? " OK" : ""}`
       : "";
 
   return (
-    `🚨 *SENTINEL SIGNAL*\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `*${pick.symbol}* · ${pick.sectorName}\n\n` +
-    `📈 *Entry:* ₹${pick.entry.toFixed(2)}\n` +
-    `🛡 *SL:* ₹${pick.sl.toFixed(2)} \\(-${pick.riskPct.toFixed(1)}%\\)\n` +
-    `🎯 *T1:* ₹${pick.target1.toFixed(2)}\n` +
-    `🎯 *T2:* ₹${pick.target2.toFixed(2)}\n` +
-    `📊 *Change:* +${pick.changePct.toFixed(2)}%\n` +
-    `〰 *VWAP:* ₹${pick.vwap.toFixed(2)}` +
+    `<b>SENTINEL SIGNAL</b>\n` +
+    `----------------\n` +
+    `<b>${symbol}</b> - ${sectorName}\n\n` +
+    `<b>Entry:</b> Rs ${pick.entry.toFixed(2)}\n` +
+    `<b>SL:</b> Rs ${pick.sl.toFixed(2)} (-${pick.riskPct.toFixed(1)}%)\n` +
+    `<b>T1:</b> Rs ${pick.target1.toFixed(2)}\n` +
+    `<b>T2:</b> Rs ${pick.target2.toFixed(2)}\n` +
+    `<b>Change:</b> +${pick.changePct.toFixed(2)}%\n` +
+    `<b>VWAP:</b> Rs ${pick.vwap.toFixed(2)}` +
     volLine +
-    `\n\n[📉 Open Chart](https://www.tradingview.com/chart/?symbol=NSE%3A${pick.symbol})`
+    `\n\n<a href="${chartUrl}">Open Chart</a>`
   );
 }
 
@@ -68,7 +89,13 @@ export async function sendTelegramAlerts(
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
-  if (!token || !chatId) return;
+  if (!token || !chatId) {
+    if (!missingConfigWarned) {
+      logger.warn("Telegram alerts disabled: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is missing");
+      missingConfigWarned = true;
+    }
+    return;
+  }
   if (!isMarketHours()) return;
 
   resetIfNewDay();
@@ -77,7 +104,6 @@ export async function sendTelegramAlerts(
   if (newPicks.length === 0) return;
 
   for (const pick of newPicks) {
-    notifiedToday.add(pick.symbol);
     try {
       const resp = await fetch(
         `https://api.telegram.org/bot${token}/sendMessage`,
@@ -87,15 +113,17 @@ export async function sendTelegramAlerts(
           body: JSON.stringify({
             chat_id: chatId,
             text: buildMessage(pick),
-            parse_mode: "MarkdownV2",
+            parse_mode: "HTML",
             disable_web_page_preview: false,
           }),
         },
       );
+
       if (!resp.ok) {
         const body = await resp.text();
         logger.warn({ symbol: pick.symbol, status: resp.status, body }, "Telegram send failed");
       } else {
+        notifiedToday.add(pick.symbol);
         logger.info({ symbol: pick.symbol }, "Telegram alert sent");
       }
     } catch (err) {

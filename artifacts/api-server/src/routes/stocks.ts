@@ -83,6 +83,28 @@ function getTodayISTDateStr(): string {
   return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+function getNowISTParts(): { h: number; m: number; day: number } {
+  const now = new Date(Date.now() + IST_OFFSET_MS);
+  return {
+    h: now.getUTCHours(),
+    m: now.getUTCMinutes(),
+    day: now.getUTCDay(),
+  };
+}
+
+function isWeekendISTDate(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return false;
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return day === 0 || day === 6;
+}
+
+function isIntradaySquareOffTimeIST(): boolean {
+  const { h, m, day } = getNowISTParts();
+  const isWeekend = day === 0 || day === 6;
+  return isWeekend || h > 15 || (h === 15 && m >= 15);
+}
+
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -417,6 +439,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
 
   try {
     const today = getTodayISTDateStr();
+    const isTradingDay = !isWeekendISTDate(today);
 
     // Check DB for existing signal today
     const existingTrades = await db
@@ -467,7 +490,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
 
     if (existingTrade) {
-      entrySignal = true;
+      entrySignal = isTradingDay;
       sl = Number(existingTrade.sl);
       target1 = Number(existingTrade.target1);
       target2 = Number(existingTrade.target2);
@@ -500,7 +523,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       const isBeforeCutoff = candleHours < 9 || (candleHours === 9 && candleMins <= 45);
 
       entrySignal =
-        (vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
+        (isTradingDay && vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
           ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently && volumeOk === true
           : null;
 
@@ -861,9 +884,10 @@ router.get("/momentum-picks", async (req, res) => {
 
     const todayIST = getTodayISTDateStr();
     const isLiveSession = indicatorDate === todayIST;
+    const liveTopPicks = isLiveSession ? topPicks : [];
 
     // Fire Telegram alerts for any new signals (non-blocking)
-    sendTelegramAlerts(topPicks, req.log).catch((err) =>
+    sendTelegramAlerts(liveTopPicks, req.log).catch((err) =>
       req.log.error({ err }, "Telegram alert dispatch failed"),
     );
 
@@ -872,7 +896,7 @@ router.get("/momentum-picks", async (req, res) => {
       indicatorDate,
       isLiveSession,
       lastCandleTimeIST,
-      topPicks,
+      topPicks: liveTopPicks,
       sectors: sectorResults,
     });
   } catch (err) {
@@ -895,11 +919,23 @@ router.get("/trades/today", async (req, res) => {
 
     // Evaluate dynamic status and hitTime for today's trades
     trades = await Promise.all(trades.map(async (trade) => {
+      const forceSquareOff = isIntradaySquareOffTimeIST();
+      const squareOffOpenTrade = () => {
+        if (trade.status !== "PENDING" && trade.status !== "ACTIVE") return null;
+
+        db.update(tradesTable)
+          .set({ status: "SQUARED OFF" })
+          .where(eq(tradesTable.id, trade.id))
+          .catch((e: unknown) => req.log.error({ err: e, symbol: trade.symbol }, "Failed to update trade status"));
+
+        return { ...trade, status: "SQUARED OFF", hitTime: "15:15" };
+      };
+
       const candleData = await fetchCandles(trade.symbol);
-      if (!candleData) return { ...trade, hitTime: null };
+      if (!candleData) return forceSquareOff ? squareOffOpenTrade() ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
       
       const signalTimeMs = new Date(trade.signalTime).getTime();
-      if (Number.isNaN(signalTimeMs)) return { ...trade, hitTime: null };
+      if (Number.isNaN(signalTimeMs)) return forceSquareOff ? squareOffOpenTrade() ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
       
       // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
       const postSignalCandles = getConfirmedCandles(candleData.sessionCandles)
@@ -959,10 +995,7 @@ router.get("/trades/today", async (req, res) => {
         }
       }
       
-      const nowIST = new Date(Date.now() + 19800000);
-      const isAfterMarket = nowIST.getUTCHours() > 15 || (nowIST.getUTCHours() === 15 && nowIST.getUTCMinutes() >= 15);
-      
-      if (isAfterMarket && newStatus === "ACTIVE") {
+      if (forceSquareOff && newStatus === "ACTIVE") {
         newStatus = "SQUARED OFF";
         const lastCandle = postSignalCandles[postSignalCandles.length - 1];
         if (lastCandle) {

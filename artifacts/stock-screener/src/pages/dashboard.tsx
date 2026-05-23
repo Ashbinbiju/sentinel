@@ -114,7 +114,8 @@ function formatSessionDateFull(dateStr: string): { short: string; long: string; 
 }
 
 function isMarketOpen(): boolean {
-  const { h, m } = getNowIST();
+  const { h, m, day } = getNowIST();
+  if (day === 0 || day === 6) return false;
   const mins = h * 60 + m;
   return mins >= 9 * 60 + 15 && mins < 15 * 60 + 30;
 }
@@ -273,6 +274,8 @@ function PreMarketBanner() {
   }, []);
 
   const mins = t.h * 60 + t.m;
+  const isWeekend = t.day === 0 || t.day === 6;
+  if (isWeekend) return null;
   if (mins < CLOCK_PRE_MIN || mins >= CLOCK_OPEN_MIN) return null;
 
   const PRE_TOTAL_SECS = 15 * 60; // 900s window
@@ -978,7 +981,8 @@ export default function Dashboard() {
     : null;
 
   const updatedIST = momentumData?.fetchedAt ? toISTDisplay(momentumData.fetchedAt) : null;
-  const topPicks = momentumData?.topPicks ?? [];
+  const liveSession = momentumData?.isLiveSession === true;
+  const topPicks = liveSession ? (momentumData?.topPicks ?? []) : [];
   const hasTopPicks = topPicks.length > 0;
 
   // ── Shared action buttons ─────────────────────────────────────────────────
@@ -1094,7 +1098,7 @@ export default function Dashboard() {
                 <div className="rounded-xl border border-border/30 bg-card/30 p-8 text-center">
                   <Zap className="w-8 h-8 text-emerald-400/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    {momentumData?.isLiveSession
+                    {liveSession
                       ? "No entry signals yet — VWAP+EMA20 both need to align. EMA20 requires ~20 candles (11:00 AM IST)."
                       : "No picks this session. Top picks appear once VWAP and EMA20 align."}
                   </p>
@@ -1120,7 +1124,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 momentumData?.sectors.map((sector) => {
-                  const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
+                  const entryStocks = liveSession ? sector.stocks.filter((s) => s.entrySignal === true) : [];
                   if (entryStocks.length === 0) return null;
                   return (
                     <div key={sector.sectorKeyword}>
@@ -1322,7 +1326,7 @@ export default function Dashboard() {
             <div className="px-4 pb-4">
               <div className="rounded-xl border border-border/30 bg-card/30 p-6 text-center">
                 <p className="text-sm text-muted-foreground">
-                  {momentumData?.isLiveSession
+                  {liveSession
                     ? "No entry signals yet — VWAP+EMA20 both need to align above the close. EMA20 requires 20 candles (~11:00 AM IST)."
                     : "Showing last session's signals. Top picks appear once VWAP and EMA20 align."}
                 </p>
@@ -1354,7 +1358,7 @@ export default function Dashboard() {
               ) : (
                 <div className="space-y-8">
                   {momentumData?.sectors.map((sector) => {
-                    const entryStocks = sector.stocks.filter((s) => s.entrySignal === true);
+                    const entryStocks = liveSession ? sector.stocks.filter((s) => s.entrySignal === true) : [];
                     return (
                       <div key={sector.sectorKeyword}>
                         <div className="flex items-center gap-3 mb-3 pb-2 border-b border-border/30">
