@@ -58,6 +58,11 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatSignedPct(value: number): string {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+}
+
 function buildMessage(pick: TopPickForNotify): string {
   const symbol = escapeHtml(pick.symbol);
   const sectorName = escapeHtml(pick.sectorName);
@@ -75,7 +80,7 @@ function buildMessage(pick: TopPickForNotify): string {
     `<b>SL:</b> Rs ${pick.sl.toFixed(2)} (-${pick.riskPct.toFixed(1)}%)\n` +
     `<b>T1:</b> Rs ${pick.target1.toFixed(2)}\n` +
     `<b>T2:</b> Rs ${pick.target2.toFixed(2)}\n` +
-    `<b>Change:</b> +${pick.changePct.toFixed(2)}%\n` +
+    `<b>Change:</b> ${formatSignedPct(pick.changePct)}\n` +
     `<b>VWAP:</b> Rs ${pick.vwap.toFixed(2)}` +
     volLine +
     `\n\n<a href="${chartUrl}">Open Chart</a>`
