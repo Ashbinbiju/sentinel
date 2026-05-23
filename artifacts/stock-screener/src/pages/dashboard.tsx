@@ -594,27 +594,11 @@ interface TodayTrade {
   hitTime?: string | null;
 }
 
-function TodayTradesWidget() {
-  const [trades, setTrades] = useState<TodayTrade[]>([]);
+function TodayTradesWidget({ trades }: { trades: TodayTrade[] }) {
   const [open, setOpen] = useState(false);
   const [panelPosition, setPanelPosition] = useState<{ top: number; right: number; width: number; maxHeight: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    async function fetchTrades() {
-      try {
-        const base = import.meta.env.VITE_API_URL || "";
-        const res = await fetch(`${base}/api/stocks/trades/today`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setTrades(data.trades ?? []);
-      } catch { /* silent */ }
-    }
-    fetchTrades();
-    const id = setInterval(fetchTrades, 30_000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -762,24 +746,8 @@ function TodayTradesWidget() {
 
 // ── Today's Performance Section ────────────────────────────────────────────────
 
-function TodayPerformanceSection() {
-  const [trades, setTrades] = useState<TodayTrade[]>([]);
+function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
   const [filter, setFilter] = useState<"All" | "Winners" | "Losers" | "Active" | "Breakeven">("All");
-  
-  useEffect(() => {
-    async function fetchTrades() {
-      try {
-        const base = import.meta.env.VITE_API_URL || "";
-        const res = await fetch(`${base}/api/stocks/trades/today`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setTrades(data.trades ?? []);
-      } catch { /* silent */ }
-    }
-    fetchTrades();
-    const id = setInterval(fetchTrades, 30_000);
-    return () => clearInterval(id);
-  }, []);
 
   if (trades.length === 0) return null;
 
@@ -944,6 +912,22 @@ export default function Dashboard() {
 
   // Mobile tab state
   const [mobileTab, setMobileTab] = useState<MobileTab>("picks");
+  const [todayTrades, setTodayTrades] = useState<TodayTrade[]>([]);
+
+  useEffect(() => {
+    async function fetchTrades() {
+      try {
+        const base = import.meta.env.VITE_API_URL || "";
+        const res = await fetch(`${base}/api/stocks/trades/today`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setTodayTrades(data.trades ?? []);
+      } catch { /* silent */ }
+    }
+    fetchTrades();
+    const id = setInterval(fetchTrades, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const prevSignalsRef = useRef<Set<string>>(new Set());
   const isFirstFetch = useRef(true);
@@ -1055,7 +1039,7 @@ export default function Dashboard() {
               </span>
             )}
             <div className="ml-auto flex items-center gap-2">
-              <TodayTradesWidget />
+              <TodayTradesWidget trades={todayTrades} />
               <AlertBtn />
               <RefreshBtn />
             </div>
@@ -1276,7 +1260,7 @@ export default function Dashboard() {
               {momentumData?.isLiveSession && updatedIST && !isLoadingMomentum && (
                 <span className="text-xs text-muted-foreground hidden xl:block">refreshed {updatedIST}</span>
               )}
-              <TodayTradesWidget />
+              <TodayTradesWidget trades={todayTrades} />
               <AlertBtn />
               <RefreshBtn />
             </div>
@@ -1462,7 +1446,7 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <TodayPerformanceSection />
+          <TodayPerformanceSection trades={todayTrades} />
         </div>
       </div>
     </Layout>
