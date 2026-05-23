@@ -477,9 +477,15 @@ interface ToastSignal {
 
 function SignalToastItem({ toast, onDone }: { toast: ToastSignal; onDone: () => void }) {
   const [visible, setVisible] = useState(true);
+  const onDoneRef = useRef(onDone);
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
+
   useEffect(() => {
     const hide = setTimeout(() => setVisible(false), 3800);
-    const remove = setTimeout(onDone, 4300);
+    const remove = setTimeout(() => onDoneRef.current(), 4300);
     return () => { clearTimeout(hide); clearTimeout(remove); };
   }, []);
   return (
