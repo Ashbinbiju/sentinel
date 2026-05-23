@@ -97,7 +97,7 @@ export const GetMomentumPicksResponse = zod.object({
             .boolean()
             .nullish()
             .describe(
-              "True if volumeRatio >= 1.5 (strong volume confirmation)",
+              "True if volumeRatio > 1.5 (strong volume confirmation)",
             ),
         })
         .describe("One of the top 5 intraday picks across all sectors"),
@@ -165,7 +165,7 @@ export const GetMomentumPicksResponse = zod.object({
             .boolean()
             .nullish()
             .describe(
-              "True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise",
+              "True if volumeRatio > 1.5 (strong volume confirmation), false otherwise",
             ),
         }),
       ),

@@ -84,7 +84,7 @@ export interface StockItem {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise
+   * True if volumeRatio > 1.5 (strong volume confirmation), false otherwise
    * @nullable
    */
   volumeOk?: boolean | null;
@@ -140,7 +140,7 @@ export interface TopPick {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio >= 1.5 (strong volume confirmation)
+   * True if volumeRatio > 1.5 (strong volume confirmation)
    * @nullable
    */
   volumeOk?: boolean | null;

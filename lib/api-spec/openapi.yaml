@@ -193,7 +193,7 @@ components:
           description: Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)
         volumeOk:
           type: ["boolean", "null"]
-          description: True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise
+          description: True if volumeRatio > 1.5 (strong volume confirmation), false otherwise
       required:
         - symbol
         - ltp
@@ -246,7 +246,7 @@ components:
           description: Last confirmed candle volume divided by session average volume
         volumeOk:
           type: ["boolean", "null"]
-          description: True if volumeRatio >= 1.5 (strong volume confirmation)
+          description: True if volumeRatio > 1.5 (strong volume confirmation)
       required:
         - symbol
         - sectorName
@@ -333,7 +333,7 @@ components:
           description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)
         plPct:
           type: ["number", "null"]
-          description: Estimated P&L % based on final status. Null for ACTIVE/PENDING/SQUARED OFF trades.
+          description: Estimated P&L % based on final status. SQUARED OFF uses the latest available candle at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
       required:
         - id
         - symbol

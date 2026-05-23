@@ -57,7 +57,7 @@ export interface StockItem {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio >= 1.5 (strong volume confirmation), false otherwise
+   * True if volumeRatio > 1.5 (strong volume confirmation), false otherwise
    * @nullable
    */
   volumeOk?: boolean | null;

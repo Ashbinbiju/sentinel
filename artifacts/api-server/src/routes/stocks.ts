@@ -1081,9 +1081,41 @@ router.get("/trades/history", async (req, res) => {
       .where(gte(tradesTable.date, startDate))
       .orderBy(desc(tradesTable.date), tradesTable.signalTime);
 
+    const candleDataCache = new Map<string, Promise<CandleData | null>>();
+    function getCachedCandleData(symbol: string): Promise<CandleData | null> {
+      const key = symbol.toUpperCase();
+      let cached = candleDataCache.get(key);
+      if (!cached) {
+        cached = fetchCandles(symbol).catch((err) => {
+          req.log.warn({ err, symbol }, "Failed to fetch candles for trade history P&L");
+          return null;
+        });
+        candleDataCache.set(key, cached);
+      }
+      return cached;
+    }
+
+    async function computeSquareOffPlPct(trade: Trade, entry: number): Promise<number | null> {
+      const signalTimeMs = new Date(trade.signalTime).getTime();
+      if (Number.isNaN(signalTimeMs)) return null;
+
+      const candleData = await getCachedCandleData(trade.symbol);
+      if (!candleData) return null;
+
+      const squareOffCandle = candleData.historicalCandles
+        .filter((c) =>
+          getISTDateStr(c.t) === trade.date &&
+          getISTTimeStr(c.t) <= "15:15" &&
+          (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs
+        )
+        .at(-1);
+
+      return squareOffCandle ? r2(((squareOffCandle.c - entry) / entry) * 100) : null;
+    }
+
     // Compute estimated P&L % based on the trade's final status.
     // For past sessions the status in the DB is already the final resolved value.
-    function computePlPct(trade: Trade): number | null {
+    async function computePlPct(trade: Trade): Promise<number | null> {
       const entry = Number(trade.entryPrice);
       const sl    = Number(trade.sl);
       const t1    = Number(trade.target1);
@@ -1094,7 +1126,8 @@ router.get("/trades/history", async (req, res) => {
         case "TARGET 1 HIT":            return r2(((t1 - entry) / entry) * 100);
         case "T1 HIT & TRAILING SL HIT": return 0;   // exited at breakeven (entry)
         case "SL HIT":                  return r2(((sl - entry) / entry) * 100);
-        default:                        return null;  // ACTIVE / PENDING / SQUARED OFF
+        case "SQUARED OFF":             return computeSquareOffPlPct(trade, entry);
+        default:                        return null;  // ACTIVE / PENDING
       }
     }
 
@@ -1105,8 +1138,8 @@ router.get("/trades/history", async (req, res) => {
       byDate.get(trade.date)!.push(trade);
     }
 
-    const daysData = Array.from(byDate.entries()).map(([date, dayTrades]) => {
-      const enriched = dayTrades.map((t) => ({ ...t, plPct: computePlPct(t) }));
+    const daysData = await Promise.all(Array.from(byDate.entries()).map(async ([date, dayTrades]) => {
+      const enriched = await Promise.all(dayTrades.map(async (t) => ({ ...t, plPct: await computePlPct(t) })));
       const terminal  = enriched.filter((t) => t.plPct !== null);
       const winners   = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
       const losers    = terminal.filter((t) => (t.plPct ?? 0) < 0).length;
@@ -1117,7 +1150,7 @@ router.get("/trades/history", async (req, res) => {
         trades: enriched,
         summary: { total: enriched.length, winners, losers, breakeven, pending },
       };
-    });
+    }));
 
     return res.json({ days: daysData });
   } catch (err) {
