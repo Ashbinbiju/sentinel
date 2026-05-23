@@ -939,9 +939,15 @@ export default function Dashboard() {
 
   const prevSignalsRef = useRef<Set<string>>(new Set());
   const isFirstFetch = useRef(true);
+  const liveSession = momentumData?.isLiveSession === true;
 
   useEffect(() => {
-    if (!momentumData?.sectors) return;
+    if (!liveSession || !momentumData?.sectors) {
+      prevSignalsRef.current = new Set();
+      isFirstFetch.current = true;
+      return;
+    }
+
     const current = new Set<string>();
     const newSignals: Array<{ symbol: string; sectorName: string; entry: number }> = [];
     for (const sector of momentumData.sectors) {
@@ -960,7 +966,7 @@ export default function Dashboard() {
     }
     isFirstFetch.current = false;
     prevSignalsRef.current = current;
-  }, [momentumData, alertsOn]);
+  }, [momentumData, alertsOn, liveSession]);
 
   function handleRefresh() {
     // Reset countdown so auto-poll restarts from 60 after manual refresh
@@ -981,7 +987,6 @@ export default function Dashboard() {
     : null;
 
   const updatedIST = momentumData?.fetchedAt ? toISTDisplay(momentumData.fetchedAt) : null;
-  const liveSession = momentumData?.isLiveSession === true;
   const topPicks = liveSession ? (momentumData?.topPicks ?? []) : [];
   const hasTopPicks = topPicks.length > 0;
 

@@ -415,6 +415,7 @@ interface IndicatorResult {
   volumeRatio: number | null;
   volumeOk: boolean | null;
   signalTime: string | null;
+  alertEligible: boolean;
 }
 
 async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
@@ -435,6 +436,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     volumeRatio: null,
     volumeOk: null,
     signalTime: null,
+    alertEligible: false,
   };
 
   try {
@@ -478,6 +480,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     let smartExit: string | null = null;
     let signalTime: string | null = null;
     let entrySignal: boolean | null = null;
+    let alertEligible = false;
 
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
@@ -522,12 +525,12 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       const candleMins = candleDate.getUTCMinutes();
       const isBeforeCutoff = candleHours < 9 || (candleHours === 9 && candleMins <= 45);
 
-      entrySignal =
+      const entrySignalCandidate =
         (isTradingDay && vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
           ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently && volumeOk === true
           : null;
 
-      if (entrySignal && vwap !== null) {
+      if (entrySignalCandidate && vwap !== null) {
         const tradeParams = computeTradeParams(confirmedClose, vwap);
         sl = tradeParams.sl;
         target1 = tradeParams.target1;
@@ -537,7 +540,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         signalTime = candleDate.toISOString();
 
         try {
-          await db.insert(tradesTable).values({
+          const inserted = await db.insert(tradesTable).values({
             symbol,
             date: today,
             signalTime,
@@ -546,10 +549,21 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
             target1: String(target1),
             target2: String(target2),
             status: "PENDING"
-          }).onConflictDoNothing();
+          }).onConflictDoNothing().returning({ id: tradesTable.id });
+
+          entrySignal = inserted.length > 0;
+          alertEligible = inserted.length > 0;
         } catch (dbErr) {
-          // Log DB error but don't fail the request
-          console.error(`Failed to insert trade for ${symbol}`, dbErr);
+          console.error(`Failed to persist generated trade signal for ${symbol}`, dbErr);
+        }
+
+        if (!entrySignal) {
+          sl = null;
+          target1 = null;
+          target2 = null;
+          riskPct = null;
+          smartExit = null;
+          signalTime = null;
         }
       }
     }
@@ -574,6 +588,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       volumeRatio,
       volumeOk,
       signalTime,
+      alertEligible,
     };
   } catch {
     return empty;
@@ -712,6 +727,7 @@ router.get("/momentum-picks", async (req, res) => {
       volumeRatio: number | null;
       volumeOk: boolean | null;
       signalTime: string | null;
+      alertEligible: boolean;
       score: number;
     }> = [];
 
@@ -828,6 +844,7 @@ router.get("/momentum-picks", async (req, res) => {
                 volumeRatio: ind.volumeRatio,
                 volumeOk: ind.volumeOk,
                 signalTime: ind.signalTime,
+                alertEligible: ind.alertEligible,
                 score,
               });
             }
@@ -872,22 +889,28 @@ router.get("/momentum-picks", async (req, res) => {
 
     // Build top 5 picks — deduplicated, sorted by score
     const seen = new Set<string>();
-    const topPicks = topPickCandidates
+    const rankedTopPicks = topPickCandidates
       .sort((a, b) => b.score - a.score)
       .filter((p) => {
         if (seen.has(p.symbol)) return false;
         seen.add(p.symbol);
         return true;
       })
-      .slice(0, 5)
-      .map(({ score: _score, ...rest }) => rest);
+      .slice(0, 5);
 
     const todayIST = getTodayISTDateStr();
     const isLiveSession = indicatorDate === todayIST;
-    const liveTopPicks = isLiveSession ? topPicks : [];
+    const liveTopPicks = isLiveSession
+      ? rankedTopPicks.map(({ score: _score, alertEligible: _alertEligible, ...rest }) => rest)
+      : [];
+    const alertPicks = isLiveSession
+      ? rankedTopPicks
+        .filter((pick) => pick.alertEligible)
+        .map(({ score: _score, alertEligible: _alertEligible, ...rest }) => rest)
+      : [];
 
     // Fire Telegram alerts for any new signals (non-blocking)
-    sendTelegramAlerts(liveTopPicks, req.log).catch((err) =>
+    sendTelegramAlerts(alertPicks, req.log).catch((err) =>
       req.log.error({ err }, "Telegram alert dispatch failed"),
     );
 
