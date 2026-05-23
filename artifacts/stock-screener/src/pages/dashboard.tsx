@@ -81,10 +81,12 @@ function formatHitTime(timeStr: string | null | undefined): string {
   if (!timeStr) return "";
   const [hStr, mStr] = timeStr.split(":");
   let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return "";
   const ampm = h >= 12 ? "PM" : "AM";
   h = h % 12;
   if (h === 0) h = 12;
-  return `at ${h}:${mStr} ${ampm}`;
+  return `at ${h}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
 function formatSessionDate(dateStr: string): string {
