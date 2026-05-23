@@ -105,6 +105,14 @@ function isIntradaySquareOffTimeIST(): boolean {
   return isWeekend || h > 15 || (h === 15 && m >= 15);
 }
 
+function isEntrySignalWindowIST(): boolean {
+  const { h, m, day } = getNowISTParts();
+  if (day === 0 || day === 6) return false;
+
+  const mins = h * 60 + m;
+  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 15;
+}
+
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -442,6 +450,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
   try {
     const today = getTodayISTDateStr();
     const isTradingDay = !isWeekendISTDate(today);
+    const isEntryWindow = isEntrySignalWindowIST();
 
     // Check DB for existing signal today
     const existingTrades = await db
@@ -493,7 +502,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
 
     if (existingTrade) {
-      entrySignal = isTradingDay;
+      entrySignal = isEntryWindow;
       sl = Number(existingTrade.sl);
       target1 = Number(existingTrade.target1);
       target2 = Number(existingTrade.target2);
