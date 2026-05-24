@@ -90,6 +90,12 @@ function getStatusConfig(status: string): {
         classes: "bg-rose-500/10 text-rose-400 border-rose-500/20",
         icon: <TrendingDown className="w-3 h-3" />,
       };
+    case "VWAP EXIT":
+      return {
+        label: "VWAP Exit",
+        classes: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+        icon: <Minus className="w-3 h-3" />,
+      };
     case "SQUARED OFF":
       return {
         label: "Closed 🕒",
@@ -106,6 +112,10 @@ function getStatusConfig(status: string): {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function formatRatio(count: number, total: number): string {
+  return total > 0 ? `${Math.round((count / total) * 100)}%` : "0%";
+}
 
 function PlBadge({ plPct }: { plPct: number | null }) {
   if (plPct === null) return (
@@ -186,10 +196,13 @@ function DayCard({ day }: { day: TradeHistoryDay }) {
   const [open, setOpen] = useState(true);
   const { long, dayOfWeek, daysAgo } = formatDate(day.date);
   const { summary } = day;
+  const resolved = summary.winners + summary.losers + summary.breakeven;
 
-  const winRate = summary.total > 0
-    ? Math.round(((summary.winners + summary.breakeven) / summary.total) * 100)
+  const winRate = resolved > 0
+    ? Math.round((summary.winners / resolved) * 100)
     : null;
+  const lossRate = formatRatio(summary.losers, resolved);
+  const breakevenRate = formatRatio(summary.breakeven, resolved);
 
   return (
     <div className="rounded-xl border border-border/40 bg-card overflow-hidden shadow-sm">
@@ -240,7 +253,7 @@ function DayCard({ day }: { day: TradeHistoryDay }) {
                 : winRate >= 40 ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                 : "bg-rose-500/10 text-rose-400 border-rose-500/20"
               }`}>
-                {winRate}% WR
+                {winRate}%W / {lossRate}L / {breakevenRate}BE
               </span>
             )}
           </div>
@@ -270,17 +283,21 @@ function StatsBanner({ days }: { days: TradeHistoryDay[] }) {
   const winners = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
   const losers = terminal.filter((t) => (t.plPct ?? 0) < 0).length;
   const breakeven = terminal.filter((t) => t.plPct === 0).length;
-  const winRate = terminal.length > 0 ? ((winners + breakeven) / terminal.length) * 100 : null;
+  const resolved = winners + losers + breakeven;
+  const winRate = resolved > 0 ? (winners / resolved) * 100 : null;
+  const lossRate = formatRatio(losers, resolved);
+  const breakevenRate = formatRatio(breakeven, resolved);
   const avgWin = winners > 0
     ? terminal.filter((t) => (t.plPct ?? 0) > 0).reduce((s, t) => s + (t.plPct ?? 0), 0) / winners
     : null;
   const avgLoss = losers > 0
     ? terminal.filter((t) => (t.plPct ?? 0) < 0).reduce((s, t) => s + (t.plPct ?? 0), 0) / losers
     : null;
+  const outcomeRatioSub = `${winners}W (${winRate !== null ? winRate.toFixed(0) : 0}%) / ${losers}L (${lossRate}) / ${breakeven}BE (${breakevenRate})`;
 
   const stats = [
     { label: "Total Trades", value: allTrades.length.toString(), sub: `${terminal.length} resolved` },
-    { label: "Win Rate", value: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners}W · ${losers}L · ${breakeven}BE`, highlight: winRate !== null ? (winRate >= 50 ? "green" : "red") : "neutral" },
+    { label: "Win Rate", value: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: outcomeRatioSub, highlight: winRate !== null ? (winRate >= 50 ? "green" : "red") : "neutral" },
     { label: "Avg Winner", value: avgWin !== null ? `+${avgWin.toFixed(2)}%` : "—", highlight: "green" },
     { label: "Avg Loser", value: avgLoss !== null ? `${avgLoss.toFixed(2)}%` : "—", highlight: "red" },
   ];

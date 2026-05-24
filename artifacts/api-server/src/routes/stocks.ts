@@ -60,6 +60,7 @@ type AngelCandleRow = [
 const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
 const CANDLE_INTERVAL_SECS = 5 * 60;
+const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const ANGEL_SCRIP_MASTER_URL =
@@ -77,6 +78,18 @@ function getISTDateStr(epochSecs: number): string {
 
 function getISTTimeStr(epochSecs: number): string {
   return new Date(epochSecs * 1000 + IST_OFFSET_MS).toISOString().slice(11, 16);
+}
+
+function getCandleCloseTimeIST(candle: Candle): string {
+  return getISTTimeStr(candle.t + CANDLE_INTERVAL_SECS);
+}
+
+function getCandleCloseDateIST(candle: Candle): string {
+  return getISTDateStr(candle.t + CANDLE_INTERVAL_SECS);
+}
+
+function candleClosesBySquareOff(candle: Candle): boolean {
+  return getCandleCloseTimeIST(candle) <= INTRADAY_SQUARE_OFF_TIME_IST;
 }
 
 function getTodayISTDateStr(): string {
@@ -524,7 +537,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
 
     if (existingTrade) {
-      entrySignal = isEntryWindow;
+      entrySignal = isEntryWindow && (existingTrade.status === "PENDING" || existingTrade.status === "ACTIVE");
       sl = Number(existingTrade.sl);
       target1 = Number(existingTrade.target1);
       target2 = Number(existingTrade.target2);
@@ -552,9 +565,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       // Intraday trades shouldn't be entered after 15:15 IST (09:45 UTC)
       // Angel One blocks new MIS orders after 15:15, so any signals after this are invalid.
       const candleDate = new Date(last.t * 1000);
-      const candleHours = candleDate.getUTCHours();
-      const candleMins = candleDate.getUTCMinutes();
-      const isBeforeCutoff = candleHours < 9 || (candleHours === 9 && candleMins <= 45);
+      const isBeforeCutoff = candleClosesBySquareOff(last);
 
       const entrySignalCandidate =
         (isTradingDay && vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
@@ -1002,8 +1013,18 @@ router.get("/trades/today", async (req, res) => {
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) return forceSquareOff ? (await squareOffOpenTrade()) ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
       
+      const confirmedSessionCandles = getConfirmedCandles(candleData.sessionCandles);
+      const statusCandles = forceSquareOff
+        ? confirmedSessionCandles.filter(candleClosesBySquareOff)
+        : confirmedSessionCandles;
+      const vwapByCandleStart = new Map<number, number>();
+      for (let i = 0; i < statusCandles.length; i++) {
+        const vwapAtCandle = calculateVWAP(statusCandles.slice(0, i + 1));
+        if (vwapAtCandle !== null) vwapByCandleStart.set(statusCandles[i].t, vwapAtCandle);
+      }
+
       // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
-      const postSignalCandles = getConfirmedCandles(candleData.sessionCandles)
+      const postSignalCandles = statusCandles
         .filter(c => (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs);
       
       let hitTime: string | null = null;
@@ -1013,7 +1034,7 @@ router.get("/trades/today", async (req, res) => {
       const entryPrice = Number(trade.entryPrice);
       const originalSl = Number(trade.sl);
       
-      const isTerminal = trade.status === "TARGET 2 HIT" || trade.status === "SL HIT" || trade.status === "T1 HIT & TRAILING SL HIT";
+      const isTerminal = trade.status === "TARGET 2 HIT" || trade.status === "SL HIT" || trade.status === "T1 HIT & TRAILING SL HIT" || trade.status === "VWAP EXIT";
 
       if (isTerminal) {
         // Just find the hitTime for the existing terminal status without modifying the status
@@ -1029,6 +1050,12 @@ router.get("/trades/today", async (req, res) => {
             const slCandle = postSignalCandles.slice(t1CandleIdx).find(c => c.l <= entryPrice);
             if (slCandle) hitTime = getISTTimeStr(slCandle.t);
           }
+        } else if (trade.status === "VWAP EXIT") {
+          const c = postSignalCandles.find(c => {
+            const candleVwap = vwapByCandleStart.get(c.t);
+            return candleVwap !== undefined && c.c < candleVwap;
+          });
+          if (c) hitTime = getISTTimeStr(c.t);
         }
         return { ...trade, hitTime };
       }
@@ -1037,17 +1064,6 @@ router.get("/trades/today", async (req, res) => {
       let maxTargetReached = trade.status === "TARGET 1 HIT" ? 1 : 0;
       
       for (const c of postSignalCandles) {
-        if (c.h >= target2) {
-          newStatus = "TARGET 2 HIT";
-          hitTime = getISTTimeStr(c.t);
-          break;
-        }
-        if (c.h >= target1 && maxTargetReached < 1) {
-          maxTargetReached = 1;
-          newStatus = "TARGET 1 HIT";
-          hitTime = getISTTimeStr(c.t);
-        }
-        
         const currentSl = maxTargetReached >= 1 ? entryPrice : originalSl;
         if (c.l <= currentSl) {
           if (maxTargetReached >= 1) {
@@ -1057,6 +1073,24 @@ router.get("/trades/today", async (req, res) => {
           }
           hitTime = getISTTimeStr(c.t);
           break;
+        }
+
+        const candleVwap = vwapByCandleStart.get(c.t);
+        if (candleVwap !== undefined && c.c < candleVwap) {
+          newStatus = "VWAP EXIT";
+          hitTime = getISTTimeStr(c.t);
+          break;
+        }
+
+        if (c.h >= target2) {
+          newStatus = "TARGET 2 HIT";
+          hitTime = getISTTimeStr(c.t);
+          break;
+        }
+        if (c.h >= target1 && maxTargetReached < 1) {
+          maxTargetReached = 1;
+          newStatus = "TARGET 1 HIT";
+          hitTime = getISTTimeStr(c.t);
         }
       }
       
@@ -1117,6 +1151,16 @@ router.get("/trades/history", async (req, res) => {
       return cached;
     }
 
+    function getTradeExitCandles(candleData: CandleData, trade: Trade, signalTimeMs: number): Candle[] {
+      return candleData.historicalCandles
+        .filter((c) =>
+          getCandleCloseDateIST(c) === trade.date &&
+          candleClosesBySquareOff(c) &&
+          (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs
+        )
+        .sort((a, b) => a.t - b.t);
+    }
+
     async function computeSquareOffPlPct(trade: Trade, entry: number): Promise<number | null> {
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) return null;
@@ -1124,15 +1168,33 @@ router.get("/trades/history", async (req, res) => {
       const candleData = await getCachedCandleData(trade.symbol);
       if (!candleData) return null;
 
-      const squareOffCandle = candleData.historicalCandles
-        .filter((c) =>
-          getISTDateStr(c.t) === trade.date &&
-          getISTTimeStr(c.t) <= "15:15" &&
-          (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs
-        )
-        .at(-1);
+      const squareOffCandle = getTradeExitCandles(candleData, trade, signalTimeMs).at(-1);
 
       return squareOffCandle ? r2(((squareOffCandle.c - entry) / entry) * 100) : null;
+    }
+
+    async function computeVwapExitPlPct(trade: Trade, entry: number): Promise<number | null> {
+      const signalTimeMs = new Date(trade.signalTime).getTime();
+      if (Number.isNaN(signalTimeMs)) return null;
+
+      const candleData = await getCachedCandleData(trade.symbol);
+      if (!candleData) return null;
+
+      const dayCandles = candleData.historicalCandles
+        .filter((c) => getCandleCloseDateIST(c) === trade.date && candleClosesBySquareOff(c))
+        .sort((a, b) => a.t - b.t);
+
+      for (let i = 0; i < dayCandles.length; i++) {
+        const c = dayCandles[i];
+        if ((c.t + CANDLE_INTERVAL_SECS) * 1000 <= signalTimeMs) continue;
+
+        const vwapAtCandle = calculateVWAP(dayCandles.slice(0, i + 1));
+        if (vwapAtCandle !== null && c.c < vwapAtCandle) {
+          return r2(((c.c - entry) / entry) * 100);
+        }
+      }
+
+      return null;
     }
 
     // Compute estimated P&L % based on the trade's final status.
@@ -1148,6 +1210,7 @@ router.get("/trades/history", async (req, res) => {
         case "TARGET 1 HIT":            return r2(((t1 - entry) / entry) * 100);
         case "T1 HIT & TRAILING SL HIT": return 0;   // exited at breakeven (entry)
         case "SL HIT":                  return r2(((sl - entry) / entry) * 100);
+        case "VWAP EXIT":               return computeVwapExitPlPct(trade, entry);
         case "SQUARED OFF":             return computeSquareOffPlPct(trade, entry);
         default:                        return null;  // ACTIVE / PENDING
       }

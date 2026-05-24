@@ -81,13 +81,26 @@ async function main() {
       }
 
       const picks = data.topPicks;
-      
+      let cycleBalance: number;
+
+      if (process.env.DRY_RUN === "true") {
+        // Use simulated capital for dry run and persist it across polling cycles.
+        if (simulatedBalance === null) {
+          simulatedBalance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
+        }
+        cycleBalance = simulatedBalance;
+        console.log(`[BOT] [DRY RUN] Using simulated capital: INR ${cycleBalance}`);
+      } else {
+        cycleBalance = await broker.getAccountBalance();
+        console.log(`[BOT] Current Available Margin: INR ${cycleBalance}`);
+      }
+
       // 5. Look for fresh entry signals
       for (const pick of picks) {
         const symbol = normalizeSymbol(pick.symbol);
         if (pick.entrySignal === true && symbol && !executedSymbols.has(symbol)) {
-          console.log(`[BOT] 🚀 NEW SIGNAL DETECTED: ${pick.symbol} at ₹${pick.entry}`);
-          
+          console.log(`[BOT] NEW SIGNAL DETECTED: ${pick.symbol} at INR ${pick.entry}`);
+
           if (tradesToday >= MAX_DAILY_TRADES) {
             console.log("[BOT] Skipping signal. Daily trade limit reached.");
             break;
@@ -102,26 +115,13 @@ async function main() {
           }
 
           // 7. Check Balance & Calculate Quantity
-          let balance: number;
-          if (process.env.DRY_RUN === "true") {
-            // Use simulated capital for dry run and persist it across loop iterations
-            if (simulatedBalance === null) {
-              simulatedBalance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
-            }
-            balance = simulatedBalance;
-            console.log(`[BOT] [DRY RUN] Using simulated capital: ₹${balance}`);
-          } else {
-            balance = await broker.getAccountBalance();
-            console.log(`[BOT] Current Available Margin: ₹${balance}`);
-          }
-          
-          if (balance < 100) {
+          if (cycleBalance < 100) {
             console.warn("[BOT] Insufficient balance to place trade.");
             continue;
           }
 
           // Allocate one daily trade slot, leaving margin for later signals.
-          const buyingPower = balance * LEVERAGE;
+          const buyingPower = cycleBalance * LEVERAGE;
           const safeBuyingPower = buyingPower * 0.99;
           const allocationPerTrade = safeBuyingPower / MAX_DAILY_TRADES;
           const quantity = Math.floor(allocationPerTrade / pick.entry);
@@ -136,13 +136,15 @@ async function main() {
             await broker.placeRoboOrder(symbol, token, quantity, pick.entry, pick.target1, pick.sl);
             executedSymbols.add(symbol);
             tradesToday++;
-            console.log(`[BOT] Trade ${tradesToday}/${MAX_DAILY_TRADES} executed successfully.`);
-            
-            // Deduct margin used from simulated balance
-            if (process.env.DRY_RUN === "true" && simulatedBalance !== null) {
-              const tradeCost = (quantity * pick.entry) / LEVERAGE;
-              simulatedBalance -= tradeCost;
+
+            const estimatedMarginUsed = broker.estimateMarginUsed(quantity, pick.entry, LEVERAGE);
+            cycleBalance = Math.max(0, cycleBalance - estimatedMarginUsed);
+            if (process.env.DRY_RUN === "true") {
+              simulatedBalance = cycleBalance;
             }
+
+            console.log(`[BOT] Trade ${tradesToday}/${MAX_DAILY_TRADES} executed successfully.`);
+            console.log(`[BOT] Reserved estimated margin: INR ${estimatedMarginUsed.toFixed(2)} | Cycle balance left: INR ${cycleBalance.toFixed(2)}`);
           } catch (err) {
             console.error(`[BOT] Failed to execute trade for ${pick.symbol}`, err);
           }

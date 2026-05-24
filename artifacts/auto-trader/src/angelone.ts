@@ -1,6 +1,12 @@
 import { TOTP } from "totp-generator";
 const { SmartAPI } = require("smartapi-javascript");
 
+const NSE_TICK_MULTIPLIER = 20; // 1 / 0.05 tick size
+
+function roundToNseTick(value: number): number {
+  return Math.round(value * NSE_TICK_MULTIPLIER) / NSE_TICK_MULTIPLIER;
+}
+
 interface AngelOrderBookOrder {
   exchange?: string;
   tradingsymbol?: string;
@@ -68,6 +74,14 @@ export class AngelOneBroker {
       console.error("[BROKER] Failed to fetch account balance:", err);
       throw err;
     }
+  }
+
+  estimateMarginUsed(quantity: number, entryPrice: number, leverage: number): number {
+    if (leverage <= 0) {
+      throw new Error("Leverage must be greater than zero");
+    }
+
+    return (quantity * entryPrice) / leverage;
   }
 
   async getExecutedBuySymbolsFromOrderBook(): Promise<Set<string>> {
@@ -144,14 +158,14 @@ export class AngelOneBroker {
     }
 
     try {
-      // Angel One expects absolute points (difference from entry) for squareoff and stoploss
-      const squareoffPoints = Math.abs(targetPrice - entryPrice).toFixed(1);
-      const stoplossPoints = Math.abs(entryPrice - slPrice).toFixed(1);
-      
       // Use a limit price 0.3% higher than the entry signal to ensure immediate execution like a MARKET order
       // (Tick size is 0.05 for NSE Equity)
-      const limitPriceNum = entryPrice * 1.003;
-      const limitPrice = (Math.round(limitPriceNum * 20) / 20).toFixed(2);
+      const limitPriceNum = roundToNseTick(entryPrice * 1.003);
+      const limitPrice = limitPriceNum.toFixed(2);
+
+      // Angel One expects absolute points from the actual order price.
+      const squareoffPoints = roundToNseTick(Math.abs(targetPrice - limitPriceNum)).toFixed(2);
+      const stoplossPoints = roundToNseTick(Math.abs(limitPriceNum - slPrice)).toFixed(2);
 
       const orderData = {
         variety: "ROBO",

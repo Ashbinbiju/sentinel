@@ -542,6 +542,11 @@ function getStatusBadge(status: string, size: "sm" | "md" = "sm", hitTimeText: s
       {size === "sm" ? "BE" : `Breakeven ⚖️${hitTimeText}`}
     </span>;
   }
+  if (status === "VWAP EXIT") {
+    return <span className={`${baseClasses} bg-sky-500/10 text-sky-400 border border-sky-500/20`}>
+      {size === "sm" ? "VWAP" : `VWAP Exit${hitTimeText}`}
+    </span>;
+  }
   if (status === "SQUARED OFF") {
     return <span className={`${baseClasses} bg-slate-500/10 text-slate-400 border border-slate-500/20`}>
       {size === "sm" ? "CLOSED" : `Closed 🕒${hitTimeText}`}

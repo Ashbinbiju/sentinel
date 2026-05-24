@@ -330,10 +330,10 @@ components:
           type: string
         status:
           type: string
-          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)
+          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, VWAP EXIT, SQUARED OFF, ACTIVE, PENDING)
         plPct:
           type: ["number", "null"]
-          description: Estimated P&L % based on final status. SQUARED OFF uses the latest available candle at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+          description: Estimated P&L % based on final status. VWAP EXIT uses the first post-signal candle close below VWAP. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
       required:
         - id
         - symbol
