@@ -355,6 +355,22 @@ function calculateEMA(closes: number[], period = 20): number | null {
   return ema;
 }
 
+function calculateVolumeRatio(candles: Candle[], lookback = 20): number | null {
+  const last = candles.at(-1);
+  if (!last || last.v <= 0) return null;
+
+  const baselineVolumes = candles
+    .slice(0, -1)
+    .filter((c) => c.v > 0)
+    .slice(-lookback)
+    .map((c) => c.v);
+
+  if (baselineVolumes.length === 0) return null;
+
+  const avgVolume = baselineVolumes.reduce((sum, volume) => sum + volume, 0) / baselineVolumes.length;
+  return avgVolume > 0 ? r2(last.v / avgVolume) : null;
+}
+
 /**
  * Compute SL, T1, T2, and smart exit for an entry signal.
  *
@@ -492,14 +508,9 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
 
-    // Volume confirmation: compare last candle volume to positive-volume session average.
+    // Volume confirmation: compare last candle volume to recent positive-volume baseline.
     // New entries require a real spike, not merely average participation.
-    const volumeCandles = confirmedSession.filter((c) => c.v > 0);
-    const avgVolume = volumeCandles.length > 0
-      ? volumeCandles.reduce((sum, c) => sum + c.v, 0) / volumeCandles.length
-      : 0;
-    const lastVolume = last.v;
-    const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
+    const volumeRatio = calculateVolumeRatio(confirmedSession);
     const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
 
     if (existingTrade) {
