@@ -10,16 +10,8 @@ const LEVERAGE = 5; // Intraday leverage for NSE Equity
 const POLL_INTERVAL_MS = 10 * 1000; // 10 seconds
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
-interface TodayTrade {
-  symbol?: string | null;
-}
-
-interface TodayTradesResponse {
-  trades?: TodayTrade[];
-}
-
-// Keep track of persisted trade signals today to prevent duplicate orders.
-// This is hydrated from Sentinel DB via the API so restarts do not reset limits.
+// Keep track of broker-executed symbols today to prevent duplicate orders.
+// Hydrated from Angel One order book on startup so DB-only signals are not treated as executed.
 const executedSymbols = new Set<string>();
 let tradesToday = 0;
 
@@ -32,26 +24,24 @@ function normalizeSymbol(symbol: string | null | undefined): string | null {
   return normalized ? normalized : null;
 }
 
-async function syncTradeStateFromSentinel() {
+async function hydrateTradeStateFromBroker(broker: AngelOneBroker) {
   try {
-    const apiUrl = `${API_BASE_URL}/api/stocks/trades/today`;
-    const { data } = await axios.get<TodayTradesResponse>(apiUrl);
-    const persistedSymbols = new Set<string>();
-
-    for (const trade of data.trades ?? []) {
-      const symbol = normalizeSymbol(trade.symbol);
-      if (symbol) persistedSymbols.add(symbol);
-    }
+    const brokerSymbols = await broker.getExecutedBuySymbolsFromOrderBook();
 
     executedSymbols.clear();
-    for (const symbol of persistedSymbols) executedSymbols.add(symbol);
-    tradesToday = persistedSymbols.size;
+    for (const symbol of brokerSymbols) executedSymbols.add(symbol);
+    tradesToday = brokerSymbols.size;
 
     console.log(
-      `[BOT] Synced ${tradesToday}/${MAX_DAILY_TRADES} persisted trade(s) for today: ${[...executedSymbols].join(", ") || "none"}`,
+      `[BOT] Hydrated ${tradesToday}/${MAX_DAILY_TRADES} executed broker trade(s) for today: ${[...executedSymbols].join(", ") || "none"}`,
     );
   } catch (err: any) {
-    console.warn(`[BOT] Failed to sync today's persisted trades. Keeping in-memory state. ${err.message}`);
+    if (process.env.DRY_RUN === "true") {
+      console.warn(`[BOT] Failed to hydrate broker orders in dry run. Starting with empty in-memory state. ${err.message}`);
+      return;
+    }
+
+    throw new Error(`Failed to hydrate today's executed broker orders: ${err.message}`);
   }
 }
 
@@ -68,15 +58,13 @@ async function main() {
   const broker = new AngelOneBroker();
   await broker.login();
 
-  // 3. Restore today's persisted trades before evaluating any new signals.
-  await syncTradeStateFromSentinel();
+  // 3. Restore today's executed broker trades before evaluating any new signals.
+  await hydrateTradeStateFromBroker(broker);
 
   console.log("=== INITIALIZATION COMPLETE. STARTING POLLING LOOP ===");
 
   while (true) {
     try {
-      await syncTradeStateFromSentinel();
-
       if (tradesToday >= MAX_DAILY_TRADES) {
         console.log(`[BOT] Reached max daily trades (${MAX_DAILY_TRADES}). Shutting down loop for today.`);
         break; // Or just sleep for 24h

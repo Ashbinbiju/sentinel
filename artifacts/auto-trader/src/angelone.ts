@@ -1,6 +1,16 @@
 import { TOTP } from "totp-generator";
 const { SmartAPI } = require("smartapi-javascript");
 
+interface AngelOrderBookOrder {
+  exchange?: string;
+  tradingsymbol?: string;
+  transactiontype?: string;
+  producttype?: string;
+  status?: string;
+  orderstatus?: string;
+  filledshares?: string | number;
+}
+
 export class AngelOneBroker {
   private smartApi: any;
   private jwtToken: string | null = null;
@@ -56,6 +66,37 @@ export class AngelOneBroker {
       throw new Error("Failed to parse RMS data");
     } catch (err) {
       console.error("[BROKER] Failed to fetch account balance:", err);
+      throw err;
+    }
+  }
+
+  async getExecutedBuySymbolsFromOrderBook(): Promise<Set<string>> {
+    try {
+      const response = await this.smartApi.getOrderBook();
+      if (!response || !response.status || !Array.isArray(response.data)) {
+        throw new Error(response?.message || "Failed to fetch order book");
+      }
+
+      const symbols = new Set<string>();
+
+      for (const order of response.data as AngelOrderBookOrder[]) {
+        const exchange = order.exchange?.toUpperCase();
+        const transactionType = order.transactiontype?.toUpperCase();
+        const productType = order.producttype?.toUpperCase();
+        const tradeSymbol = order.tradingsymbol?.toUpperCase().trim();
+        const status = (order.orderstatus || order.status || "").toUpperCase();
+        const filledShares = Number(order.filledshares ?? 0);
+        const isExecuted = status === "COMPLETE" || status === "COMPLETED" || filledShares > 0;
+        const isBotProduct = productType === "BO" || productType === "INTRADAY";
+
+        if (exchange === "NSE" && transactionType === "BUY" && tradeSymbol && isBotProduct && isExecuted) {
+          symbols.add(tradeSymbol.replace(/-EQ$/i, ""));
+        }
+      }
+
+      return symbols;
+    } catch (err) {
+      console.error("[BROKER] Failed to fetch order book:", err);
       throw err;
     }
   }
