@@ -132,11 +132,11 @@ async function main() {
             continue;
           }
 
-          // Full capital calculation: (Balance * Leverage) / EntryPrice
+          // Allocate one daily trade slot, leaving margin for later signals.
           const buyingPower = balance * LEVERAGE;
-          // Leave 1% buffer for slippage and charges
-          const safeBuyingPower = buyingPower * 0.99; 
-          const quantity = Math.floor(safeBuyingPower / pick.entry);
+          const safeBuyingPower = buyingPower * 0.99;
+          const allocationPerTrade = safeBuyingPower / MAX_DAILY_TRADES;
+          const quantity = Math.floor(allocationPerTrade / pick.entry);
 
           if (quantity <= 0) {
             console.warn(`[BOT] Cannot afford 1 share of ${pick.symbol}. Skipping.`);

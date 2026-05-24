@@ -149,9 +149,7 @@ function parseAngelEpochSecs(value: string | number): number | null {
 }
 
 function buildCandleData(candles: Candle[]): CandleData | null {
-  const validHistorical = candles
-    .filter((c) => c.v > 0)
-    .sort((a, b) => a.t - b.t);
+  const validHistorical = [...candles].sort((a, b) => a.t - b.t);
   const tradingDates = Array.from(
     new Set(validHistorical.map((c) => getISTDateStr(c.t))),
   ).slice(-INDICATOR_LOOKBACK_TRADING_DAYS);
@@ -494,9 +492,12 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
 
-    // Volume confirmation: compare last candle volume to session average.
+    // Volume confirmation: compare last candle volume to positive-volume session average.
     // New entries require a real spike, not merely average participation.
-    const avgVolume = confirmedSession.reduce((sum, c) => sum + c.v, 0) / confirmedSession.length;
+    const volumeCandles = confirmedSession.filter((c) => c.v > 0);
+    const avgVolume = volumeCandles.length > 0
+      ? volumeCandles.reduce((sum, c) => sum + c.v, 0) / volumeCandles.length
+      : 0;
     const lastVolume = last.v;
     const volumeRatio = avgVolume > 0 ? r2(lastVolume / avgVolume) : null;
     const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
