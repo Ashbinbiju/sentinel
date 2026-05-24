@@ -197,8 +197,15 @@ async function getAngelScripMap(): Promise<Map<string, string>> {
 }
 
 async function getAngelSmartApi(): Promise<any> {
-  if (angelSmartApi && Date.now() < angelSessionExpiresAt) return angelSmartApi;
-  if (angelLoginPromise) return angelLoginPromise;
+  const now = Date.now();
+  if (angelSmartApi && now < angelSessionExpiresAt) return angelSmartApi;
+  if (angelLoginPromise) {
+    if (!angelSmartApi || now < angelSessionExpiresAt) return angelLoginPromise;
+    angelLoginPromise = null;
+  }
+
+  angelSmartApi = null;
+  angelSessionExpiresAt = 0;
 
   angelLoginPromise = (async () => {
     const clientCode = process.env.ANGEL_CLIENT_CODE;
@@ -225,11 +232,14 @@ async function getAngelSmartApi(): Promise<any> {
     return smartApi;
   })();
 
-  try {
-    return await angelLoginPromise;
-  } finally {
+  angelLoginPromise = angelLoginPromise.catch((err) => {
+    angelSmartApi = null;
+    angelSessionExpiresAt = 0;
     angelLoginPromise = null;
-  }
+    throw err;
+  });
+
+  return angelLoginPromise;
 }
 
 async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
