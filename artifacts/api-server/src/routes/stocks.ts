@@ -61,6 +61,8 @@ const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
 const CANDLE_INTERVAL_SECS = 5 * 60;
 const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
+const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 45;
+const ENTRY_SIGNAL_END_MIN_IST = 11 * 60 + 15;
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const ANGEL_SCRIP_MASTER_URL =
@@ -80,6 +82,12 @@ function getISTTimeStr(epochSecs: number): string {
   return new Date(epochSecs * 1000 + IST_OFFSET_MS).toISOString().slice(11, 16);
 }
 
+function getISTMinuteOfDay(epochSecs: number): number {
+  const time = getISTTimeStr(epochSecs);
+  const [h, m] = time.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
 function getCandleCloseTimeIST(candle: Candle): string {
   return getISTTimeStr(candle.t + CANDLE_INTERVAL_SECS);
 }
@@ -90,6 +98,11 @@ function getCandleCloseDateIST(candle: Candle): string {
 
 function candleClosesBySquareOff(candle: Candle): boolean {
   return getCandleCloseTimeIST(candle) <= INTRADAY_SQUARE_OFF_TIME_IST;
+}
+
+function candleClosesInEntryWindow(candle: Candle): boolean {
+  const mins = getISTMinuteOfDay(candle.t + CANDLE_INTERVAL_SECS);
+  return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
 }
 
 function getTodayISTDateStr(): string {
@@ -123,7 +136,7 @@ function isEntrySignalWindowIST(): boolean {
   if (day === 0 || day === 6) return false;
 
   const mins = h * 60 + m;
-  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 15;
+  return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
 }
 
 function r2(n: number): number {
@@ -480,7 +493,7 @@ function findEntrySignalMatch(
 
   const CROSSOVER_LOOKBACK = 3;
   const eligibleCandles = sessionCandles.filter((c) =>
-    getCandleCloseDateIST(c) === today && candleClosesBySquareOff(c)
+    getCandleCloseDateIST(c) === today && candleClosesInEntryWindow(c)
   );
 
   for (const candle of eligibleCandles) {
