@@ -105,6 +105,13 @@ function candleClosesInEntryWindow(candle: Candle): boolean {
   return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
 }
 
+function isSignalTimeInEntryWindowIST(signalTime: string): boolean {
+  const ms = Date.parse(signalTime);
+  if (Number.isNaN(ms)) return false;
+  const mins = getISTMinuteOfDay(Math.floor(ms / 1000));
+  return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
+}
+
 function getTodayISTDateStr(): string {
   return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
@@ -559,7 +566,14 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       .where(and(eq(tradesTable.symbol, symbol), eq(tradesTable.date, today)))
       .limit(1);
 
-    const existingTrade = existingTrades.length > 0 ? existingTrades[0] : null;
+    const firstExistingTrade = existingTrades[0] ?? null;
+    const existingTrade = existingTrades.find((trade) =>
+      isSignalTimeInEntryWindowIST(trade.signalTime)
+    ) ?? null;
+    const invalidExistingTrade =
+      firstExistingTrade && !isSignalTimeInEntryWindowIST(firstExistingTrade.signalTime)
+        ? firstExistingTrade
+        : null;
 
     const candleData = await fetchCandles(symbol);
     if (!candleData) return empty;
@@ -632,19 +646,34 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         confirmedClose = entryMatch.confirmedClose;
 
         try {
-          const inserted = await db.insert(tradesTable).values({
-            symbol,
-            date: today,
-            signalTime,
-            entryPrice: String(entryMatch.confirmedClose),
-            sl: String(sl),
-            target1: String(target1),
-            target2: String(target2),
-            status: "PENDING"
-          }).onConflictDoNothing().returning({ id: tradesTable.id });
+          if (invalidExistingTrade) {
+            await db.update(tradesTable)
+              .set({
+                signalTime,
+                entryPrice: String(entryMatch.confirmedClose),
+                sl: String(sl),
+                target1: String(target1),
+                target2: String(target2),
+                status: "PENDING",
+              })
+              .where(eq(tradesTable.id, invalidExistingTrade.id));
+            entrySignal = true;
+            alertEligible = isEntryWindow;
+          } else {
+            const inserted = await db.insert(tradesTable).values({
+              symbol,
+              date: today,
+              signalTime,
+              entryPrice: String(entryMatch.confirmedClose),
+              sl: String(sl),
+              target1: String(target1),
+              target2: String(target2),
+              status: "PENDING"
+            }).onConflictDoNothing().returning({ id: tradesTable.id });
 
-          entrySignal = inserted.length > 0;
-          alertEligible = inserted.length > 0 && isEntryWindow;
+            entrySignal = inserted.length > 0;
+            alertEligible = inserted.length > 0 && isEntryWindow;
+          }
         } catch (dbErr) {
           console.error(`Failed to persist generated trade signal for ${symbol}`, dbErr);
         }
@@ -1032,6 +1061,7 @@ router.get("/trades/today", async (req, res) => {
       .from(tradesTable)
       .where(eq(tradesTable.date, today))
       .orderBy(tradesTable.signalTime);
+    trades = trades.filter((trade) => isSignalTimeInEntryWindowIST(trade.signalTime));
 
     // Evaluate dynamic status and hitTime for today's trades
     trades = await Promise.all(trades.map(async (trade) => {
@@ -1181,11 +1211,12 @@ router.get("/trades/history", async (req, res) => {
       .toISOString()
       .slice(0, 10);
 
-    const trades = await db
+    const trades = (await db
       .select()
       .from(tradesTable)
       .where(gte(tradesTable.date, startDate))
-      .orderBy(desc(tradesTable.date), tradesTable.signalTime);
+      .orderBy(desc(tradesTable.date), tradesTable.signalTime))
+      .filter((trade) => isSignalTimeInEntryWindowIST(trade.signalTime));
 
     const candleDataCache = new Map<string, Promise<CandleData | null>>();
     function getCachedCandleData(symbol: string): Promise<CandleData | null> {
