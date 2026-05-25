@@ -61,8 +61,13 @@ const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
 const CANDLE_INTERVAL_SECS = 5 * 60;
 const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
-const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 45;
+const ENTRY_SIGNAL_START_MIN_IST = 10 * 60;
 const ENTRY_SIGNAL_END_MIN_IST = 11 * 60 + 15;
+const MIN_ENTRY_SECTOR_CHANGE_PCT = 1;
+const MIN_ENTRY_STOCK_CHANGE_PCT = 1;
+const MIN_STOCK_SECTOR_OUTPERFORMANCE_PCT = 0.3;
+const MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR = 4;
+const MAX_DAILY_ENTRY_SIGNALS = 10;
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const ANGEL_SCRIP_MASTER_URL =
@@ -110,6 +115,19 @@ function isSignalTimeInEntryWindowIST(signalTime: string): boolean {
   if (Number.isNaN(ms)) return false;
   const mins = getISTMinuteOfDay(Math.floor(ms / 1000));
   return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
+}
+
+function filterEntryWindowTrades<T extends { date: string; signalTime: string }>(trades: T[]): T[] {
+  const countsByDate = new Map<string, number>();
+  return trades.filter((trade) => {
+    if (!isSignalTimeInEntryWindowIST(trade.signalTime)) return false;
+
+    const count = countsByDate.get(trade.date) ?? 0;
+    if (count >= MAX_DAILY_ENTRY_SIGNALS) return false;
+
+    countsByDate.set(trade.date, count + 1);
+    return true;
+  });
 }
 
 function getTodayISTDateStr(): string {
@@ -646,7 +664,17 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         confirmedClose = entryMatch.confirmedClose;
 
         try {
-          if (invalidExistingTrade) {
+          const entryWindowTrades = filterEntryWindowTrades(
+            await db
+              .select()
+              .from(tradesTable)
+              .where(eq(tradesTable.date, today))
+              .orderBy(tradesTable.signalTime)
+          );
+
+          if (entryWindowTrades.length >= MAX_DAILY_ENTRY_SIGNALS) {
+            entrySignal = false;
+          } else if (invalidExistingTrade) {
             await db.update(tradesTable)
               .set({
                 signalTime,
@@ -824,6 +852,7 @@ router.get("/momentum-picks", async (req, res) => {
     }));
 
     const top4 = [...allSectors]
+      .filter((sector) => sector.changePct >= MIN_ENTRY_SECTOR_CHANGE_PCT)
       .sort((a, b) => b.changePct - a.changePct)
       .slice(0, 4);
 
@@ -894,8 +923,14 @@ router.get("/momentum-picks", async (req, res) => {
 
           const filtered = all.filter((stock) => {
             const change = stock.changePct ?? 0;
-            return change >= 0.3 && change < 2.0;
-          });
+            const minChange = Math.max(
+              MIN_ENTRY_STOCK_CHANGE_PCT,
+              sector.changePct + MIN_STOCK_SECTOR_OUTPERFORMANCE_PCT,
+            );
+            return change >= minChange && change < 5.0;
+          })
+            .sort((a, b) => b.changePct - a.changePct)
+            .slice(0, MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR);
 
           const symbols = filtered.map((s) => s.symbol);
           const indicators = await runWithConcurrency(
@@ -1061,7 +1096,7 @@ router.get("/trades/today", async (req, res) => {
       .from(tradesTable)
       .where(eq(tradesTable.date, today))
       .orderBy(tradesTable.signalTime);
-    trades = trades.filter((trade) => isSignalTimeInEntryWindowIST(trade.signalTime));
+    trades = filterEntryWindowTrades(trades);
 
     // Evaluate dynamic status and hitTime for today's trades
     trades = await Promise.all(trades.map(async (trade) => {
@@ -1211,12 +1246,11 @@ router.get("/trades/history", async (req, res) => {
       .toISOString()
       .slice(0, 10);
 
-    const trades = (await db
+    const trades = filterEntryWindowTrades(await db
       .select()
       .from(tradesTable)
       .where(gte(tradesTable.date, startDate))
-      .orderBy(desc(tradesTable.date), tradesTable.signalTime))
-      .filter((trade) => isSignalTimeInEntryWindowIST(trade.signalTime));
+      .orderBy(desc(tradesTable.date), tradesTable.signalTime));
 
     const candleDataCache = new Map<string, Promise<CandleData | null>>();
     function getCachedCandleData(symbol: string): Promise<CandleData | null> {

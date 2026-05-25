@@ -1073,7 +1073,7 @@ export default function Dashboard() {
                   <Zap className="w-8 h-8 text-emerald-400/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {liveSession
-                      ? "No entry signals yet — entries only scan 9:45-11:15 AM IST and require VWAP, EMA20, fresh crossover, and volume confirmation."
+                      ? "No entry signals yet — entries only scan 10:00-11:15 AM IST and require strong sector, relative strength, VWAP, EMA20, fresh crossover, and volume."
                       : "No picks this session. Top picks appear once VWAP and EMA20 align."}
                   </p>
                 </div>
@@ -1301,7 +1301,7 @@ export default function Dashboard() {
               <div className="rounded-xl border border-border/30 bg-card/30 p-6 text-center">
                 <p className="text-sm text-muted-foreground">
                   {liveSession
-                    ? "No entry signals yet — entries only scan 9:45-11:15 AM IST and require VWAP, EMA20, fresh crossover, and volume confirmation."
+                    ? "No entry signals yet — entries only scan 10:00-11:15 AM IST and require strong sector, relative strength, VWAP, EMA20, fresh crossover, and volume."
                     : "Showing last session's signals. Top picks appear once VWAP and EMA20 align."}
                 </p>
               </div>
