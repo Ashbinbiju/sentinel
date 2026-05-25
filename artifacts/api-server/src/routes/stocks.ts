@@ -463,6 +463,56 @@ interface IndicatorResult {
   alertEligible: boolean;
 }
 
+interface EntrySignalMatch {
+  candle: Candle;
+  confirmedClose: number;
+  vwap: number;
+}
+
+function findEntrySignalMatch(
+  sessionCandles: Candle[],
+  historicalCandles: Candle[],
+  today: string,
+  lastTradingDate: string,
+  isTradingDay: boolean,
+): EntrySignalMatch | null {
+  if (!isTradingDay || lastTradingDate !== today) return null;
+
+  const CROSSOVER_LOOKBACK = 3;
+  const eligibleCandles = sessionCandles.filter((c) =>
+    getCandleCloseDateIST(c) === today && candleClosesBySquareOff(c)
+  );
+
+  for (const candle of eligibleCandles) {
+    const sessionThroughCandle = sessionCandles.filter((c) => c.t <= candle.t);
+    const historicalThroughCandle = historicalCandles.filter((c) => c.t <= candle.t);
+    const vwap = calculateVWAP(sessionThroughCandle);
+    const ema20 = calculateEMA(historicalThroughCandle.map((c) => c.c));
+    const volumeRatio = calculateVolumeRatio(sessionThroughCandle);
+    const priorCandles = sessionThroughCandle.slice(-(CROSSOVER_LOOKBACK + 1), -1);
+    const crossedVwapRecently =
+      vwap !== null && priorCandles.some((c) => c.c < vwap);
+
+    if (
+      vwap !== null &&
+      ema20 !== null &&
+      volumeRatio !== null &&
+      candle.c > vwap &&
+      candle.c > ema20 &&
+      crossedVwapRecently &&
+      volumeRatio > 1.5
+    ) {
+      return {
+        candle,
+        confirmedClose: candle.c,
+        vwap,
+      };
+    }
+  }
+
+  return null;
+}
+
 async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
   const empty: IndicatorResult = {
     vwap: null,
@@ -551,42 +601,29 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       // Override confirmedClose so the UI shows the saved entry price
       confirmedClose = entryPrice;
     } else {
-      // ── Crossover freshness check ──────────────────────────────────────────
-      // A purely positional check (price > VWAP) fires even if the stock has
-      // been above VWAP since 9:30 AM. We require that at least one of the 3
-      // candles immediately before the confirmed close was BELOW VWAP — proving
-      // a fresh crossover just occurred rather than a stale position.
-      const CROSSOVER_LOOKBACK = 3;
-      const priorCandles = confirmedSession.slice(-(CROSSOVER_LOOKBACK + 1), -1);
-      const crossedVwapRecently =
-        vwap !== null && priorCandles.some((c) => c.c < vwap);
-
-      // ── Time Cutoff Check ────────────────────────────────────────────────
-      // Intraday trades shouldn't be entered after 15:15 IST (09:45 UTC)
-      // Angel One blocks new MIS orders after 15:15, so any signals after this are invalid.
-      const candleDate = new Date(last.t * 1000);
-      const isBeforeCutoff = candleClosesBySquareOff(last);
-
-      const entrySignalCandidate =
-        (isTradingDay && vwap !== null && ema20 !== null && lastTradingDate === today && isBeforeCutoff)
-          ? confirmedClose > vwap && confirmedClose > ema20 && crossedVwapRecently && volumeOk === true
-          : null;
-
-      if (entrySignalCandidate && vwap !== null) {
-        const tradeParams = computeTradeParams(confirmedClose, vwap);
+      const entryMatch = findEntrySignalMatch(
+        confirmedSession,
+        confirmedHistorical,
+        today,
+        lastTradingDate,
+        isTradingDay,
+      );
+      if (entryMatch) {
+        const tradeParams = computeTradeParams(entryMatch.confirmedClose, entryMatch.vwap);
         sl = tradeParams.sl;
         target1 = tradeParams.target1;
         target2 = tradeParams.target2;
         riskPct = tradeParams.riskPct;
         smartExit = tradeParams.smartExit;
-        signalTime = candleDate.toISOString();
+        signalTime = new Date((entryMatch.candle.t + CANDLE_INTERVAL_SECS) * 1000).toISOString();
+        confirmedClose = entryMatch.confirmedClose;
 
         try {
           const inserted = await db.insert(tradesTable).values({
             symbol,
             date: today,
             signalTime,
-            entryPrice: String(confirmedClose),
+            entryPrice: String(entryMatch.confirmedClose),
             sl: String(sl),
             target1: String(target1),
             target2: String(target2),
@@ -594,7 +631,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
           }).onConflictDoNothing().returning({ id: tradesTable.id });
 
           entrySignal = inserted.length > 0;
-          alertEligible = inserted.length > 0;
+          alertEligible = inserted.length > 0 && isEntryWindow;
         } catch (dbErr) {
           console.error(`Failed to persist generated trade signal for ${symbol}`, dbErr);
         }
