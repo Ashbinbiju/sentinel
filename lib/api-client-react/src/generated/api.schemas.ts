@@ -21,6 +21,8 @@ export interface SectorPerformance {
   changePct: number;
 }
 
+export type SignalDirection = "LONG" | "SHORT";
+
 /**
  * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
  * @nullable
@@ -46,18 +48,22 @@ export interface StockItem {
   confirmedClose?: number | null;
   /** @nullable */
   entrySignal?: boolean | null;
+  /** Trade direction from the price-action S/R setup */
+  direction?: SignalDirection | null;
+  /** Price-action setup name, such as support rejection or resistance breakout */
+  setup?: string | null;
   /**
-   * Stop loss price (0.4% below VWAP support level)
+   * Stop loss price from the active support/resistance zone plus ATR buffer
    * @nullable
    */
   sl?: number | null;
   /**
-   * First target price (1:1.5 Risk:Reward)
+   * First scale target, one risk unit from entry
    * @nullable
    */
   target1?: number | null;
   /**
-   * Second target price (1:2.5 Risk:Reward)
+   * Final target at the next opposite S/R zone, or fallback 1.5R target
    * @nullable
    */
   target2?: number | null;
@@ -66,6 +72,11 @@ export interface StockItem {
    * @nullable
    */
   riskPct?: number | null;
+  /**
+   * Reward-to-risk ratio for the final S/R target
+   * @nullable
+   */
+  rewardRisk?: number | null;
   /**
    * Plain-English smart exit rule for this trade
    * @nullable
@@ -79,12 +90,12 @@ export interface StockItem {
    */
   circuitLimit?: StockItemCircuitLimit;
   /**
-   * Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)
+   * Last confirmed candle volume divided by the recent 20-candle average volume (e.g. 1.8 = 1.8x average)
    * @nullable
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio > 1.5 (strong volume confirmation), false otherwise
+   * True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise
    * @nullable
    */
   volumeOk?: boolean | null;
@@ -117,12 +128,18 @@ export interface TopPick {
   entry: number;
   /** Stop loss price */
   sl: number;
-  /** First target (1:1.5 RR) */
+  /** First scale target, one risk unit from entry */
   target1: number;
-  /** Second target (1:2.5 RR) */
+  /** Final target at the next opposite S/R zone, or fallback 1.5R target */
   target2: number;
   /** Risk % from entry to SL */
   riskPct: number;
+  /** Reward-to-risk ratio for the final S/R target */
+  rewardRisk: number;
+  /** Trade direction from the price-action S/R setup */
+  direction: SignalDirection;
+  /** Price-action setup name */
+  setup: string;
   /** Smart exit rule */
   smartExit: string;
   vwap: number;
@@ -135,12 +152,12 @@ export interface TopPick {
    */
   circuitLimit?: TopPickCircuitLimit;
   /**
-   * Last confirmed candle volume divided by session average volume
+   * Last confirmed candle volume divided by the recent 20-candle average volume
    * @nullable
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio > 1.5 (strong volume confirmation)
+   * True if volumeRatio is at least 1.15 (price-action volume confirmation)
    * @nullable
    */
   volumeOk?: boolean | null;
@@ -170,7 +187,7 @@ export interface MomentumPicksResponse {
    * @nullable
    */
   lastCandleTimeIST?: string | null;
-  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score) */
+  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score) */
   topPicks: TopPick[];
   sectors: SectorWithStocks[];
 }

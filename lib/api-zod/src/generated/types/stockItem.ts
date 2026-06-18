@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { StockItemCircuitLimit } from "./stockItemCircuitLimit";
+import type { SignalDirection } from "./signalDirection";
 
 export interface StockItem {
   symbol: string;
@@ -19,18 +20,22 @@ export interface StockItem {
   confirmedClose?: number | null;
   /** @nullable */
   entrySignal?: boolean | null;
+  /** Trade direction from the price-action S/R setup */
+  direction?: SignalDirection | null;
+  /** Price-action setup name, such as support rejection or resistance breakout */
+  setup?: string | null;
   /**
-   * Stop loss price (0.4% below VWAP support level)
+   * Stop loss price from the active support/resistance zone plus ATR buffer
    * @nullable
    */
   sl?: number | null;
   /**
-   * First target price (1:1.5 Risk:Reward)
+   * First scale target, one risk unit from entry
    * @nullable
    */
   target1?: number | null;
   /**
-   * Second target price (1:2.5 Risk:Reward)
+   * Final target at the next opposite S/R zone, or fallback 1.5R target
    * @nullable
    */
   target2?: number | null;
@@ -39,6 +44,11 @@ export interface StockItem {
    * @nullable
    */
   riskPct?: number | null;
+  /**
+   * Reward-to-risk ratio for the final S/R target
+   * @nullable
+   */
+  rewardRisk?: number | null;
   /**
    * Plain-English smart exit rule for this trade
    * @nullable
@@ -52,13 +62,15 @@ export interface StockItem {
    */
   circuitLimit?: StockItemCircuitLimit;
   /**
-   * Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)
+   * Last confirmed candle volume divided by the recent 20-candle average volume (e.g. 1.8 = 1.8x average)
    * @nullable
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio > 1.5 (strong volume confirmation), false otherwise
+   * True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise
    * @nullable
    */
   volumeOk?: boolean | null;
+  /** UTC ISO timestamp of when the signal fired */
+  signalTime?: string | null;
 }

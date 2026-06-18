@@ -295,8 +295,10 @@ function PreMarketBanner() {
 
 function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: number; fullWidth?: boolean }) {
   const href = `https://www.tradingview.com/chart/?symbol=NSE%3A${pick.symbol}`;
-  const t1Pct = ((pick.target1 - pick.entry) / pick.entry) * 100;
-  const t2Pct = ((pick.target2 - pick.entry) / pick.entry) * 100;
+  const isShort = pick.direction === "SHORT";
+  const actionLabel = isShort ? "SELL" : "BUY";
+  const t1Pct = Math.abs(((pick.target1 - pick.entry) / pick.entry) * 100);
+  const t2Pct = Math.abs(((pick.target2 - pick.entry) / pick.entry) * 100);
 
   return (
     <a
@@ -305,8 +307,16 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
       rel="noopener noreferrer"
       className={`block group ${fullWidth ? "w-full" : "shrink-0 w-[78vw] max-w-[280px] sm:flex-1 sm:w-auto sm:min-w-[180px] sm:max-w-none"}`}
     >
-      <div className="relative rounded-xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 via-card to-card overflow-hidden hover:border-emerald-400/40 transition-all duration-200 shadow-[0_0_20px_rgba(16,185,129,0.06)]">
-        <div className="h-0.5 bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60" />
+      <div className={`relative rounded-xl border overflow-hidden transition-all duration-200 ${
+        isShort
+          ? "border-rose-500/25 bg-gradient-to-br from-rose-950/35 via-card to-card hover:border-rose-400/40 shadow-[0_0_20px_rgba(244,63,94,0.06)]"
+          : "border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 via-card to-card hover:border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.06)]"
+      }`}>
+        <div className={`h-0.5 ${
+          isShort
+            ? "bg-gradient-to-r from-rose-500/60 via-rose-400 to-rose-500/60"
+            : "bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60"
+        }`} />
 
         <div className="p-4">
           {/* Circuit breaker banner */}
@@ -327,12 +337,21 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
           {/* Rank + symbol + sector + % */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-[11px] font-bold flex items-center justify-center shrink-0">
+              <span className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
+                isShort ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-emerald-400"
+              }`}>
                 {rank}
               </span>
               <div>
                 <div className="flex items-center gap-1.5 leading-none">
                   <span className="font-bold text-base text-foreground">{pick.symbol}</span>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
+                    isShort
+                      ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                      : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                  }`}>
+                    {actionLabel}
+                  </span>
                   {pick.circuitLimit != null && (
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
                       pick.circuitLimit === "upper"
@@ -343,7 +362,9 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{cleanSectorName(pick.sectorName)}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {cleanSectorName(pick.sectorName)}{pick.setup ? ` · ${pick.setup}` : ""}
+                </div>
               </div>
             </div>
             <span className={`text-sm font-mono font-bold px-2 py-0.5 rounded ${pick.changePct >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
@@ -382,7 +403,7 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
                     ? "bg-muted/20 text-muted-foreground/60 border-border/25"
                     : "bg-rose-500/8 text-rose-400/70 border-rose-500/20"
                 }`}
-                title={`Volume: ${pick.volumeRatio.toFixed(1)}× session average`}>
+                title={`Volume: ${pick.volumeRatio.toFixed(1)}× recent 20-candle average`}>
                 VOL {pick.volumeOk ? "↑" : pick.volumeRatio >= 0.8 ? "✓" : "↓"} {pick.volumeRatio.toFixed(1)}×
               </span>
               <span className="text-[10px] text-muted-foreground/50">
@@ -447,6 +468,7 @@ interface ToastSignal {
   symbol: string;
   sectorName: string;
   entry: number;
+  direction?: "LONG" | "SHORT";
 }
 
 function SignalToastItem({ toast, onDone }: { toast: ToastSignal; onDone: () => void }) {
@@ -462,20 +484,31 @@ function SignalToastItem({ toast, onDone }: { toast: ToastSignal; onDone: () => 
     const remove = setTimeout(() => onDoneRef.current(), 4300);
     return () => { clearTimeout(hide); clearTimeout(remove); };
   }, []);
+  const isShort = toast.direction === "SHORT";
   return (
     <div className={`transition-all duration-500 ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}>
-      <div className="flex items-center gap-3 bg-card border border-emerald-500/40 rounded-xl px-4 py-3 shadow-[0_0_24px_rgba(16,185,129,0.15)] min-w-[240px]">
-        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+      <div className={`flex items-center gap-3 bg-card rounded-xl px-4 py-3 min-w-[240px] border ${
+        isShort
+          ? "border-rose-500/40 shadow-[0_0_24px_rgba(244,63,94,0.15)]"
+          : "border-emerald-500/40 shadow-[0_0_24px_rgba(16,185,129,0.15)]"
+      }`}>
+        <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${isShort ? "bg-rose-400" : "bg-emerald-400"}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm text-foreground">{toast.symbol}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold uppercase tracking-wide">ENTRY</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${
+              isShort
+                ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+            }`}>
+              {isShort ? "SELL" : "BUY"}
+            </span>
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
             ₹{toast.entry.toFixed(2)} · {cleanSectorName(toast.sectorName)}
           </div>
         </div>
-        <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
+        <Zap className={`w-4 h-4 shrink-0 ${isShort ? "text-rose-400" : "text-emerald-400"}`} />
       </div>
     </div>
   );
@@ -537,6 +570,11 @@ function getStatusBadge(status: string, size: "sm" | "md" = "sm", hitTimeText: s
       {size === "sm" ? "SL HIT" : `SL Hit 🛑${hitTimeText}`}
     </span>;
   }
+  if (status === "ENTRY INVALID") {
+    return <span className={`${baseClasses} bg-orange-500/10 text-orange-400 border border-orange-500/20`}>
+      {size === "sm" ? "INV" : `Entry Invalid${hitTimeText}`}
+    </span>;
+  }
   if (status === "T1 HIT & TRAILING SL HIT") {
     return <span className={`${baseClasses} bg-amber-500/10 text-amber-400 border border-amber-500/20`}>
       {size === "sm" ? "BE" : `Breakeven ⚖️${hitTimeText}`}
@@ -568,6 +606,7 @@ interface TodayTrade {
   target2: string;
   signalTime: string;
   status: string;
+  direction?: "LONG" | "SHORT";
   hitTime?: string | null;
 }
 
@@ -676,11 +715,19 @@ function TodayTradesWidget({ trades }: { trades: TodayTrade[] }) {
             <div className="divide-y divide-border/20">
               {displayedTrades.map((t) => {
                 const timeIST = toISTTime(t.signalTime);
+                const isShort = t.direction === "SHORT";
                 return (
                   <div key={t.id} className="px-3 py-2.5">
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-slate-200">{t.symbol}</span>
+                        <span className={`text-[8px] font-bold px-1 py-0.5 rounded border ${
+                          isShort
+                            ? "bg-rose-500/15 text-rose-300 border-rose-500/25"
+                            : "bg-emerald-500/15 text-emerald-300 border-emerald-500/25"
+                        }`}>
+                          {isShort ? "SELL" : "BUY"}
+                        </span>
                         {getStatusBadge(t.status, "sm")}
                       </div>
                       <span className="text-[10px] font-mono text-emerald-400/70">{timeIST} IST</span>
@@ -731,7 +778,7 @@ function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
   const filteredTrades = trades.filter((t) => {
     if (filter === "All") return true;
     if (filter === "Winners") return t.status === "TARGET 1 HIT" || t.status === "TARGET 2 HIT";
-    if (filter === "Losers") return t.status === "SL HIT";
+    if (filter === "Losers") return t.status === "SL HIT" || t.status === "ENTRY INVALID";
     if (filter === "Breakeven") return t.status === "T1 HIT & TRAILING SL HIT";
     if (filter === "Active") return !t.status || t.status === "PENDING" || t.status === "ACTIVE";
     return true;
@@ -773,12 +820,22 @@ function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
             const timeIST = toISTTime(t.signalTime);
             const hitTimeText = t.hitTime ? ` ${formatHitTime(t.hitTime)}` : "";
             const statusBadge = getStatusBadge(t.status, "md", hitTimeText);
+            const isShort = t.direction === "SHORT";
 
           return (
             <div key={t.id} className="relative rounded-xl border border-border/40 bg-card hover:bg-accent/20 transition-all p-4 shadow-sm flex flex-col justify-between min-h-[110px]">
               <div className="flex items-start justify-between mb-3 gap-2">
                 <div>
-                  <div className="font-bold text-base text-foreground">{t.symbol}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-base text-foreground">{t.symbol}</span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded border ${
+                      isShort
+                        ? "bg-rose-500/15 text-rose-300 border-rose-500/25"
+                        : "bg-emerald-500/15 text-emerald-300 border-emerald-500/25"
+                    }`}>
+                      {isShort ? "SELL" : "BUY"}
+                    </span>
+                  </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">{timeIST} IST</div>
                 </div>
                 <div className="shrink-0">{statusBadge}</div>
@@ -869,7 +926,7 @@ export default function Dashboard() {
   const [toasts, setToasts] = useState<ToastSignal[]>([]);
   const toastIdRef = useRef(0);
 
-  function addToasts(newSignals: Array<{ symbol: string; sectorName: string; entry: number }>) {
+  function addToasts(newSignals: Array<{ symbol: string; sectorName: string; entry: number; direction?: "LONG" | "SHORT" }>) {
     setToasts((prev) => [...prev, ...newSignals.map((s) => ({ ...s, id: ++toastIdRef.current }))]);
   }
   function removeToast(id: number) {
@@ -918,13 +975,18 @@ export default function Dashboard() {
     }
 
     const current = new Set<string>();
-    const newSignals: Array<{ symbol: string; sectorName: string; entry: number }> = [];
+    const newSignals: Array<{ symbol: string; sectorName: string; entry: number; direction?: "LONG" | "SHORT" }> = [];
     for (const sector of momentumData.sectors) {
       for (const stock of sector.stocks) {
         if (stock.entrySignal === true) {
           current.add(stock.symbol);
           if (!isFirstFetch.current && !prevSignalsRef.current.has(stock.symbol)) {
-            newSignals.push({ symbol: stock.symbol, sectorName: sector.sectorName, entry: stock.confirmedClose ?? stock.ltp ?? 0 });
+            newSignals.push({
+              symbol: stock.symbol,
+              sectorName: sector.sectorName,
+              entry: stock.confirmedClose ?? stock.ltp ?? 0,
+              direction: stock.direction ?? undefined,
+            });
           }
         }
       }
@@ -1073,8 +1135,8 @@ export default function Dashboard() {
                   <Zap className="w-8 h-8 text-emerald-400/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {liveSession
-                      ? "No entry signals yet — entries only scan 10:00-11:15 AM IST and require strong sector, relative strength, VWAP, EMA20, fresh crossover, and volume."
-                      : "No picks this session. Top picks appear once VWAP and EMA20 align."}
+                      ? "No S/R signals yet. Scanner watches 09:15-15:15 IST for zone rejection/breakout, structure bias, VWAP/EMA20 alignment, volume, and RR."
+                      : "No S/R picks this session."}
                   </p>
                 </div>
               )}
@@ -1158,10 +1220,10 @@ export default function Dashboard() {
                   <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
                 </div>
                 <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                  <p>• Exit if any 5-min candle closes <span className="text-foreground/70 font-medium">below VWAP</span></p>
+                  <p>• SL sits beyond the active <span className="text-foreground/70 font-medium">S/R zone</span></p>
                   <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
-                  <p>• Book full at T2 or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
-                  <p>• SL is set <span className="text-foreground/70 font-medium">0.4% below VWAP</span> support</p>
+                  <p>• Book full at the next opposite zone or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
+                  <p>• Skip setups below <span className="text-foreground/70 font-medium">1.2R</span> reward:risk</p>
                 </div>
               </div>
 
@@ -1170,16 +1232,16 @@ export default function Dashboard() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
                 <div className="space-y-2 text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono text-xs">VWAP ↑</span>
-                    <span>Close above VWAP</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono text-xs">S/R</span>
+                    <span>Zone rejection or breakout</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono text-xs">EMA ↑</span>
-                    <span>Close above EMA20</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/25 font-mono text-xs">BOS</span>
+                    <span>Structure bias agrees</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2 py-0.5">ENTRY</span>
-                    <span>Both aligned — trade setup</span>
+                    <span>VWAP/EMA20 and volume confirmed</span>
                   </div>
                 </div>
               </div>
@@ -1301,8 +1363,8 @@ export default function Dashboard() {
               <div className="rounded-xl border border-border/30 bg-card/30 p-6 text-center">
                 <p className="text-sm text-muted-foreground">
                   {liveSession
-                    ? "No entry signals yet — entries only scan 10:00-11:15 AM IST and require strong sector, relative strength, VWAP, EMA20, fresh crossover, and volume."
-                    : "Showing last session's signals. Top picks appear once VWAP and EMA20 align."}
+                    ? "No S/R signals yet. Scanner watches 09:15-15:15 IST for zone rejection/breakout, structure bias, VWAP/EMA20 alignment, volume, and RR."
+                    : "Showing last session's S/R signals."}
                 </p>
               </div>
             </div>
@@ -1327,7 +1389,7 @@ export default function Dashboard() {
                 </div>
               ) : momentumData?.sectors.length === 0 ? (
                 <div className="p-12 text-center border border-border/30 rounded-xl bg-card/30 text-muted-foreground">
-                  No momentum stocks found in the current market window.
+                  No S/R setups found in the current market window.
                 </div>
               ) : (
                 <div className="space-y-8">
@@ -1396,10 +1458,10 @@ export default function Dashboard() {
                   <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
                 </div>
                 <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                  <p>• Exit if any 5-min candle closes <span className="text-foreground/70 font-medium">below VWAP</span></p>
+                  <p>• SL sits beyond the active <span className="text-foreground/70 font-medium">S/R zone</span></p>
                   <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
-                  <p>• Book full at T2 or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
-                  <p>• SL is set <span className="text-foreground/70 font-medium">0.4% below VWAP</span> support</p>
+                  <p>• Book full at the next opposite zone or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
+                  <p>• Skip setups below <span className="text-foreground/70 font-medium">1.2R</span> reward:risk</p>
                 </div>
               </div>
 
@@ -1407,16 +1469,16 @@ export default function Dashboard() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
                 <div className="space-y-1.5 text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono">VWAP ↑</span>
-                    <span>Close above VWAP</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono">S/R</span>
+                    <span>Zone rejection or breakout</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-emerald-500/10 text-emerald-400 border-emerald-500/25 font-mono">EMA ↑</span>
-                    <span>Close above EMA20</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/25 font-mono">BOS</span>
+                    <span>Structure bias agrees</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2">ENTRY</span>
-                    <span>Both aligned — trade setup</span>
+                    <span>VWAP/EMA20 and volume confirmed</span>
                   </div>
                 </div>
               </div>

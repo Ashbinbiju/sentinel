@@ -98,8 +98,9 @@ async function main() {
       // 5. Look for fresh entry signals
       for (const pick of picks) {
         const symbol = normalizeSymbol(pick.symbol);
-        if (pick.entrySignal === true && symbol && !executedSymbols.has(symbol)) {
-          console.log(`[BOT] NEW SIGNAL DETECTED: ${pick.symbol} at INR ${pick.entry}`);
+        if (symbol && !executedSymbols.has(symbol)) {
+          const side = pick.direction === "SHORT" ? "SELL" : "BUY";
+          console.log(`[BOT] NEW ${side} SIGNAL DETECTED: ${pick.symbol} at INR ${pick.entry}`);
 
           if (tradesToday >= MAX_DAILY_TRADES) {
             console.log("[BOT] Skipping signal. Daily trade limit reached.");
@@ -133,7 +134,7 @@ async function main() {
 
           // 8. Execute Trade (Using Bracket Order / ROBO)
           try {
-            await broker.placeRoboOrder(symbol, token, quantity, pick.entry, pick.target1, pick.sl);
+            await broker.placeRoboOrder(symbol, token, quantity, pick.entry, pick.target2, pick.sl, side);
             executedSymbols.add(symbol);
             tradesToday++;
 

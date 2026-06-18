@@ -23,7 +23,7 @@ export interface MomentumPicksResponse {
    * @nullable
    */
   lastCandleTimeIST?: string | null;
-  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score) */
+  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score) */
   topPicks: TopPick[];
   sectors: SectorWithStocks[];
 }

@@ -24,6 +24,7 @@ interface HistoryTrade {
   sl: string;
   target1: string;
   target2: string;
+  direction?: "LONG" | "SHORT";
   status: string;
   plPct: number | null;
 }
@@ -90,6 +91,12 @@ function getStatusConfig(status: string): {
         classes: "bg-rose-500/10 text-rose-400 border-rose-500/20",
         icon: <TrendingDown className="w-3 h-3" />,
       };
+    case "ENTRY INVALID":
+      return {
+        label: "Entry Invalid",
+        classes: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+        icon: <TrendingDown className="w-3 h-3" />,
+      };
     case "VWAP EXIT":
       return {
         label: "VWAP Exit",
@@ -138,6 +145,7 @@ function TradeRow({ trade }: { trade: HistoryTrade }) {
   const sl = parseFloat(trade.sl);
   const t1 = parseFloat(trade.target1);
   const t2 = parseFloat(trade.target2);
+  const isShort = trade.direction === "SHORT";
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3 py-3 px-4 hover:bg-accent/10 transition-colors border-b border-border/20 last:border-0">
@@ -146,6 +154,13 @@ function TradeRow({ trade }: { trade: HistoryTrade }) {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm text-foreground">{trade.symbol}</span>
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+              isShort
+                ? "bg-rose-500/15 text-rose-300 border-rose-500/25"
+                : "bg-emerald-500/15 text-emerald-300 border-emerald-500/25"
+            }`}>
+              {isShort ? "SELL" : "BUY"}
+            </span>
             <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide ${status.classes}`}>
               {status.icon}
               {status.label}

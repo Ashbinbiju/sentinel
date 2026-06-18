@@ -12,6 +12,7 @@ export * from "./marketIndex";
 export * from "./momentumPicksResponse";
 export * from "./sectorPerformance";
 export * from "./sectorWithStocks";
+export * from "./signalDirection";
 export * from "./stockItem";
 export * from "./stockItemCircuitLimit";
 export * from "./topPick";

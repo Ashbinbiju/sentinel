@@ -61,17 +61,43 @@ const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
 const CANDLE_INTERVAL_SECS = 5 * 60;
 const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
-const ENTRY_SIGNAL_START_MIN_IST = 10 * 60;
-const ENTRY_SIGNAL_END_MIN_IST = 11 * 60 + 15;
-const MIN_ENTRY_SECTOR_CHANGE_PCT = 1;
-const MIN_ENTRY_STOCK_CHANGE_PCT = 1;
-const MIN_STOCK_SECTOR_OUTPERFORMANCE_PCT = 0.3;
+const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
+const ENTRY_SIGNAL_END_MIN_IST = 15 * 60 + 15;
+const MIN_ENTRY_SECTOR_CHANGE_PCT = 0;
+const MIN_ENTRY_STOCK_CHANGE_PCT = 0;
 const MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR = 4;
 const MAX_DAILY_ENTRY_SIGNALS = 10;
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
+const STRUCTURE_TIMEFRAME_SECS = 60 * 60;
+const PIVOT_LEFT = 3;
+const PIVOT_RIGHT = 3;
+const STRUCTURE_SWING_LEN = 3;
+const MERGE_ATR_MULT = 0.30;
+const ZONE_ATR_MULT = 0.08;
+const VOLUME_CONFIRMATION_MULTIPLIER = 1.15;
+const SKIP_OPENING_BARS = 2;
+const SIGNAL_COOLDOWN_BARS = 5;
+const MIN_SIGNAL_RR = 1.2;
+const SL_ATR_BUFFER_MULT = 0.12;
+const FALLBACK_RISK_REWARD = 1.5;
 const ANGEL_SCRIP_MASTER_URL =
   "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json";
+
+type SignalDirection = "LONG" | "SHORT";
+
+interface PriceActionSignal {
+  candle: Candle;
+  confirmedClose: number;
+  direction: SignalDirection;
+  setup: string;
+  sl: number;
+  target1: number;
+  target2: number;
+  riskPct: number;
+  rewardRisk: number;
+  smartExit: string;
+}
 
 let angelSmartApi: any | null = null;
 let angelLoginPromise: Promise<any> | null = null;
@@ -426,48 +452,10 @@ function calculateVolumeRatio(candles: Candle[], lookback = 20): number | null {
     .slice(-lookback)
     .map((c) => c.v);
 
-  if (baselineVolumes.length === 0) return null;
+  if (baselineVolumes.length < lookback) return null;
 
   const avgVolume = baselineVolumes.reduce((sum, volume) => sum + volume, 0) / baselineVolumes.length;
   return avgVolume > 0 ? r2(last.v / avgVolume) : null;
-}
-
-/**
- * Compute SL, T1, T2, and smart exit for an entry signal.
- *
- * SL  = 0.4% below VWAP (the key support level), but at least 0.5% below entry.
- * T1  = entry + 1.5 × risk   (1:1.5 R:R — take partial profit)
- * T2  = entry + 2.5 × risk   (1:2.5 R:R — extended target, let runner ride)
- *
- * SmartExit: exit immediately if any 5-min candle closes below VWAP.
- * Once T1 is hit, move SL to breakeven (entry price).
- */
-function computeTradeParams(
-  entry: number,
-  vwap: number,
-): {
-  sl: number;
-  target1: number;
-  target2: number;
-  riskPct: number;
-  smartExit: string;
-} {
-  // SL = 0.4% below VWAP, but floor at 0.5% below entry
-  const slFromVwap = vwap * 0.996;
-  const slFloor = entry * 0.995;
-  const sl = r2(Math.min(slFromVwap, slFloor));
-
-  const risk = entry - sl;
-  const target1 = r2(entry + 1.5 * risk);
-  const target2 = r2(entry + 2.5 * risk);
-  const riskPct = r2((risk / entry) * 100);
-
-  const smartExit =
-    `Exit if 5-min candle closes below VWAP (₹${r2(vwap)}). ` +
-    `At T1 (₹${target1}), move SL to entry (₹${r2(entry)}) and trail. ` +
-    `Book full profit at T2 (₹${target2}) or exit by 15:15 IST.`;
-
-  return { sl, target1, target2, riskPct, smartExit };
 }
 
 function detectCircuitLimit(candles: Candle[], prevClose: number): "upper" | "lower" | null {
@@ -481,15 +469,241 @@ function detectCircuitLimit(candles: Candle[], prevClose: number): "upper" | "lo
   return frozen >= prevClose ? "upper" : "lower";
 }
 
+interface Level {
+  price: number;
+  touches: number;
+}
+
+interface SupportResistanceContext {
+  resistanceLevels: Level[];
+  supportLevels: Level[];
+  zoneHalfWidth: number;
+  mergeDistance: number;
+}
+
+function trueRange(candle: Candle, prevClose: number | null): number {
+  if (prevClose === null) return candle.h - candle.l;
+  return Math.max(
+    candle.h - candle.l,
+    Math.abs(candle.h - prevClose),
+    Math.abs(candle.l - prevClose),
+  );
+}
+
+function calculateATR(candles: Candle[], period = 14): number | null {
+  if (candles.length < 2) return null;
+
+  const trs = candles.map((c, i) =>
+    trueRange(c, i > 0 ? candles[i - 1].c : null)
+  );
+  if (trs.length < period) {
+    const avg = trs.reduce((sum, tr) => sum + tr, 0) / trs.length;
+    return Number.isFinite(avg) && avg > 0 ? avg : null;
+  }
+
+  let atr = trs.slice(0, period).reduce((sum, tr) => sum + tr, 0) / period;
+  for (let i = period; i < trs.length; i++) {
+    atr = ((atr * (period - 1)) + trs[i]) / period;
+  }
+  return Number.isFinite(atr) && atr > 0 ? atr : null;
+}
+
+function istDateMinuteToEpochSecs(dateStr: string, minuteOfDay: number): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return 0;
+  return Math.floor((Date.UTC(y, m - 1, d, 0, minuteOfDay) - IST_OFFSET_MS) / 1000);
+}
+
+function aggregateCandles(candles: Candle[], timeframeSecs: number): Candle[] {
+  const timeframeMins = timeframeSecs / 60;
+  const buckets = new Map<string, Candle>();
+
+  for (const candle of [...candles].sort((a, b) => a.t - b.t)) {
+    const date = getISTDateStr(candle.t);
+    const mins = getISTMinuteOfDay(candle.t);
+    const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
+    const bucketIndex = Math.floor(relMins / timeframeMins);
+    const bucketStartMins = ENTRY_SIGNAL_START_MIN_IST + bucketIndex * timeframeMins;
+    const key = `${date}:${bucketIndex}`;
+    const existing = buckets.get(key);
+
+    if (!existing) {
+      buckets.set(key, {
+        t: istDateMinuteToEpochSecs(date, bucketStartMins),
+        o: candle.o,
+        h: candle.h,
+        l: candle.l,
+        c: candle.c,
+        v: candle.v,
+      });
+    } else {
+      existing.h = Math.max(existing.h, candle.h);
+      existing.l = Math.min(existing.l, candle.l);
+      existing.c = candle.c;
+      existing.v += candle.v;
+    }
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
+}
+
+function isPivotHigh(candles: Candle[], index: number, left: number, right: number): boolean {
+  if (index < left || index + right >= candles.length) return false;
+  const price = candles[index].h;
+  for (let i = index - left; i <= index + right; i++) {
+    if (i !== index && candles[i].h >= price) return false;
+  }
+  return true;
+}
+
+function isPivotLow(candles: Candle[], index: number, left: number, right: number): boolean {
+  if (index < left || index + right >= candles.length) return false;
+  const price = candles[index].l;
+  for (let i = index - left; i <= index + right; i++) {
+    if (i !== index && candles[i].l <= price) return false;
+  }
+  return true;
+}
+
+function addLevel(levels: Level[], level: number, maxCount: number, tolerance: number): void {
+  for (const existing of levels) {
+    if (Math.abs(existing.price - level) <= tolerance) {
+      existing.price = ((existing.price * existing.touches) + level) / (existing.touches + 1);
+      existing.touches += 1;
+      return;
+    }
+  }
+
+  levels.unshift({ price: level, touches: 1 });
+  if (levels.length > maxCount) levels.pop();
+}
+
+function nthAbove(levels: Level[], referencePrice: number, rank = 1): number | null {
+  const sorted = levels.map((l) => l.price).sort((a, b) => a - b);
+  let found = 0;
+  for (const level of sorted) {
+    if (level > referencePrice) {
+      found += 1;
+      if (found === rank) return level;
+    }
+  }
+  return null;
+}
+
+function nthBelow(levels: Level[], referencePrice: number, rank = 1): number | null {
+  const sorted = levels.map((l) => l.price).sort((a, b) => b - a);
+  let found = 0;
+  for (const level of sorted) {
+    if (level < referencePrice) {
+      found += 1;
+      if (found === rank) return level;
+    }
+  }
+  return null;
+}
+
+function buildSupportResistanceContext(candles: Candle[]): SupportResistanceContext | null {
+  const htfCandles = aggregateCandles(candles, STRUCTURE_TIMEFRAME_SECS);
+  if (htfCandles.length < PIVOT_LEFT + PIVOT_RIGHT + 1) return null;
+
+  const htfAtr = calculateATR(htfCandles) ?? calculateATR(candles);
+  const lastClose = candles.at(-1)?.c ?? 1;
+  const fallbackAtr = Math.max(lastClose * 0.003, 0.05);
+  const atr = htfAtr ?? fallbackAtr;
+  const mergeDistance = Math.max(atr * MERGE_ATR_MULT, 0.05);
+  const zoneHalfWidth = Math.max(atr * ZONE_ATR_MULT, 0.25);
+  const resistanceLevels: Level[] = [];
+  const supportLevels: Level[] = [];
+
+  for (let i = PIVOT_LEFT; i < htfCandles.length - PIVOT_RIGHT; i++) {
+    if (isPivotHigh(htfCandles, i, PIVOT_LEFT, PIVOT_RIGHT)) {
+      addLevel(resistanceLevels, htfCandles[i].h, 36, mergeDistance);
+    }
+    if (isPivotLow(htfCandles, i, PIVOT_LEFT, PIVOT_RIGHT)) {
+      addLevel(supportLevels, htfCandles[i].l, 36, mergeDistance);
+    }
+  }
+
+  return { resistanceLevels, supportLevels, zoneHalfWidth, mergeDistance };
+}
+
+function crossesOver(prev: number, current: number, level: number): boolean {
+  return prev <= level && current > level;
+}
+
+function crossesUnder(prev: number, current: number, level: number): boolean {
+  return prev >= level && current < level;
+}
+
+function buildPriceActionSignal(
+  candle: Candle,
+  direction: SignalDirection,
+  setup: string,
+  supportOrResistance: number,
+  targetZone: number | null,
+  zoneHalfWidth: number,
+  chartAtr: number,
+): PriceActionSignal | null {
+  const entry = candle.c;
+  const slBuffer = chartAtr * SL_ATR_BUFFER_MULT;
+  const dir = direction === "LONG" ? 1 : -1;
+  const sl =
+    direction === "LONG"
+      ? Math.min(candle.l, supportOrResistance - zoneHalfWidth) - slBuffer
+      : Math.max(candle.h, supportOrResistance + zoneHalfWidth) + slBuffer;
+  const risk = Math.abs(entry - sl);
+  if (!Number.isFinite(risk) || risk <= 0) return null;
+
+  const validSrTarget =
+    direction === "LONG"
+      ? targetZone !== null && targetZone > entry
+      : targetZone !== null && targetZone < entry;
+  const target2 = validSrTarget
+    ? targetZone!
+    : entry + (risk * FALLBACK_RISK_REWARD * dir);
+  const reward = Math.abs(target2 - entry);
+  const rewardRisk = reward / risk;
+  if (!Number.isFinite(rewardRisk) || rewardRisk < MIN_SIGNAL_RR) return null;
+
+  const target1 = entry + (risk * dir);
+  const riskPct = r2((risk / entry) * 100);
+  const action = direction === "LONG" ? "BUY" : "SELL";
+  const targetContext = direction === "LONG" ? "next resistance" : "next support";
+  const invalidation =
+    direction === "LONG"
+      ? `Exit if price loses entry zone or hits SL (Rs ${r2(sl)}).`
+      : `Exit if price reclaims entry zone or hits SL (Rs ${r2(sl)}).`;
+  const smartExit =
+    `${action} ${setup}. Entry Rs ${r2(entry)}. ` +
+    `${invalidation} First scale near Rs ${r2(target1)}; final target is ${targetContext} near Rs ${r2(target2)}. ` +
+    `Exit any open trade by 15:15 IST.`;
+
+  return {
+    candle,
+    confirmedClose: entry,
+    direction,
+    setup,
+    sl: r2(sl),
+    target1: r2(target1),
+    target2: r2(target2),
+    riskPct,
+    rewardRisk: r2(rewardRisk),
+    smartExit,
+  };
+}
+
 interface IndicatorResult {
   vwap: number | null;
   ema20: number | null;
   confirmedClose: number | null;
   entrySignal: boolean | null;
+  direction: SignalDirection | null;
+  setup: string | null;
   sl: number | null;
   target1: number | null;
   target2: number | null;
   riskPct: number | null;
+  rewardRisk: number | null;
   smartExit: string | null;
   indicatorDate: string | null;
   lastCandleTimeIST: string | null;
@@ -501,50 +715,139 @@ interface IndicatorResult {
   alertEligible: boolean;
 }
 
-interface EntrySignalMatch {
-  candle: Candle;
-  confirmedClose: number;
-  vwap: number;
-}
-
 function findEntrySignalMatch(
   sessionCandles: Candle[],
   historicalCandles: Candle[],
   today: string,
   lastTradingDate: string,
   isTradingDay: boolean,
-): EntrySignalMatch | null {
+): PriceActionSignal | null {
   if (!isTradingDay || lastTradingDate !== today) return null;
 
-  const CROSSOVER_LOOKBACK = 3;
-  const eligibleCandles = sessionCandles.filter((c) =>
-    getCandleCloseDateIST(c) === today && candleClosesInEntryWindow(c)
-  );
+  let lastStructHigh: number | null = null;
+  let lastStructLow: number | null = null;
+  let marketBias = 0;
+  let lastSignalIndex = Number.NEGATIVE_INFINITY;
 
-  for (const candle of eligibleCandles) {
+  for (let i = 0; i < sessionCandles.length; i++) {
+    const candle = sessionCandles[i];
+    if (getCandleCloseDateIST(candle) !== today || !candleClosesInEntryWindow(candle)) continue;
+
+    const pivotIndex = i - STRUCTURE_SWING_LEN;
+    if (isPivotHigh(sessionCandles, pivotIndex, STRUCTURE_SWING_LEN, STRUCTURE_SWING_LEN)) {
+      lastStructHigh = sessionCandles[pivotIndex].h;
+    }
+    if (isPivotLow(sessionCandles, pivotIndex, STRUCTURE_SWING_LEN, STRUCTURE_SWING_LEN)) {
+      lastStructLow = sessionCandles[pivotIndex].l;
+    }
+
+    const prevClose = i > 0 ? sessionCandles[i - 1].c : candle.o;
+    const breakUpStruct = lastStructHigh !== null && crossesOver(prevClose, candle.c, lastStructHigh);
+    const breakDownStruct = lastStructLow !== null && crossesUnder(prevClose, candle.c, lastStructLow);
+    if (breakUpStruct) marketBias = 1;
+    if (breakDownStruct) marketBias = -1;
+
+    if (i < SKIP_OPENING_BARS || i - lastSignalIndex <= SIGNAL_COOLDOWN_BARS) continue;
+
     const sessionThroughCandle = sessionCandles.filter((c) => c.t <= candle.t);
     const historicalThroughCandle = historicalCandles.filter((c) => c.t <= candle.t);
+    const srContext = buildSupportResistanceContext(historicalThroughCandle);
+    if (!srContext) continue;
+
     const vwap = calculateVWAP(sessionThroughCandle);
     const ema20 = calculateEMA(historicalThroughCandle.map((c) => c.c));
-    const volumeRatio = calculateVolumeRatio(sessionThroughCandle);
-    const priorCandles = sessionThroughCandle.slice(-(CROSSOVER_LOOKBACK + 1), -1);
-    const crossedVwapRecently =
-      vwap !== null && priorCandles.some((c) => c.c < vwap);
+    const volumeRatio = calculateVolumeRatio(historicalThroughCandle);
+    const chartAtr = calculateATR(historicalThroughCandle) ?? Math.max(candle.c * 0.003, 0.05);
+    const volumeOk = volumeRatio === null || volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER;
+    if (vwap === null || ema20 === null || !volumeOk) continue;
 
-    if (
-      vwap !== null &&
-      ema20 !== null &&
-      volumeRatio !== null &&
-      candle.c > vwap &&
-      candle.c > ema20 &&
-      crossedVwapRecently &&
-      volumeRatio > 1.5
-    ) {
-      return {
+    const buyTrendOk = candle.c > ema20 && candle.c > vwap;
+    const sellTrendOk = candle.c < ema20 && candle.c < vwap;
+    const buyBiasAllowed = marketBias >= 0;
+    const sellBiasAllowed = marketBias <= 0;
+    const { resistanceLevels, supportLevels, zoneHalfWidth } = srContext;
+    const r1 = nthAbove(resistanceLevels, candle.c, 1);
+    const s1 = nthBelow(supportLevels, candle.c, 1);
+    const r1Signal = nthAbove(resistanceLevels, prevClose, 1);
+    const s1Signal = nthBelow(supportLevels, prevClose, 1);
+
+    const body = Math.abs(candle.c - candle.o);
+    const upperWick = candle.h - Math.max(candle.o, candle.c);
+    const lowerWick = Math.min(candle.o, candle.c) - candle.l;
+    const nearSupport = s1 !== null && candle.l <= s1 + zoneHalfWidth && candle.c > s1;
+    const nearResistance = r1 !== null && candle.h >= r1 - zoneHalfWidth && candle.c < r1;
+
+    const bullishRejection =
+      buyBiasAllowed &&
+      buyTrendOk &&
+      nearSupport &&
+      candle.c > candle.o &&
+      lowerWick > body;
+    const bearishRejection =
+      sellBiasAllowed &&
+      sellTrendOk &&
+      nearResistance &&
+      candle.c < candle.o &&
+      upperWick > body;
+    const breakout =
+      buyBiasAllowed &&
+      buyTrendOk &&
+      r1Signal !== null &&
+      crossesOver(prevClose, candle.c, r1Signal + zoneHalfWidth) &&
+      candle.c > candle.o;
+    const breakdown =
+      sellBiasAllowed &&
+      sellTrendOk &&
+      s1Signal !== null &&
+      crossesUnder(prevClose, candle.c, s1Signal - zoneHalfWidth) &&
+      candle.c < candle.o;
+
+    let signal: PriceActionSignal | null = null;
+    if (bullishRejection && s1 !== null) {
+      signal = buildPriceActionSignal(
         candle,
-        confirmedClose: candle.c,
-        vwap,
-      };
+        "LONG",
+        "SUPPORT BUY REJECTION",
+        s1,
+        r1,
+        zoneHalfWidth,
+        chartAtr,
+      );
+    } else if (breakout && r1Signal !== null) {
+      signal = buildPriceActionSignal(
+        candle,
+        "LONG",
+        marketBias === 1 ? "BOS UP + RESISTANCE BREAKOUT" : "RESISTANCE BREAKOUT",
+        r1Signal,
+        r1,
+        zoneHalfWidth,
+        chartAtr,
+      );
+    } else if (bearishRejection && r1 !== null) {
+      signal = buildPriceActionSignal(
+        candle,
+        "SHORT",
+        "RESISTANCE SELL REJECTION",
+        r1,
+        s1,
+        zoneHalfWidth,
+        chartAtr,
+      );
+    } else if (breakdown && s1Signal !== null) {
+      signal = buildPriceActionSignal(
+        candle,
+        "SHORT",
+        marketBias === -1 ? "BOS DOWN + SUPPORT BREAKDOWN" : "SUPPORT BREAKDOWN",
+        s1Signal,
+        s1,
+        zoneHalfWidth,
+        chartAtr,
+      );
+    }
+
+    if (signal) {
+      lastSignalIndex = i;
+      return signal;
     }
   }
 
@@ -557,10 +860,13 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     ema20: null,
     confirmedClose: null,
     entrySignal: null,
+    direction: null,
+    setup: null,
     sl: null,
     target1: null,
     target2: null,
     riskPct: null,
+    rewardRisk: null,
     smartExit: null,
     indicatorDate: null,
     lastCandleTimeIST: null,
@@ -618,18 +924,20 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     let target1: number | null = null;
     let target2: number | null = null;
     let riskPct: number | null = null;
+    let rewardRisk: number | null = null;
     let smartExit: string | null = null;
     let signalTime: string | null = null;
     let entrySignal: boolean | null = null;
+    let direction: SignalDirection | null = null;
+    let setup: string | null = null;
     let alertEligible = false;
 
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
 
-    // Volume confirmation: compare last candle volume to recent positive-volume baseline.
-    // New entries require a real spike, not merely average participation.
-    const volumeRatio = calculateVolumeRatio(confirmedSession);
-    const volumeOk = volumeRatio !== null ? volumeRatio > 1.5 : null;
+    // Volume confirmation mirrors the S/R script: latest volume >= 1.15x recent average.
+    const volumeRatio = calculateVolumeRatio(confirmedHistorical);
+    const volumeOk = volumeRatio !== null ? volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER : null;
 
     if (existingTrade) {
       entrySignal = isEntryWindow && (existingTrade.status === "PENDING" || existingTrade.status === "ACTIVE");
@@ -638,10 +946,14 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       target2 = Number(existingTrade.target2);
 
       const entryPrice = Number(existingTrade.entryPrice);
-      const risk = entryPrice - sl;
+      direction = target2 < entryPrice || sl > entryPrice ? "SHORT" : "LONG";
+      setup = "SAVED PRICE ACTION S/R SIGNAL";
+      const risk = Math.abs(entryPrice - sl);
+      const reward = Math.abs(target2 - entryPrice);
       riskPct = r2((risk / entryPrice) * 100);
-      smartExit = `[SAVED] Entered at ₹${entryPrice}. Exit if 5-min candle closes below VWAP. At T1 (₹${target1}), move SL to entry.`;
+      rewardRisk = risk > 0 ? r2(reward / risk) : null;
       signalTime = existingTrade.signalTime;
+      smartExit = `[SAVED] ${direction} S/R setup entered at Rs ${entryPrice}. SL Rs ${sl}; target Rs ${target2}; square off by 15:15 IST.`;
 
       // Override confirmedClose so the UI shows the saved entry price
       confirmedClose = entryPrice;
@@ -654,12 +966,14 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         isTradingDay,
       );
       if (entryMatch) {
-        const tradeParams = computeTradeParams(entryMatch.confirmedClose, entryMatch.vwap);
-        sl = tradeParams.sl;
-        target1 = tradeParams.target1;
-        target2 = tradeParams.target2;
-        riskPct = tradeParams.riskPct;
-        smartExit = tradeParams.smartExit;
+        sl = entryMatch.sl;
+        target1 = entryMatch.target1;
+        target2 = entryMatch.target2;
+        riskPct = entryMatch.riskPct;
+        rewardRisk = entryMatch.rewardRisk;
+        smartExit = entryMatch.smartExit;
+        direction = entryMatch.direction;
+        setup = entryMatch.setup;
         signalTime = new Date((entryMatch.candle.t + CANDLE_INTERVAL_SECS) * 1000).toISOString();
         confirmedClose = entryMatch.confirmedClose;
 
@@ -711,7 +1025,10 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
           target1 = null;
           target2 = null;
           riskPct = null;
+          rewardRisk = null;
           smartExit = null;
+          direction = null;
+          setup = null;
           signalTime = null;
         }
       }
@@ -725,10 +1042,13 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       ema20: ema20R,
       confirmedClose,
       entrySignal,
+      direction,
+      setup,
       sl,
       target1,
       target2,
       riskPct,
+      rewardRisk,
       smartExit,
       indicatorDate: getISTDateStr(last.t),
       lastCandleTimeIST: getISTTimeStr(last.t),
@@ -766,6 +1086,35 @@ async function runWithConcurrency<T>(
   );
   await Promise.all(workers);
   return results;
+}
+
+function inferTradeDirectionFromPrices(entry: number, sl: number, target2: number): SignalDirection {
+  return target2 < entry || sl > entry ? "SHORT" : "LONG";
+}
+
+function plPctForExit(entry: number, exit: number, direction: SignalDirection): number {
+  return direction === "LONG"
+    ? r2(((exit - entry) / entry) * 100)
+    : r2(((entry - exit) / entry) * 100);
+}
+
+function entryInvalidationHalfWidth(candleData: CandleData, signalTimeMs: number): number | null {
+  const historicalThroughSignal = candleData.historicalCandles.filter(
+    (c) => (c.t + CANDLE_INTERVAL_SECS) * 1000 <= signalTimeMs,
+  );
+  return buildSupportResistanceContext(historicalThroughSignal)?.zoneHalfWidth ?? null;
+}
+
+function isEntryInvalidated(
+  candle: Candle,
+  entry: number,
+  direction: SignalDirection,
+  zoneHalfWidth: number | null,
+): boolean {
+  if (zoneHalfWidth === null) return false;
+  return direction === "LONG"
+    ? candle.c < entry - zoneHalfWidth
+    : candle.c > entry + zoneHalfWidth;
 }
 
 router.get("/market-indices", async (req, res) => {
@@ -852,8 +1201,8 @@ router.get("/momentum-picks", async (req, res) => {
     }));
 
     const top4 = [...allSectors]
-      .filter((sector) => sector.changePct >= MIN_ENTRY_SECTOR_CHANGE_PCT)
-      .sort((a, b) => b.changePct - a.changePct)
+      .filter((sector) => Math.abs(sector.changePct) >= MIN_ENTRY_SECTOR_CHANGE_PCT)
+      .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
       .slice(0, 4);
 
     let indicatorDate: string | null = null;
@@ -870,6 +1219,9 @@ router.get("/momentum-picks", async (req, res) => {
       target1: number;
       target2: number;
       riskPct: number;
+      rewardRisk: number;
+      direction: SignalDirection;
+      setup: string;
       smartExit: string;
       vwap: number;
       ema20: number;
@@ -923,13 +1275,9 @@ router.get("/momentum-picks", async (req, res) => {
 
           const filtered = all.filter((stock) => {
             const change = stock.changePct ?? 0;
-            const minChange = Math.max(
-              MIN_ENTRY_STOCK_CHANGE_PCT,
-              sector.changePct + MIN_STOCK_SECTOR_OUTPERFORMANCE_PCT,
-            );
-            return change >= minChange && change < 5.0;
+            return Math.abs(change) >= MIN_ENTRY_STOCK_CHANGE_PCT && Math.abs(change) < 5.0;
           })
-            .sort((a, b) => b.changePct - a.changePct)
+            .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
             .slice(0, MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR);
 
           const symbols = filtered.map((s) => s.symbol);
@@ -965,23 +1313,25 @@ router.get("/momentum-picks", async (req, res) => {
               ind.target1 !== null &&
               ind.target2 !== null &&
               ind.riskPct !== null &&
+              ind.rewardRisk !== null &&
+              ind.direction !== null &&
+              ind.setup !== null &&
               ind.smartExit !== null &&
               ind.vwap !== null &&
               ind.ema20 !== null
             ) {
-              // Score: prioritise momentum (changePct) + VWAP proximity (fresher crossover = tighter margin)
-              //        + volume tier (high volume = conviction; low volume = noise penalty)
-              const vwapMarginPct =
-                ((ind.confirmedClose - ind.vwap) / ind.vwap) * 100;
-              const volumeBonus =
+              // Rank S/R setups by RR first, then directional move and volume.
+              const directionalMove =
+                ind.direction === "LONG" ? stock.changePct : -stock.changePct;
+              const priceActionVolumeBonus =
                 ind.volumeRatio === null ? 0
-                  : ind.volumeRatio > 1.5 ? 1.5   // strong volume - confirmed breakout
-                    : ind.volumeRatio >= 1.0 ? 0.4   // average volume — neutral
-                      : -0.8;                           // weak volume — penalise ranking
-              const score =
-                stock.changePct * 1.5
-                - Math.max(0, vwapMarginPct - 0.5) * 2
-                + volumeBonus;
+                  : ind.volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER ? 1.0
+                    : ind.volumeRatio >= 1.0 ? 0.25
+                      : -0.8;
+              const priceActionScore =
+                ind.rewardRisk * 2
+                + Math.max(0, directionalMove) * 0.8
+                + priceActionVolumeBonus;
 
               topPickCandidates.push({
                 symbol: stock.symbol,
@@ -993,6 +1343,9 @@ router.get("/momentum-picks", async (req, res) => {
                 target1: ind.target1,
                 target2: ind.target2,
                 riskPct: ind.riskPct,
+                rewardRisk: ind.rewardRisk,
+                direction: ind.direction,
+                setup: ind.setup,
                 smartExit: ind.smartExit,
                 vwap: ind.vwap,
                 ema20: ind.ema20,
@@ -1002,7 +1355,7 @@ router.get("/momentum-picks", async (req, res) => {
                 volumeOk: ind.volumeOk,
                 signalTime: ind.signalTime,
                 alertEligible: ind.alertEligible,
-                score,
+                score: priceActionScore,
               });
             }
 
@@ -1014,10 +1367,13 @@ router.get("/momentum-picks", async (req, res) => {
               ema20: ind.ema20,
               confirmedClose: ind.confirmedClose,
               entrySignal: ind.entrySignal,
+              direction: ind.direction,
+              setup: ind.setup,
               sl: ind.sl,
               target1: ind.target1,
               target2: ind.target2,
               riskPct: ind.riskPct,
+              rewardRisk: ind.rewardRisk,
               smartExit: ind.smartExit,
               sparkline: ind.sparkline,
               circuitLimit: ind.circuitLimit,
@@ -1080,8 +1436,8 @@ router.get("/momentum-picks", async (req, res) => {
       sectors: sectorResults,
     });
   } catch (err) {
-    req.log.error({ err }, "Failed to fetch momentum picks");
-    return res.status(500).json({ error: "Failed to fetch momentum picks" });
+    req.log.error({ err }, "Failed to fetch price-action picks");
+    return res.status(500).json({ error: "Failed to fetch price-action picks" });
   }
 });
 
@@ -1114,7 +1470,7 @@ router.get("/trades/today", async (req, res) => {
       };
 
       const squareOffOpenTrade = async () => {
-        if (trade.status !== "PENDING" && trade.status !== "ACTIVE") return null;
+        if (trade.status !== "PENDING" && trade.status !== "ACTIVE" && trade.status !== "TARGET 1 HIT") return null;
 
         const persisted = await persistTradeStatus("SQUARED OFF");
         if (!persisted) return { ...trade, hitTime: null };
@@ -1148,31 +1504,42 @@ router.get("/trades/today", async (req, res) => {
       const target2 = Number(trade.target2);
       const entryPrice = Number(trade.entryPrice);
       const originalSl = Number(trade.sl);
+      const direction = inferTradeDirectionFromPrices(entryPrice, originalSl, target2);
+      const invalidationHalfWidth = entryInvalidationHalfWidth(candleData, signalTimeMs);
+      const hitsTarget = (c: Candle, target: number) =>
+        direction === "LONG" ? c.h >= target : c.l <= target;
+      const hitsStop = (c: Candle, stop: number) =>
+        direction === "LONG" ? c.l <= stop : c.h >= stop;
+      const vwapExitHit = (c: Candle) => {
+        const candleVwap = vwapByCandleStart.get(c.t);
+        if (candleVwap === undefined) return false;
+        return direction === "LONG" ? c.c < candleVwap : c.c > candleVwap;
+      };
       
-      const isTerminal = trade.status === "TARGET 2 HIT" || trade.status === "SL HIT" || trade.status === "T1 HIT & TRAILING SL HIT" || trade.status === "VWAP EXIT";
+      const isTerminal = trade.status === "TARGET 2 HIT" || trade.status === "SL HIT" || trade.status === "T1 HIT & TRAILING SL HIT" || trade.status === "ENTRY INVALID" || trade.status === "VWAP EXIT";
 
       if (isTerminal) {
         // Just find the hitTime for the existing terminal status without modifying the status
         if (trade.status === "TARGET 2 HIT") {
-          const c = postSignalCandles.find(c => c.h >= target2);
+          const c = postSignalCandles.find(c => hitsTarget(c, target2));
           if (c) hitTime = getISTTimeStr(c.t);
         } else if (trade.status === "SL HIT") {
-          const c = postSignalCandles.find(c => c.l <= originalSl);
+          const c = postSignalCandles.find(c => hitsStop(c, originalSl));
           if (c) hitTime = getISTTimeStr(c.t);
         } else if (trade.status === "T1 HIT & TRAILING SL HIT") {
-          const t1CandleIdx = postSignalCandles.findIndex(c => c.h >= target1);
+          const t1CandleIdx = postSignalCandles.findIndex(c => hitsTarget(c, target1));
           if (t1CandleIdx !== -1) {
-            const slCandle = postSignalCandles.slice(t1CandleIdx).find(c => c.l <= entryPrice);
+            const slCandle = postSignalCandles.slice(t1CandleIdx).find(c => hitsStop(c, entryPrice));
             if (slCandle) hitTime = getISTTimeStr(slCandle.t);
           }
+        } else if (trade.status === "ENTRY INVALID") {
+          const c = postSignalCandles.find(c => isEntryInvalidated(c, entryPrice, direction, invalidationHalfWidth));
+          if (c) hitTime = getISTTimeStr(c.t);
         } else if (trade.status === "VWAP EXIT") {
-          const c = postSignalCandles.find(c => {
-            const candleVwap = vwapByCandleStart.get(c.t);
-            return candleVwap !== undefined && c.c < candleVwap;
-          });
+          const c = postSignalCandles.find(vwapExitHit);
           if (c) hitTime = getISTTimeStr(c.t);
         }
-        return { ...trade, hitTime };
+        return { ...trade, direction, hitTime };
       }
       
       let newStatus: TradeStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
@@ -1180,7 +1547,7 @@ router.get("/trades/today", async (req, res) => {
       
       for (const c of postSignalCandles) {
         const currentSl = maxTargetReached >= 1 ? entryPrice : originalSl;
-        if (c.l <= currentSl) {
+        if (hitsStop(c, currentSl)) {
           if (maxTargetReached >= 1) {
              newStatus = "T1 HIT & TRAILING SL HIT";
           } else {
@@ -1190,26 +1557,24 @@ router.get("/trades/today", async (req, res) => {
           break;
         }
 
-        const candleVwap = vwapByCandleStart.get(c.t);
-        if (candleVwap !== undefined && c.c < candleVwap) {
-          newStatus = "VWAP EXIT";
-          hitTime = getISTTimeStr(c.t);
-          break;
-        }
-
-        if (c.h >= target2) {
+        if (hitsTarget(c, target2)) {
           newStatus = "TARGET 2 HIT";
           hitTime = getISTTimeStr(c.t);
           break;
         }
-        if (c.h >= target1 && maxTargetReached < 1) {
+        if (maxTargetReached < 1 && isEntryInvalidated(c, entryPrice, direction, invalidationHalfWidth)) {
+          newStatus = "ENTRY INVALID";
+          hitTime = getISTTimeStr(c.t);
+          break;
+        }
+        if (hitsTarget(c, target1) && maxTargetReached < 1) {
           maxTargetReached = 1;
           newStatus = "TARGET 1 HIT";
           hitTime = getISTTimeStr(c.t);
         }
       }
       
-      if (forceSquareOff && newStatus === "ACTIVE") {
+      if (forceSquareOff && (newStatus === "ACTIVE" || newStatus === "TARGET 1 HIT")) {
         newStatus = "SQUARED OFF";
         const lastCandle = postSignalCandles[postSignalCandles.length - 1];
         if (lastCandle) {
@@ -1224,7 +1589,7 @@ router.get("/trades/today", async (req, res) => {
         if (!persisted) return { ...trade, hitTime: null };
       }
       
-      return { ...trade, status: newStatus, hitTime };
+      return { ...trade, status: newStatus, direction, hitTime };
     }));
 
     return res.json({ date: today, trades });
@@ -1276,7 +1641,11 @@ router.get("/trades/history", async (req, res) => {
         .sort((a, b) => a.t - b.t);
     }
 
-    async function computeSquareOffPlPct(trade: Trade, entry: number): Promise<number | null> {
+    async function computeSquareOffPlPct(
+      trade: Trade,
+      entry: number,
+      direction: SignalDirection,
+    ): Promise<number | null> {
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) return null;
 
@@ -1285,10 +1654,14 @@ router.get("/trades/history", async (req, res) => {
 
       const squareOffCandle = getTradeExitCandles(candleData, trade, signalTimeMs).at(-1);
 
-      return squareOffCandle ? r2(((squareOffCandle.c - entry) / entry) * 100) : null;
+      return squareOffCandle ? plPctForExit(entry, squareOffCandle.c, direction) : null;
     }
 
-    async function computeVwapExitPlPct(trade: Trade, entry: number): Promise<number | null> {
+    async function computeVwapExitPlPct(
+      trade: Trade,
+      entry: number,
+      direction: SignalDirection,
+    ): Promise<number | null> {
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) return null;
 
@@ -1304,12 +1677,33 @@ router.get("/trades/history", async (req, res) => {
         if ((c.t + CANDLE_INTERVAL_SECS) * 1000 <= signalTimeMs) continue;
 
         const vwapAtCandle = calculateVWAP(dayCandles.slice(0, i + 1));
-        if (vwapAtCandle !== null && c.c < vwapAtCandle) {
-          return r2(((c.c - entry) / entry) * 100);
+        if (
+          vwapAtCandle !== null &&
+          (direction === "LONG" ? c.c < vwapAtCandle : c.c > vwapAtCandle)
+        ) {
+          return plPctForExit(entry, c.c, direction);
         }
       }
 
       return null;
+    }
+
+    async function computeEntryInvalidPlPct(
+      trade: Trade,
+      entry: number,
+      direction: SignalDirection,
+    ): Promise<number | null> {
+      const signalTimeMs = new Date(trade.signalTime).getTime();
+      if (Number.isNaN(signalTimeMs)) return null;
+
+      const candleData = await getCachedCandleData(trade.symbol);
+      if (!candleData) return null;
+
+      const invalidationHalfWidth = entryInvalidationHalfWidth(candleData, signalTimeMs);
+      const invalidationCandle = getTradeExitCandles(candleData, trade, signalTimeMs)
+        .find((c) => isEntryInvalidated(c, entry, direction, invalidationHalfWidth));
+
+      return invalidationCandle ? plPctForExit(entry, invalidationCandle.c, direction) : null;
     }
 
     // Compute estimated P&L % based on the trade's final status.
@@ -1319,14 +1713,16 @@ router.get("/trades/history", async (req, res) => {
       const sl    = Number(trade.sl);
       const t1    = Number(trade.target1);
       const t2    = Number(trade.target2);
+      const direction = inferTradeDirectionFromPrices(entry, sl, t2);
       if (!entry) return null;
       switch (trade.status) {
-        case "TARGET 2 HIT":            return r2(((t2 - entry) / entry) * 100);
-        case "TARGET 1 HIT":            return r2(((t1 - entry) / entry) * 100);
+        case "TARGET 2 HIT":            return plPctForExit(entry, t2, direction);
+        case "TARGET 1 HIT":            return plPctForExit(entry, t1, direction);
         case "T1 HIT & TRAILING SL HIT": return 0;   // exited at breakeven (entry)
-        case "SL HIT":                  return r2(((sl - entry) / entry) * 100);
-        case "VWAP EXIT":               return computeVwapExitPlPct(trade, entry);
-        case "SQUARED OFF":             return computeSquareOffPlPct(trade, entry);
+        case "SL HIT":                  return plPctForExit(entry, sl, direction);
+        case "ENTRY INVALID":           return computeEntryInvalidPlPct(trade, entry, direction);
+        case "VWAP EXIT":               return computeVwapExitPlPct(trade, entry, direction);
+        case "SQUARED OFF":             return computeSquareOffPlPct(trade, entry, direction);
         default:                        return null;  // ACTIVE / PENDING
       }
     }
@@ -1339,7 +1735,11 @@ router.get("/trades/history", async (req, res) => {
     }
 
     const daysData = await Promise.all(Array.from(byDate.entries()).map(async ([date, dayTrades]) => {
-      const enriched = await Promise.all(dayTrades.map(async (t) => ({ ...t, plPct: await computePlPct(t) })));
+      const enriched = await Promise.all(dayTrades.map(async (t) => ({
+        ...t,
+        direction: inferTradeDirectionFromPrices(Number(t.entryPrice), Number(t.sl), Number(t.target2)),
+        plPct: await computePlPct(t),
+      })));
       const terminal  = enriched.filter((t) => t.plPct !== null);
       const winners   = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
       const losers    = terminal.filter((t) => (t.plPct ?? 0) < 0).length;

@@ -9,6 +9,7 @@ export const TRADE_STATUSES = [
   "TARGET 2 HIT",
   "SL HIT",
   "T1 HIT & TRAILING SL HIT",
+  "ENTRY INVALID",
   "VWAP EXIT",
   "SQUARED OFF",
 ] as const;

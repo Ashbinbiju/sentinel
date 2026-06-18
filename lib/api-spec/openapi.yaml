@@ -69,11 +69,11 @@ paths:
     get:
       operationId: getMomentumPicks
       tags: [stocks]
-      summary: Get momentum stock picks with SL/Target
-      description: Returns filtered stocks from top 4 sectors with 0.3%–2.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
+      summary: Get price-action S/R stock picks with SL/Target
+      description: Returns filtered stocks from the most active sectors, enriched with price-action support/resistance signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
       responses:
         "200":
-          description: Momentum stock picks grouped by sector
+          description: Price-action S/R stock picks grouped by sector
           content:
             application/json:
               schema:
@@ -164,18 +164,28 @@ components:
           type: ["number", "null"]
         entrySignal:
           type: ["boolean", "null"]
+        direction:
+          type: ["string", "null"]
+          enum: ["LONG", "SHORT", null]
+          description: Trade direction from the price-action S/R setup
+        setup:
+          type: ["string", "null"]
+          description: Price-action setup name, such as support rejection or resistance breakout
         sl:
           type: ["number", "null"]
-          description: Stop loss price (0.4% below VWAP support level)
+          description: Stop loss price from the active support/resistance zone plus ATR buffer
         target1:
           type: ["number", "null"]
-          description: First target price (1:1.5 Risk:Reward)
+          description: First scale target, one risk unit from entry
         target2:
           type: ["number", "null"]
-          description: Second target price (1:2.5 Risk:Reward)
+          description: Final target at the next opposite S/R zone, or fallback 1.5R target
         riskPct:
           type: ["number", "null"]
           description: Risk percentage from entry to SL
+        rewardRisk:
+          type: ["number", "null"]
+          description: Reward-to-risk ratio for the final S/R target
         smartExit:
           type: ["string", "null"]
           description: Plain-English smart exit rule for this trade
@@ -190,10 +200,13 @@ components:
           description: Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
         volumeRatio:
           type: ["number", "null"]
-          description: Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)
+          description: Last confirmed candle volume divided by the recent 20-candle average volume (e.g. 1.8 = 1.8x average)
         volumeOk:
           type: ["boolean", "null"]
-          description: True if volumeRatio > 1.5 (strong volume confirmation), false otherwise
+          description: True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise
+        signalTime:
+          type: ["string", "null"]
+          description: UTC ISO timestamp of when the signal fired
       required:
         - symbol
         - ltp
@@ -218,13 +231,23 @@ components:
           description: Stop loss price
         target1:
           type: number
-          description: First target (1:1.5 RR)
+          description: First scale target, one risk unit from entry
         target2:
           type: number
-          description: Second target (1:2.5 RR)
+          description: Final target at the next opposite S/R zone, or fallback 1.5R target
         riskPct:
           type: number
           description: Risk % from entry to SL
+        rewardRisk:
+          type: number
+          description: Reward-to-risk ratio for the final S/R target
+        direction:
+          type: string
+          enum: ["LONG", "SHORT"]
+          description: Trade direction from the price-action S/R setup
+        setup:
+          type: string
+          description: Price-action setup name
         smartExit:
           type: string
           description: Smart exit rule
@@ -243,10 +266,13 @@ components:
           description: Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
         volumeRatio:
           type: ["number", "null"]
-          description: Last confirmed candle volume divided by session average volume
+          description: Last confirmed candle volume divided by the recent 20-candle average volume
         volumeOk:
           type: ["boolean", "null"]
-          description: True if volumeRatio > 1.5 (strong volume confirmation)
+          description: True if volumeRatio is at least 1.15 (price-action volume confirmation)
+        signalTime:
+          type: ["string", "null"]
+          description: UTC ISO timestamp of when the signal fired
       required:
         - symbol
         - sectorName
@@ -257,6 +283,9 @@ components:
         - target1
         - target2
         - riskPct
+        - rewardRisk
+        - direction
+        - setup
         - smartExit
         - vwap
         - ema20
@@ -295,7 +324,7 @@ components:
           description: IST time (HH:MM) of the last confirmed candle used for signals
         topPicks:
           type: array
-          description: Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score)
+          description: Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score)
           items:
             $ref: "#/components/schemas/TopPick"
         sectors:
@@ -328,12 +357,16 @@ components:
           type: string
         target2:
           type: string
+        direction:
+          type: string
+          enum: ["LONG", "SHORT"]
+          description: Inferred trade direction based on entry, SL, and target
         status:
           type: string
-          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, VWAP EXIT, SQUARED OFF, ACTIVE, PENDING)
+          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, ENTRY INVALID, legacy VWAP EXIT, SQUARED OFF, ACTIVE, PENDING)
         plPct:
           type: ["number", "null"]
-          description: Estimated P&L % based on final status. VWAP EXIT uses the first post-signal candle close below VWAP. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+          description: Estimated P&L % based on final status. ENTRY INVALID uses the first post-signal candle close beyond the entry zone. Legacy VWAP EXIT rows use the first post-signal candle close beyond VWAP. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
       required:
         - id
         - symbol
@@ -343,6 +376,7 @@ components:
         - sl
         - target1
         - target2
+        - direction
         - status
     TradeHistoryDaySummary:
       type: object

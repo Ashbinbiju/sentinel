@@ -35,8 +35,8 @@ export const GetSectorsResponseItem = zod.object({
 export const GetSectorsResponse = zod.array(GetSectorsResponseItem);
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3%–2.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
- * @summary Get momentum stock picks with SL/Target
+ * Returns filtered stocks from the most active sectors, enriched with price-action support/resistance signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
+ * @summary Get price-action S/R stock picks with SL/Target
  */
 export const GetMomentumPicksResponse = zod.object({
   fetchedAt: zod
@@ -65,9 +65,16 @@ export const GetMomentumPicksResponse = zod.object({
           changePct: zod.number(),
           entry: zod.number().describe("Confirmed close (entry price)"),
           sl: zod.number().describe("Stop loss price"),
-          target1: zod.number().describe("First target (1:1.5 RR)"),
-          target2: zod.number().describe("Second target (1:2.5 RR)"),
+          target1: zod.number().describe("First scale target, one risk unit from entry"),
+          target2: zod.number().describe("Final target at the next opposite S/R zone, or fallback 1.5R target"),
           riskPct: zod.number().describe("Risk % from entry to SL"),
+          rewardRisk: zod
+            .number()
+            .describe("Reward-to-risk ratio for the final S/R target"),
+          direction: zod
+            .union([zod.literal("LONG"), zod.literal("SHORT")])
+            .describe("Trade direction from the price-action S/R setup"),
+          setup: zod.string().describe("Price-action setup name"),
           smartExit: zod.string().describe("Smart exit rule"),
           vwap: zod.number(),
           ema20: zod.number(),
@@ -91,19 +98,23 @@ export const GetMomentumPicksResponse = zod.object({
             .number()
             .nullish()
             .describe(
-              "Last confirmed candle volume divided by session average volume",
+              "Last confirmed candle volume divided by the recent 20-candle average volume",
             ),
           volumeOk: zod
             .boolean()
             .nullish()
             .describe(
-              "True if volumeRatio > 1.5 (strong volume confirmation)",
+              "True if volumeRatio is at least 1.15 (price-action volume confirmation)",
             ),
+          signalTime: zod
+            .string()
+            .nullish()
+            .describe("UTC ISO timestamp of when the signal fired"),
         })
         .describe("One of the top 5 intraday picks across all sectors"),
     )
     .describe(
-      "Top 5 intraday picks across all sectors (entry signal stocks sorted by momentum score)",
+      "Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score)",
     ),
   sectors: zod.array(
     zod.object({
@@ -119,22 +130,34 @@ export const GetMomentumPicksResponse = zod.object({
           ema20: zod.number().nullish(),
           confirmedClose: zod.number().nullish(),
           entrySignal: zod.boolean().nullish(),
+          direction: zod
+            .union([zod.literal("LONG"), zod.literal("SHORT"), zod.literal(null)])
+            .nullish()
+            .describe("Trade direction from the price-action S/R setup"),
+          setup: zod
+            .string()
+            .nullish()
+            .describe("Price-action setup name, such as support rejection or resistance breakout"),
           sl: zod
             .number()
             .nullish()
-            .describe("Stop loss price (0.4% below VWAP support level)"),
+            .describe("Stop loss price from the active support/resistance zone plus ATR buffer"),
           target1: zod
             .number()
             .nullish()
-            .describe("First target price (1:1.5 Risk:Reward)"),
+            .describe("First scale target, one risk unit from entry"),
           target2: zod
             .number()
             .nullish()
-            .describe("Second target price (1:2.5 Risk:Reward)"),
+            .describe("Final target at the next opposite S/R zone, or fallback 1.5R target"),
           riskPct: zod
             .number()
             .nullish()
             .describe("Risk percentage from entry to SL"),
+          rewardRisk: zod
+            .number()
+            .nullish()
+            .describe("Reward-to-risk ratio for the final S/R target"),
           smartExit: zod
             .string()
             .nullish()
@@ -159,14 +182,18 @@ export const GetMomentumPicksResponse = zod.object({
             .number()
             .nullish()
             .describe(
-              "Last confirmed candle volume divided by session average volume (e.g. 1.8 = 1.8x average)",
+              "Last confirmed candle volume divided by the recent 20-candle average volume (e.g. 1.8 = 1.8x average)",
             ),
           volumeOk: zod
             .boolean()
             .nullish()
             .describe(
-              "True if volumeRatio > 1.5 (strong volume confirmation), false otherwise",
+              "True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise",
             ),
+          signalTime: zod
+            .string()
+            .nullish()
+            .describe("UTC ISO timestamp of when the signal fired"),
         }),
       ),
     }),

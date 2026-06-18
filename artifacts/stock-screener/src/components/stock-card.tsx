@@ -10,6 +10,8 @@ interface StockCardProps {
 export function StockCard({ stock }: StockCardProps) {
   const href = `https://www.tradingview.com/chart/?symbol=NSE%3A${stock.symbol}`;
   const entry = stock.entrySignal === true;
+  const isShort = stock.direction === "SHORT";
+  const actionLabel = isShort ? "SELL" : "BUY";
   const aboveVwap =
     stock.vwap != null && stock.confirmedClose != null
       ? stock.confirmedClose > stock.vwap
@@ -18,19 +20,27 @@ export function StockCard({ stock }: StockCardProps) {
     stock.ema20 != null && stock.confirmedClose != null
       ? stock.confirmedClose > stock.ema20
       : null;
+  const vwapOk = aboveVwap === null ? null : isShort ? !aboveVwap : aboveVwap;
+  const emaOk = aboveEma === null ? null : isShort ? !aboveEma : aboveEma;
 
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="block group">
       <div
         className={`relative rounded-xl border transition-all duration-200 overflow-hidden
           ${entry
-            ? "bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_16px_rgba(16,185,129,0.08)] hover:border-emerald-400/50"
+            ? isShort
+              ? "bg-rose-950/25 border-rose-500/30 shadow-[0_0_16px_rgba(244,63,94,0.08)] hover:border-rose-400/50"
+              : "bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_16px_rgba(16,185,129,0.08)] hover:border-emerald-400/50"
             : "bg-card border-border/40 hover:border-border hover:bg-accent/20"
           }`}
       >
         {/* Entry glow top line */}
         {entry && (
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" />
+          <div className={`absolute top-0 left-0 right-0 h-px ${
+            isShort
+              ? "bg-gradient-to-r from-transparent via-rose-400/60 to-transparent"
+              : "bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent"
+          }`} />
         )}
 
         <div className="p-3">
@@ -55,8 +65,12 @@ export function StockCard({ stock }: StockCardProps) {
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="font-bold text-sm text-foreground truncate">{stock.symbol}</span>
               {entry && (
-                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide">
-                  ENTRY
+                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase tracking-wide ${
+                  isShort
+                    ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                    : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                }`}>
+                  {actionLabel}
                 </span>
               )}
               {stock.circuitLimit != null && (
@@ -92,7 +106,7 @@ export function StockCard({ stock }: StockCardProps) {
           <div className="flex gap-1 mb-2 flex-wrap">
             {stock.vwap != null ? (
               <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border font-medium
-                ${aboveVwap ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" : "bg-rose-500/10 text-rose-400 border-rose-500/25"}`}
+                ${vwapOk ? (isShort ? "bg-rose-500/10 text-rose-300 border-rose-500/25" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25") : "bg-muted/20 text-muted-foreground/60 border-border/25"}`}
                 title={`VWAP: ${formatCurrency(stock.vwap)}`}>
                 VWAP {aboveVwap ? "↑" : "↓"}
               </span>
@@ -101,7 +115,7 @@ export function StockCard({ stock }: StockCardProps) {
             )}
             {stock.ema20 != null ? (
               <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border font-medium
-                ${aboveEma ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" : "bg-rose-500/10 text-rose-400 border-rose-500/25"}`}
+                ${emaOk ? (isShort ? "bg-rose-500/10 text-rose-300 border-rose-500/25" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25") : "bg-muted/20 text-muted-foreground/60 border-border/25"}`}
                 title={`EMA20: ${formatCurrency(stock.ema20)}`}>
                 EMA {aboveEma ? "↑" : "↓"}
               </span>
@@ -117,7 +131,7 @@ export function StockCard({ stock }: StockCardProps) {
                     ? "bg-muted/20 text-muted-foreground/60 border-border/25"
                     : "bg-rose-500/8 text-rose-400/70 border-rose-500/20"
                 }`}
-                title={`Volume: ${stock.volumeRatio.toFixed(1)}× session avg`}>
+                title={`Volume: ${stock.volumeRatio.toFixed(1)}× recent 20-candle avg`}>
                 VOL {stock.volumeOk ? "↑" : stock.volumeRatio >= 0.8 ? "✓" : "↓"} {stock.volumeRatio.toFixed(1)}×
               </span>
             ) : (

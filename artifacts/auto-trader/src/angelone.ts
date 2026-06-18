@@ -103,7 +103,13 @@ export class AngelOneBroker {
         const isExecuted = status === "COMPLETE" || status === "COMPLETED" || filledShares > 0;
         const isBotProduct = productType === "BO" || productType === "INTRADAY";
 
-        if (exchange === "NSE" && transactionType === "BUY" && tradeSymbol && isBotProduct && isExecuted) {
+        if (
+          exchange === "NSE" &&
+          (transactionType === "BUY" || transactionType === "SELL") &&
+          tradeSymbol &&
+          isBotProduct &&
+          isExecuted
+        ) {
           symbols.add(tradeSymbol.replace(/-EQ$/i, ""));
         }
       }
@@ -115,11 +121,16 @@ export class AngelOneBroker {
     }
   }
 
-  async placeMarketBuy(symbol: string, token: string, quantity: number): Promise<string> {
-    console.log(`[BROKER] Placing MARKET BUY for ${symbol} | Qty: ${quantity}`);
+  async placeMarketBuy(
+    symbol: string,
+    token: string,
+    quantity: number,
+    side: "BUY" | "SELL" = "BUY",
+  ): Promise<string> {
+    console.log(`[BROKER] Placing MARKET ${side} for ${symbol} | Qty: ${quantity}`);
     
     if (process.env.DRY_RUN === "true") {
-      console.log(`[DRY RUN] Order intercepted. Would have bought ${quantity} of ${symbol}.`);
+      console.log(`[DRY RUN] Order intercepted. Would have ${side === "BUY" ? "bought" : "sold"} ${quantity} of ${symbol}.`);
       return "mock-order-id";
     }
 
@@ -128,7 +139,7 @@ export class AngelOneBroker {
         variety: "NORMAL",
         tradingsymbol: `${symbol}-EQ`,
         symboltoken: token,
-        transactiontype: "BUY",
+        transactiontype: side,
         exchange: "NSE",
         ordertype: "MARKET",
         producttype: "INTRADAY",
@@ -149,18 +160,26 @@ export class AngelOneBroker {
     }
   }
 
-  async placeRoboOrder(symbol: string, token: string, quantity: number, entryPrice: number, targetPrice: number, slPrice: number): Promise<string> {
-    console.log(`[BROKER] Placing ROBO (Bracket) BUY for ${symbol} | Qty: ${quantity} | Limit: ${entryPrice} | Tgt: ${targetPrice} | SL: ${slPrice}`);
+  async placeRoboOrder(
+    symbol: string,
+    token: string,
+    quantity: number,
+    entryPrice: number,
+    targetPrice: number,
+    slPrice: number,
+    side: "BUY" | "SELL" = "BUY",
+  ): Promise<string> {
+    console.log(`[BROKER] Placing ROBO (Bracket) ${side} for ${symbol} | Qty: ${quantity} | Limit: ${entryPrice} | Tgt: ${targetPrice} | SL: ${slPrice}`);
     
     if (process.env.DRY_RUN === "true") {
-      console.log(`[DRY RUN] Order intercepted. Would have placed ROBO order for ${symbol}.`);
+      console.log(`[DRY RUN] Order intercepted. Would have placed ${side} ROBO order for ${symbol}.`);
       return "mock-robo-id";
     }
 
     try {
-      // Use a limit price 0.3% higher than the entry signal to ensure immediate execution like a MARKET order
+      // Use a marketable limit around the entry signal to encourage immediate execution.
       // (Tick size is 0.05 for NSE Equity)
-      const limitPriceNum = roundToNseTick(entryPrice * 1.003);
+      const limitPriceNum = roundToNseTick(side === "BUY" ? entryPrice * 1.003 : entryPrice * 0.997);
       const limitPrice = limitPriceNum.toFixed(2);
 
       // Angel One expects absolute points from the actual order price.
@@ -171,7 +190,7 @@ export class AngelOneBroker {
         variety: "ROBO",
         tradingsymbol: `${symbol}-EQ`,
         symboltoken: token,
-        transactiontype: "BUY",
+        transactiontype: side,
         exchange: "NSE",
         ordertype: "LIMIT",
         producttype: "BO",

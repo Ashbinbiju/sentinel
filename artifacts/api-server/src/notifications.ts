@@ -44,6 +44,8 @@ interface TopPickForNotify {
   target1: number;
   target2: number;
   riskPct: number;
+  direction?: "LONG" | "SHORT";
+  setup?: string;
   changePct: number;
   vwap: number;
   volumeRatio: number | null;
@@ -66,16 +68,18 @@ function formatSignedPct(value: number): string {
 function buildMessage(pick: TopPickForNotify): string {
   const symbol = escapeHtml(pick.symbol);
   const sectorName = escapeHtml(pick.sectorName);
+  const direction = pick.direction === "SHORT" ? "SELL" : "BUY";
+  const setup = pick.setup ? `\nSetup: ${escapeHtml(pick.setup)}` : "";
   const chartUrl = `https://www.tradingview.com/chart/?symbol=NSE%3A${encodeURIComponent(pick.symbol)}`;
   const volLine =
     pick.volumeRatio != null
-      ? `\nVolume: ${pick.volumeRatio.toFixed(1)}x avg${pick.volumeOk ? " OK" : ""}`
+      ? `\nVolume: ${pick.volumeRatio.toFixed(1)}x 20-bar avg${pick.volumeOk ? " OK" : ""}`
       : "";
 
   return (
-    `<b>SENTINEL SIGNAL</b>\n` +
+    `<b>SENTINEL ${direction} SIGNAL</b>\n` +
     `----------------\n` +
-    `<b>${symbol}</b> - ${sectorName}\n\n` +
+    `<b>${symbol}</b> - ${sectorName}${setup}\n\n` +
     `<b>Entry:</b> Rs ${pick.entry.toFixed(2)}\n` +
     `<b>SL:</b> Rs ${pick.sl.toFixed(2)} (-${pick.riskPct.toFixed(1)}%)\n` +
     `<b>T1:</b> Rs ${pick.target1.toFixed(2)}\n` +

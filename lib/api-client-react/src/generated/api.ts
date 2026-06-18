@@ -256,8 +256,8 @@ export function useGetSectors<
 }
 
 /**
- * Returns filtered stocks from top 4 sectors with 0.3%–2.0% change, enriched with VWAP/EMA20 signals, SL, targets, and smart exit rules. Also returns top 5 intraday picks.
- * @summary Get momentum stock picks with SL/Target
+ * Returns filtered stocks from the most active sectors, enriched with price-action support/resistance signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
+ * @summary Get price-action S/R stock picks with SL/Target
  */
 export const getGetMomentumPicksUrl = () => {
   return `/api/stocks/momentum-picks`;
@@ -308,7 +308,7 @@ export type GetMomentumPicksQueryResult = NonNullable<
 export type GetMomentumPicksQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get momentum stock picks with SL/Target
+ * @summary Get price-action S/R stock picks with SL/Target
  */
 
 export function useGetMomentumPicks<

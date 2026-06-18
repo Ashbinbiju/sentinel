@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TopPickCircuitLimit } from "./topPickCircuitLimit";
+import type { SignalDirection } from "./signalDirection";
 
 /**
  * One of the top 5 intraday picks across all sectors
@@ -19,12 +20,18 @@ export interface TopPick {
   entry: number;
   /** Stop loss price */
   sl: number;
-  /** First target (1:1.5 RR) */
+  /** First scale target, one risk unit from entry */
   target1: number;
-  /** Second target (1:2.5 RR) */
+  /** Final target at the next opposite S/R zone, or fallback 1.5R target */
   target2: number;
   /** Risk % from entry to SL */
   riskPct: number;
+  /** Reward-to-risk ratio for the final S/R target */
+  rewardRisk: number;
+  /** Trade direction from the price-action S/R setup */
+  direction: SignalDirection;
+  /** Price-action setup name */
+  setup: string;
   /** Smart exit rule */
   smartExit: string;
   vwap: number;
@@ -37,13 +44,15 @@ export interface TopPick {
    */
   circuitLimit?: TopPickCircuitLimit;
   /**
-   * Last confirmed candle volume divided by session average volume
+   * Last confirmed candle volume divided by the recent 20-candle average volume
    * @nullable
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio > 1.5 (strong volume confirmation)
+   * True if volumeRatio is at least 1.15 (price-action volume confirmation)
    * @nullable
    */
   volumeOk?: boolean | null;
+  /** UTC ISO timestamp of when the signal fired */
+  signalTime?: string | null;
 }
