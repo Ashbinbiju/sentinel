@@ -86,6 +86,38 @@ const ANGEL_SCRIP_MASTER_URL =
 
 type SignalDirection = "LONG" | "SHORT";
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+class SmartApiRateLimiter {
+  private nextAvailableAt = 0;
+  private tail: Promise<void> = Promise.resolve();
+
+  constructor(private readonly minIntervalMs: number) {}
+
+  schedule<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(async () => {
+      const waitMs = Math.max(0, this.nextAvailableAt - Date.now());
+      if (waitMs > 0) await delay(waitMs);
+      this.nextAvailableAt = Date.now() + this.minIntervalMs;
+      return task();
+    });
+
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return run;
+  }
+}
+
+const smartApiLimiters = {
+  loginByPassword: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
+  getCandleData: new SmartApiRateLimiter(360), // Angel limit: 3/sec and 180/min
+};
+
 interface PriceActionSignal {
   candle: Candle;
   confirmedClose: number;
@@ -297,7 +329,9 @@ async function getAngelSmartApi(): Promise<any> {
     const smartApi = new SmartAPI({ api_key: apiKey });
     const totpInfo = await TOTP.generate(totpSecret);
     const totp = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
-    const session = await smartApi.generateSession(clientCode, password, totp);
+    const session: any = await smartApiLimiters.loginByPassword.schedule(() =>
+      smartApi.generateSession(clientCode, password, totp)
+    );
 
     if (!session?.status) {
       throw new Error(session?.message || "Angel One login failed");
@@ -337,13 +371,15 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
   const now = new Date();
   const from = new Date(now.getTime() - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
   const smartApi = await getAngelSmartApi();
-  const response = await smartApi.getCandleData({
-    exchange: "NSE",
-    symboltoken: token,
-    interval: "FIVE_MINUTE",
-    fromdate: formatAngelDate(from),
-    todate: formatAngelDate(now),
-  });
+  const response: any = await smartApiLimiters.getCandleData.schedule(() =>
+    smartApi.getCandleData({
+      exchange: "NSE",
+      symboltoken: token,
+      interval: "FIVE_MINUTE",
+      fromdate: formatAngelDate(from),
+      todate: formatAngelDate(now),
+    })
+  );
 
   if (!response?.status || !Array.isArray(response.data)) {
     throw new Error(response?.message || "Angel One returned no candle data");

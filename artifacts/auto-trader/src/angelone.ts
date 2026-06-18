@@ -7,6 +7,40 @@ function roundToNseTick(value: number): number {
   return Math.round(value * NSE_TICK_MULTIPLIER) / NSE_TICK_MULTIPLIER;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+class SmartApiRateLimiter {
+  private nextAvailableAt = 0;
+  private tail: Promise<void> = Promise.resolve();
+
+  constructor(private readonly minIntervalMs: number) {}
+
+  schedule<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(async () => {
+      const waitMs = Math.max(0, this.nextAvailableAt - Date.now());
+      if (waitMs > 0) await delay(waitMs);
+      this.nextAvailableAt = Date.now() + this.minIntervalMs;
+      return task();
+    });
+
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return run;
+  }
+}
+
+const smartApiLimiters = {
+  loginByPassword: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
+  getRms: new SmartApiRateLimiter(550), // Angel limit: 2 requests/sec
+  getOrderBook: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
+  orderApi: new SmartApiRateLimiter(150), // place/modify/cancel are cumulative: 9 requests/sec
+};
+
 interface AngelOrderBookOrder {
   exchange?: string;
   tradingsymbol?: string;
@@ -45,7 +79,9 @@ export class AngelOneBroker {
     console.log(`[BROKER] Attempting login for client ${clientCode}...`);
     
     try {
-      const data = await this.smartApi.generateSession(clientCode, password, totp);
+      const data: any = await smartApiLimiters.loginByPassword.schedule(() =>
+        this.smartApi.generateSession(clientCode, password, totp)
+      );
       
       if (data.status) {
         this.jwtToken = data.data.jwtToken;
@@ -63,7 +99,9 @@ export class AngelOneBroker {
 
   async getAccountBalance(): Promise<number> {
     try {
-      const profile = await this.smartApi.getRMS();
+      const profile: any = await smartApiLimiters.getRms.schedule(() =>
+        this.smartApi.getRMS()
+      );
       if (profile && profile.status && profile.data) {
         // net from RMS gives available margin
         const availableCash = parseFloat(profile.data.availablecash);
@@ -86,7 +124,9 @@ export class AngelOneBroker {
 
   async getExecutedBuySymbolsFromOrderBook(): Promise<Set<string>> {
     try {
-      const response = await this.smartApi.getOrderBook();
+      const response: any = await smartApiLimiters.getOrderBook.schedule(() =>
+        this.smartApi.getOrderBook()
+      );
       if (!response || !response.status || !Array.isArray(response.data)) {
         throw new Error(response?.message || "Failed to fetch order book");
       }
@@ -147,7 +187,9 @@ export class AngelOneBroker {
         quantity: quantity.toString(),
       };
       
-      const response = await this.smartApi.placeOrder(orderData);
+      const response: any = await smartApiLimiters.orderApi.schedule(() =>
+        this.smartApi.placeOrder(orderData)
+      );
       if (response && response.status) {
         console.log(`[BROKER] Order placed successfully! ID: ${response.data.orderid}`);
         return response.data.orderid;
@@ -201,7 +243,9 @@ export class AngelOneBroker {
         quantity: quantity.toString(),
       };
       
-      const response = await this.smartApi.placeOrder(orderData);
+      const response: any = await smartApiLimiters.orderApi.schedule(() =>
+        this.smartApi.placeOrder(orderData)
+      );
       if (response && response.status) {
         console.log(`[BROKER] ROBO Order placed successfully! ID: ${response.data.orderid}`);
         return response.data.orderid;
