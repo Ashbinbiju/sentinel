@@ -75,6 +75,10 @@ const PIVOT_RIGHT = 3;
 const STRUCTURE_SWING_LEN = 3;
 const MERGE_ATR_MULT = 0.30;
 const ZONE_ATR_MULT = 0.08;
+const POWER_CHANNEL_LENGTH = 130;
+const POWER_CHANNEL_ATR_PERIOD = 200;
+const POWER_CHANNEL_ATR_MULT = 0.5;
+const POWER_CHANNEL_SL_BUFFER_MULT = 0.05;
 const VOLUME_CONFIRMATION_MULTIPLIER = 1.15;
 const SKIP_OPENING_BARS = 2;
 const SIGNAL_COOLDOWN_BARS = 5;
@@ -518,6 +522,17 @@ interface SupportResistanceContext {
   mergeDistance: number;
 }
 
+interface PowerChannelContext {
+  supportTop: number;
+  supportBottom: number;
+  resistanceTop: number;
+  resistanceBottom: number;
+  mid: number;
+  atrBand: number;
+  buyPower: number;
+  sellPower: number;
+}
+
 function trueRange(candle: Candle, prevClose: number | null): number {
   if (prevClose === null) return candle.h - candle.l;
   return Math.max(
@@ -664,6 +679,36 @@ function buildSupportResistanceContext(candles: Candle[]): SupportResistanceCont
   return { resistanceLevels, supportLevels, zoneHalfWidth, mergeDistance };
 }
 
+function buildPowerChannelContext(candles: Candle[]): PowerChannelContext | null {
+  if (candles.length < POWER_CHANNEL_LENGTH) return null;
+
+  const lookback = candles.slice(-POWER_CHANNEL_LENGTH);
+  const highestHigh = Math.max(...lookback.map((c) => c.h));
+  const lowestLow = Math.min(...lookback.map((c) => c.l));
+  if (!Number.isFinite(highestHigh) || !Number.isFinite(lowestLow) || highestHigh <= lowestLow) {
+    return null;
+  }
+
+  const fallbackAtr = Math.max((candles.at(-1)?.c ?? 1) * 0.003, 0.05);
+  const atrBand = Math.max(
+    (calculateATR(candles, POWER_CHANNEL_ATR_PERIOD) ?? fallbackAtr) * POWER_CHANNEL_ATR_MULT,
+    0.05,
+  );
+  const buyPower = lookback.filter((c) => c.c > c.o).length;
+  const sellPower = lookback.filter((c) => c.c < c.o).length;
+
+  return {
+    supportTop: lowestLow + atrBand,
+    supportBottom: lowestLow - atrBand,
+    resistanceTop: highestHigh + atrBand,
+    resistanceBottom: highestHigh - atrBand,
+    mid: (highestHigh + lowestLow) / 2,
+    atrBand,
+    buyPower,
+    sellPower,
+  };
+}
+
 function crossesOver(prev: number, current: number, level: number): boolean {
   return prev <= level && current > level;
 }
@@ -726,6 +771,59 @@ function buildPriceActionSignal(
   };
 }
 
+function buildPowerChannelSignal(
+  candle: Candle,
+  direction: SignalDirection,
+  channel: PowerChannelContext,
+): PriceActionSignal | null {
+  const entry = candle.c;
+  const dir = direction === "LONG" ? 1 : -1;
+  const buffer = Math.max(channel.atrBand * POWER_CHANNEL_SL_BUFFER_MULT, 0.05);
+  const sl = direction === "LONG"
+    ? channel.supportBottom - buffer
+    : channel.resistanceTop + buffer;
+  const target2 = direction === "LONG"
+    ? channel.resistanceBottom
+    : channel.supportTop;
+
+  const validTarget = direction === "LONG" ? target2 > entry : target2 < entry;
+  if (!validTarget) return null;
+
+  const risk = Math.abs(entry - sl);
+  const reward = Math.abs(target2 - entry);
+  const rewardRisk = reward / risk;
+  if (!Number.isFinite(risk) || risk <= 0 || !Number.isFinite(rewardRisk) || rewardRisk < MIN_SIGNAL_RR) {
+    return null;
+  }
+
+  const target1 = entry + (risk * dir);
+  const setup = direction === "LONG"
+    ? "POWER CHANNEL BUY REACTION"
+    : "POWER CHANNEL SELL REJECTION";
+  const action = direction === "LONG" ? "BUY" : "SELL";
+  const oppositeZone = direction === "LONG" ? "resistance zone" : "support zone";
+  const powerText = direction === "LONG"
+    ? `Buy Power ${channel.buyPower}`
+    : `Sell Power ${channel.sellPower}`;
+  const smartExit =
+    `${action} ${setup}. ${powerText}. Entry Rs ${r2(entry)}. ` +
+    `SL outside the ChartPrime zone at Rs ${r2(sl)}. First scale near Rs ${r2(target1)}; ` +
+    `final target is the opposite ${oppositeZone} near Rs ${r2(target2)}. Exit any open trade by 15:15 IST.`;
+
+  return {
+    candle,
+    confirmedClose: entry,
+    direction,
+    setup,
+    sl: r2(sl),
+    target1: r2(target1),
+    target2: r2(target2),
+    riskPct: r2((risk / entry) * 100),
+    rewardRisk: r2(rewardRisk),
+    smartExit,
+  };
+}
+
 interface IndicatorResult {
   vwap: number | null;
   ema20: number | null;
@@ -758,125 +856,33 @@ function findEntrySignalMatch(
 ): PriceActionSignal | null {
   if (!isTradingDay || lastTradingDate !== today) return null;
 
-  let lastStructHigh: number | null = null;
-  let lastStructLow: number | null = null;
-  let marketBias = 0;
   let lastSignalIndex = Number.NEGATIVE_INFINITY;
 
   for (let i = 0; i < sessionCandles.length; i++) {
     const candle = sessionCandles[i];
     if (getCandleCloseDateIST(candle) !== today || !candleClosesInEntryWindow(candle)) continue;
 
-    const pivotIndex = i - STRUCTURE_SWING_LEN;
-    if (isPivotHigh(sessionCandles, pivotIndex, STRUCTURE_SWING_LEN, STRUCTURE_SWING_LEN)) {
-      lastStructHigh = sessionCandles[pivotIndex].h;
-    }
-    if (isPivotLow(sessionCandles, pivotIndex, STRUCTURE_SWING_LEN, STRUCTURE_SWING_LEN)) {
-      lastStructLow = sessionCandles[pivotIndex].l;
-    }
-
-    const prevClose = i > 0 ? sessionCandles[i - 1].c : candle.o;
-    const breakUpStruct = lastStructHigh !== null && crossesOver(prevClose, candle.c, lastStructHigh);
-    const breakDownStruct = lastStructLow !== null && crossesUnder(prevClose, candle.c, lastStructLow);
-    if (breakUpStruct) marketBias = 1;
-    if (breakDownStruct) marketBias = -1;
-
     if (i < SKIP_OPENING_BARS || i - lastSignalIndex <= SIGNAL_COOLDOWN_BARS) continue;
 
-    const sessionThroughCandle = sessionCandles.filter((c) => c.t <= candle.t);
     const historicalThroughCandle = historicalCandles.filter((c) => c.t <= candle.t);
-    const srContext = buildSupportResistanceContext(historicalThroughCandle);
-    if (!srContext) continue;
+    const previousCandle = historicalThroughCandle.at(-2);
+    if (!previousCandle) continue;
 
-    const vwap = calculateVWAP(sessionThroughCandle);
-    const ema20 = calculateEMA(historicalThroughCandle.map((c) => c.c));
-    const volumeRatio = calculateVolumeRatio(historicalThroughCandle);
-    const chartAtr = calculateATR(historicalThroughCandle) ?? Math.max(candle.c * 0.003, 0.05);
-    const volumeOk = volumeRatio === null || volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER;
-    if (vwap === null || ema20 === null || !volumeOk) continue;
+    const channel = buildPowerChannelContext(historicalThroughCandle);
+    if (!channel) continue;
 
-    const buyTrendOk = candle.c > ema20 && candle.c > vwap;
-    const sellTrendOk = candle.c < ema20 && candle.c < vwap;
-    const buyBiasAllowed = marketBias >= 0;
-    const sellBiasAllowed = marketBias <= 0;
-    const { resistanceLevels, supportLevels, zoneHalfWidth } = srContext;
-    const r1 = nthAbove(resistanceLevels, candle.c, 1);
-    const s1 = nthBelow(supportLevels, candle.c, 1);
-    const r1Signal = nthAbove(resistanceLevels, prevClose, 1);
-    const s1Signal = nthBelow(supportLevels, prevClose, 1);
-
-    const body = Math.abs(candle.c - candle.o);
-    const upperWick = candle.h - Math.max(candle.o, candle.c);
-    const lowerWick = Math.min(candle.o, candle.c) - candle.l;
-    const nearSupport = s1 !== null && candle.l <= s1 + zoneHalfWidth && candle.c > s1;
-    const nearResistance = r1 !== null && candle.h >= r1 - zoneHalfWidth && candle.c < r1;
-
-    const bullishRejection =
-      buyBiasAllowed &&
-      buyTrendOk &&
-      nearSupport &&
-      candle.c > candle.o &&
-      lowerWick > body;
-    const bearishRejection =
-      sellBiasAllowed &&
-      sellTrendOk &&
-      nearResistance &&
-      candle.c < candle.o &&
-      upperWick > body;
-    const breakout =
-      buyBiasAllowed &&
-      buyTrendOk &&
-      r1Signal !== null &&
-      crossesOver(prevClose, candle.c, r1Signal + zoneHalfWidth) &&
-      candle.c > candle.o;
-    const breakdown =
-      sellBiasAllowed &&
-      sellTrendOk &&
-      s1Signal !== null &&
-      crossesUnder(prevClose, candle.c, s1Signal - zoneHalfWidth) &&
-      candle.c < candle.o;
+    const buyReaction =
+      previousCandle.l <= channel.supportTop &&
+      candle.l > channel.supportTop;
+    const sellRejection =
+      previousCandle.h >= channel.resistanceBottom &&
+      candle.h < channel.resistanceBottom;
 
     let signal: PriceActionSignal | null = null;
-    if (bullishRejection && s1 !== null) {
-      signal = buildPriceActionSignal(
-        candle,
-        "LONG",
-        "SUPPORT BUY REJECTION",
-        s1,
-        r1,
-        zoneHalfWidth,
-        chartAtr,
-      );
-    } else if (breakout && r1Signal !== null) {
-      signal = buildPriceActionSignal(
-        candle,
-        "LONG",
-        marketBias === 1 ? "BOS UP + RESISTANCE BREAKOUT" : "RESISTANCE BREAKOUT",
-        r1Signal,
-        r1,
-        zoneHalfWidth,
-        chartAtr,
-      );
-    } else if (bearishRejection && r1 !== null) {
-      signal = buildPriceActionSignal(
-        candle,
-        "SHORT",
-        "RESISTANCE SELL REJECTION",
-        r1,
-        s1,
-        zoneHalfWidth,
-        chartAtr,
-      );
-    } else if (breakdown && s1Signal !== null) {
-      signal = buildPriceActionSignal(
-        candle,
-        "SHORT",
-        marketBias === -1 ? "BOS DOWN + SUPPORT BREAKDOWN" : "SUPPORT BREAKDOWN",
-        s1Signal,
-        s1,
-        zoneHalfWidth,
-        chartAtr,
-      );
+    if (buyReaction) {
+      signal = buildPowerChannelSignal(candle, "LONG", channel);
+    } else if (sellRejection) {
+      signal = buildPowerChannelSignal(candle, "SHORT", channel);
     }
 
     if (signal) {
@@ -969,7 +975,7 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
 
-    // Volume confirmation mirrors the S/R script: latest volume >= 1.15x recent average.
+    // Volume is displayed as context only; the ChartPrime Power Channel script itself does not filter by volume.
     const volumeRatio = calculateVolumeRatio(confirmedHistorical);
     const volumeOk = volumeRatio !== null ? volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER : null;
 
@@ -981,13 +987,13 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
 
       const entryPrice = Number(existingTrade.entryPrice);
       direction = target2 < entryPrice || sl > entryPrice ? "SHORT" : "LONG";
-      setup = "SAVED PRICE ACTION S/R SIGNAL";
+      setup = "SAVED POWER CHANNEL SIGNAL";
       const risk = Math.abs(entryPrice - sl);
       const reward = Math.abs(target2 - entryPrice);
       riskPct = r2((risk / entryPrice) * 100);
       rewardRisk = risk > 0 ? r2(reward / risk) : null;
       signalTime = existingTrade.signalTime;
-      smartExit = `[SAVED] ${direction} S/R setup entered at Rs ${entryPrice}. SL Rs ${sl}; target Rs ${target2}; square off by 15:15 IST.`;
+      smartExit = `[SAVED] ${direction} Power Channel setup entered at Rs ${entryPrice}. SL Rs ${sl}; target Rs ${target2}; square off by 15:15 IST.`;
 
       // Override confirmedClose so the UI shows the saved entry price
       confirmedClose = entryPrice;
@@ -1133,18 +1139,13 @@ function plPctForExit(entry: number, exit: number, direction: SignalDirection): 
 }
 
 function entryInvalidationDistance(
-  candleData: CandleData,
-  signalTimeMs: number,
+  _candleData: CandleData,
+  _signalTimeMs: number,
   entry: number,
   sl: number,
 ): number | null {
-  const historicalThroughSignal = candleData.historicalCandles.filter(
-    (c) => (c.t + CANDLE_INTERVAL_SECS) * 1000 <= signalTimeMs,
-  );
-  const zoneDistance = buildSupportResistanceContext(historicalThroughSignal)?.zoneHalfWidth ?? 0;
   const riskDistance = Math.abs(entry - sl) * ENTRY_INVALIDATION_RISK_MULT;
-  const distance = Math.max(zoneDistance, riskDistance);
-  return Number.isFinite(distance) && distance > 0 ? distance : null;
+  return Number.isFinite(riskDistance) && riskDistance > 0 ? riskDistance : null;
 }
 
 function isEntryInvalidated(
@@ -1362,7 +1363,7 @@ router.get("/momentum-picks", async (req, res) => {
               ind.vwap !== null &&
               ind.ema20 !== null
             ) {
-              // Rank S/R setups by RR first, then directional move and volume.
+              // Rank Power Channel setups by RR first, then directional move and volume context.
               const directionalMove =
                 ind.direction === "LONG" ? stock.changePct : -stock.changePct;
               const priceActionVolumeBonus =
@@ -1478,8 +1479,8 @@ router.get("/momentum-picks", async (req, res) => {
       sectors: sectorResults,
     });
   } catch (err) {
-    req.log.error({ err }, "Failed to fetch price-action picks");
-    return res.status(500).json({ error: "Failed to fetch price-action picks" });
+    req.log.error({ err }, "Failed to fetch Power Channel picks");
+    return res.status(500).json({ error: "Failed to fetch Power Channel picks" });
   }
 });
 

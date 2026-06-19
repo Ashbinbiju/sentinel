@@ -1135,8 +1135,8 @@ export default function Dashboard() {
                   <Zap className="w-8 h-8 text-emerald-400/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     {liveSession
-                      ? "No S/R signals yet. Scanner watches 09:15-15:15 IST for zone rejection/breakout, structure bias, VWAP/EMA20 alignment, volume, and RR."
-                      : "No S/R picks this session."}
+                      ? "No Power Channel signals yet. Scanner watches 09:15-15:15 IST for ChartPrime support/resistance zone reactions with minimum RR."
+                      : "No Power Channel picks this session."}
                   </p>
                 </div>
               )}
@@ -1220,7 +1220,7 @@ export default function Dashboard() {
                   <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
                 </div>
                 <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                  <p>• SL sits beyond the active <span className="text-foreground/70 font-medium">S/R zone</span></p>
+                  <p>• SL sits outside the active <span className="text-foreground/70 font-medium">ChartPrime zone</span></p>
                   <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
                   <p>• Book full at the next opposite zone or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
                   <p>• Skip setups below <span className="text-foreground/70 font-medium">1.2R</span> reward:risk</p>
@@ -1232,16 +1232,16 @@ export default function Dashboard() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
                 <div className="space-y-2 text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono text-xs">S/R</span>
-                    <span>Zone rejection or breakout</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono text-xs">PWR</span>
+                    <span>ChartPrime Power Channel reaction</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/25 font-mono text-xs">BOS</span>
-                    <span>Structure bias agrees</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/25 font-mono text-xs">ZONE</span>
+                    <span>SL outside support/resistance box</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2 py-0.5">ENTRY</span>
-                    <span>VWAP/EMA20 and volume confirmed</span>
+                    <span>T1 is 1R; T2 is the opposite zone</span>
                   </div>
                 </div>
               </div>
@@ -1363,8 +1363,8 @@ export default function Dashboard() {
               <div className="rounded-xl border border-border/30 bg-card/30 p-6 text-center">
                 <p className="text-sm text-muted-foreground">
                   {liveSession
-                    ? "No S/R signals yet. Scanner watches 09:15-15:15 IST for zone rejection/breakout, structure bias, VWAP/EMA20 alignment, volume, and RR."
-                    : "Showing last session's S/R signals."}
+                    ? "No Power Channel signals yet. Scanner watches 09:15-15:15 IST for ChartPrime support/resistance zone reactions with minimum RR."
+                    : "Showing last session's Power Channel signals."}
                 </p>
               </div>
             </div>
@@ -1389,7 +1389,7 @@ export default function Dashboard() {
                 </div>
               ) : momentumData?.sectors.length === 0 ? (
                 <div className="p-12 text-center border border-border/30 rounded-xl bg-card/30 text-muted-foreground">
-                  No S/R setups found in the current market window.
+                  No Power Channel setups found in the current market window.
                 </div>
               ) : (
                 <div className="space-y-8">
@@ -1458,7 +1458,7 @@ export default function Dashboard() {
                   <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Smart Exit Rules</span>
                 </div>
                 <div className="space-y-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                  <p>• SL sits beyond the active <span className="text-foreground/70 font-medium">S/R zone</span></p>
+                  <p>• SL sits outside the active <span className="text-foreground/70 font-medium">ChartPrime zone</span></p>
                   <p>• At T1, move SL to <span className="text-foreground/70 font-medium">breakeven</span> (entry price)</p>
                   <p>• Book full at the next opposite zone or exit by <span className="text-foreground/70 font-medium">15:15 IST</span></p>
                   <p>• Skip setups below <span className="text-foreground/70 font-medium">1.2R</span> reward:risk</p>
@@ -1469,16 +1469,16 @@ export default function Dashboard() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Signal Key</span>
                 <div className="space-y-1.5 text-[11px] text-muted-foreground">
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono">S/R</span>
-                    <span>Zone rejection or breakout</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-sky-500/10 text-sky-400 border-sky-500/25 font-mono">PWR</span>
+                    <span>ChartPrime Power Channel reaction</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/25 font-mono">BOS</span>
-                    <span>Structure bias agrees</span>
+                    <span className="px-1.5 py-0.5 rounded border bg-amber-500/10 text-amber-400 border-amber-500/25 font-mono">ZONE</span>
+                    <span>SL outside support/resistance box</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-[9px] px-2">ENTRY</span>
-                    <span>VWAP/EMA20 and volume confirmed</span>
+                    <span>T1 is 1R; T2 is the opposite zone</span>
                   </div>
                 </div>
               </div>

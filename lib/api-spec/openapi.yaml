@@ -69,11 +69,11 @@ paths:
     get:
       operationId: getMomentumPicks
       tags: [stocks]
-      summary: Get price-action S/R stock picks with SL/Target
-      description: Returns filtered stocks from the most active sectors, enriched with price-action support/resistance signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
+      summary: Get ChartPrime Power Channel stock picks with SL/Target
+      description: Returns filtered stocks from the most active sectors, enriched with ChartPrime Power Channel zone reaction signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
       responses:
         "200":
-          description: Price-action S/R stock picks grouped by sector
+          description: Power Channel stock picks grouped by sector
           content:
             application/json:
               schema:
@@ -167,25 +167,25 @@ components:
         direction:
           type: ["string", "null"]
           enum: ["LONG", "SHORT", null]
-          description: Trade direction from the price-action S/R setup
+          description: Trade direction from the Power Channel setup
         setup:
           type: ["string", "null"]
-          description: Price-action setup name, such as support rejection or resistance breakout
+          description: Power Channel setup name, such as support reaction or resistance rejection
         sl:
           type: ["number", "null"]
-          description: Stop loss price from the active support/resistance zone plus ATR buffer
+          description: Stop loss price outside the active ChartPrime support/resistance zone
         target1:
           type: ["number", "null"]
           description: First scale target, one risk unit from entry
         target2:
           type: ["number", "null"]
-          description: Final target at the next opposite S/R zone, or fallback 1.5R target
+          description: Final target at the opposite ChartPrime support/resistance zone
         riskPct:
           type: ["number", "null"]
           description: Risk percentage from entry to SL
         rewardRisk:
           type: ["number", "null"]
-          description: Reward-to-risk ratio for the final S/R target
+          description: Reward-to-risk ratio for the final Power Channel target
         smartExit:
           type: ["string", "null"]
           description: Plain-English smart exit rule for this trade
@@ -203,7 +203,7 @@ components:
           description: Last confirmed candle volume divided by the recent 20-candle average volume (e.g. 1.8 = 1.8x average)
         volumeOk:
           type: ["boolean", "null"]
-          description: True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise
+          description: True if volumeRatio is at least 1.15; volume is context only for Power Channel signals
         signalTime:
           type: ["string", "null"]
           description: UTC ISO timestamp of when the signal fired
@@ -234,20 +234,20 @@ components:
           description: First scale target, one risk unit from entry
         target2:
           type: number
-          description: Final target at the next opposite S/R zone, or fallback 1.5R target
+          description: Final target at the opposite ChartPrime support/resistance zone
         riskPct:
           type: number
           description: Risk % from entry to SL
         rewardRisk:
           type: number
-          description: Reward-to-risk ratio for the final S/R target
+          description: Reward-to-risk ratio for the final Power Channel target
         direction:
           type: string
           enum: ["LONG", "SHORT"]
-          description: Trade direction from the price-action S/R setup
+          description: Trade direction from the Power Channel setup
         setup:
           type: string
-          description: Price-action setup name
+          description: Power Channel setup name
         smartExit:
           type: string
           description: Smart exit rule
@@ -269,7 +269,7 @@ components:
           description: Last confirmed candle volume divided by the recent 20-candle average volume
         volumeOk:
           type: ["boolean", "null"]
-          description: True if volumeRatio is at least 1.15 (price-action volume confirmation)
+          description: True if volumeRatio is at least 1.15; volume is context only for Power Channel signals
         signalTime:
           type: ["string", "null"]
           description: UTC ISO timestamp of when the signal fired
@@ -324,7 +324,7 @@ components:
           description: IST time (HH:MM) of the last confirmed candle used for signals
         topPicks:
           type: array
-          description: Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score)
+          description: Top 5 intraday picks across all sectors (entry signal stocks sorted by Power Channel setup score)
           items:
             $ref: "#/components/schemas/TopPick"
         sectors:
