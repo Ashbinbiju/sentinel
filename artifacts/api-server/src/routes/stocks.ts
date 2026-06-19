@@ -1359,9 +1359,7 @@ router.get("/momentum-picks", async (req, res) => {
               ind.rewardRisk !== null &&
               ind.direction !== null &&
               ind.setup !== null &&
-              ind.smartExit !== null &&
-              ind.vwap !== null &&
-              ind.ema20 !== null
+              ind.smartExit !== null
             ) {
               // Rank Power Channel setups by RR first, then directional move and volume context.
               const directionalMove =
@@ -1531,12 +1529,6 @@ router.get("/trades/today", async (req, res) => {
       const statusCandles = forceSquareOff
         ? confirmedSessionCandles.filter(candleClosesBySquareOff)
         : confirmedSessionCandles;
-      const vwapByCandleStart = new Map<number, number>();
-      for (let i = 0; i < statusCandles.length; i++) {
-        const vwapAtCandle = calculateVWAP(statusCandles.slice(0, i + 1));
-        if (vwapAtCandle !== null) vwapByCandleStart.set(statusCandles[i].t, vwapAtCandle);
-      }
-
       // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
       const postSignalCandles = statusCandles
         .filter(c => (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs);
@@ -1553,11 +1545,6 @@ router.get("/trades/today", async (req, res) => {
         direction === "LONG" ? c.h >= target : c.l <= target;
       const hitsStop = (c: Candle, stop: number) =>
         direction === "LONG" ? c.l <= stop : c.h >= stop;
-      const vwapExitHit = (c: Candle) => {
-        const candleVwap = vwapByCandleStart.get(c.t);
-        if (candleVwap === undefined) return false;
-        return direction === "LONG" ? c.c < candleVwap : c.c > candleVwap;
-      };
       
       let newStatus: TradeStatus = "ACTIVE";
       let maxTargetReached = 0;
