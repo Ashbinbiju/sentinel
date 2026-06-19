@@ -1662,90 +1662,113 @@ router.get("/trades/history", async (req, res) => {
         .sort((a, b) => a.t - b.t);
     }
 
-    async function computeSquareOffPlPct(
-      trade: Trade,
-      entry: number,
-      direction: SignalDirection,
-    ): Promise<number | null> {
-      const signalTimeMs = new Date(trade.signalTime).getTime();
-      if (Number.isNaN(signalTimeMs)) return null;
-
-      const candleData = await getCachedCandleData(trade.symbol);
-      if (!candleData) return null;
-
-      const squareOffCandle = getTradeExitCandles(candleData, trade, signalTimeMs).at(-1);
-
-      return squareOffCandle ? plPctForExit(entry, squareOffCandle.c, direction) : null;
-    }
-
-    async function computeVwapExitPlPct(
-      trade: Trade,
-      entry: number,
-      direction: SignalDirection,
-    ): Promise<number | null> {
-      const signalTimeMs = new Date(trade.signalTime).getTime();
-      if (Number.isNaN(signalTimeMs)) return null;
-
-      const candleData = await getCachedCandleData(trade.symbol);
-      if (!candleData) return null;
-
-      const dayCandles = candleData.historicalCandles
-        .filter((c) => getCandleCloseDateIST(c) === trade.date && candleClosesBySquareOff(c))
-        .sort((a, b) => a.t - b.t);
-
-      for (let i = 0; i < dayCandles.length; i++) {
-        const c = dayCandles[i];
-        if ((c.t + CANDLE_INTERVAL_SECS) * 1000 <= signalTimeMs) continue;
-
-        const vwapAtCandle = calculateVWAP(dayCandles.slice(0, i + 1));
-        if (
-          vwapAtCandle !== null &&
-          (direction === "LONG" ? c.c < vwapAtCandle : c.c > vwapAtCandle)
-        ) {
-          return plPctForExit(entry, c.c, direction);
-        }
-      }
-
-      return null;
-    }
-
-    async function computeEntryInvalidPlPct(
-      trade: Trade,
-      entry: number,
-      direction: SignalDirection,
-    ): Promise<number | null> {
-      const signalTimeMs = new Date(trade.signalTime).getTime();
-      if (Number.isNaN(signalTimeMs)) return null;
-
-      const candleData = await getCachedCandleData(trade.symbol);
-      if (!candleData) return null;
-
-      const invalidationHalfWidth = entryInvalidationHalfWidth(candleData, signalTimeMs);
-      const invalidationCandle = getTradeExitCandles(candleData, trade, signalTimeMs)
-        .find((c) => isEntryInvalidated(c, entry, direction, invalidationHalfWidth));
-
-      return invalidationCandle ? plPctForExit(entry, invalidationCandle.c, direction) : null;
-    }
-
-    // Compute estimated P&L % based on the trade's final status.
-    // For past sessions the status in the DB is already the final resolved value.
-    async function computePlPct(trade: Trade): Promise<number | null> {
+    async function resolveHistoricalTradeOutcome(trade: Trade): Promise<{
+      status: TradeStatus;
+      direction: SignalDirection;
+      hitTime: string | null;
+      plPct: number | null;
+    }> {
       const entry = Number(trade.entryPrice);
       const sl    = Number(trade.sl);
       const t1    = Number(trade.target1);
       const t2    = Number(trade.target2);
       const direction = inferTradeDirectionFromPrices(entry, sl, t2);
-      if (!entry) return null;
-      switch (trade.status) {
-        case "TARGET 2 HIT":            return plPctForExit(entry, t2, direction);
-        case "TARGET 1 HIT":            return plPctForExit(entry, t1, direction);
-        case "T1 HIT & TRAILING SL HIT": return 0;   // exited at breakeven (entry)
-        case "SL HIT":                  return plPctForExit(entry, sl, direction);
-        case "ENTRY INVALID":           return computeEntryInvalidPlPct(trade, entry, direction);
-        case "VWAP EXIT":               return computeVwapExitPlPct(trade, entry, direction);
-        case "SQUARED OFF":             return computeSquareOffPlPct(trade, entry, direction);
-        default:                        return null;  // ACTIVE / PENDING
+      if (!entry || !Number.isFinite(sl) || !Number.isFinite(t1) || !Number.isFinite(t2)) {
+        return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
       }
+
+      const signalTimeMs = new Date(trade.signalTime).getTime();
+      if (Number.isNaN(signalTimeMs)) {
+        return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
+      }
+
+      const candleData = await getCachedCandleData(trade.symbol);
+      if (!candleData) {
+        return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
+      }
+
+      const postSignalCandles = getTradeExitCandles(candleData, trade, signalTimeMs);
+      const invalidationHalfWidth = entryInvalidationHalfWidth(candleData, signalTimeMs);
+      const hitsTarget = (c: Candle, target: number) =>
+        direction === "LONG" ? c.h >= target : c.l <= target;
+      const hitsStop = (c: Candle, stop: number) =>
+        direction === "LONG" ? c.l <= stop : c.h >= stop;
+
+      let status: TradeStatus = "ACTIVE";
+      let hitTime: string | null = null;
+      let exitPrice: number | null = null;
+      let maxTargetReached = 0;
+
+      for (const c of postSignalCandles) {
+        if (maxTargetReached >= 1) {
+          if (hitsTarget(c, t2)) {
+            status = "TARGET 2 HIT";
+            hitTime = getISTTimeStr(c.t);
+            exitPrice = t2;
+            break;
+          }
+
+          if (hitsStop(c, entry)) {
+            status = "T1 HIT & TRAILING SL HIT";
+            hitTime = getISTTimeStr(c.t);
+            exitPrice = entry;
+            break;
+          }
+
+          continue;
+        }
+
+        if (hitsStop(c, sl)) {
+          status = "SL HIT";
+          hitTime = getISTTimeStr(c.t);
+          exitPrice = sl;
+          break;
+        }
+
+        if (hitsTarget(c, t2)) {
+          status = "TARGET 2 HIT";
+          hitTime = getISTTimeStr(c.t);
+          exitPrice = t2;
+          break;
+        }
+
+        if (isEntryInvalidated(c, entry, direction, invalidationHalfWidth)) {
+          status = "ENTRY INVALID";
+          hitTime = getISTTimeStr(c.t);
+          exitPrice = c.c;
+          break;
+        }
+
+        if (hitsTarget(c, t1)) {
+          maxTargetReached = 1;
+          status = "TARGET 1 HIT";
+          hitTime = getISTTimeStr(c.t);
+          exitPrice = t1;
+        }
+      }
+
+      const today = getTodayISTDateStr();
+      const shouldSquareOff = trade.date < today || (trade.date === today && isIntradaySquareOffTimeIST());
+      if (shouldSquareOff && (status === "ACTIVE" || status === "TARGET 1 HIT")) {
+        const squareOffCandle = postSignalCandles.at(-1);
+        status = "SQUARED OFF";
+        hitTime = squareOffCandle ? getISTTimeStr(squareOffCandle.t) : "15:15";
+        exitPrice = squareOffCandle?.c ?? exitPrice;
+      }
+
+      const plPct = exitPrice !== null ? plPctForExit(entry, exitPrice, direction) : null;
+
+      if (status !== trade.status) {
+        try {
+          await db.update(tradesTable)
+            .set({ status })
+            .where(eq(tradesTable.id, trade.id));
+        } catch (e) {
+          req.log.error({ err: e, symbol: trade.symbol, status }, "Failed to update corrected history trade status");
+        }
+      }
+
+      return { status, direction, hitTime, plPct };
     }
 
     // Group trades by date
@@ -1756,11 +1779,16 @@ router.get("/trades/history", async (req, res) => {
     }
 
     const daysData = await Promise.all(Array.from(byDate.entries()).map(async ([date, dayTrades]) => {
-      const enriched = await Promise.all(dayTrades.map(async (t) => ({
-        ...t,
-        direction: inferTradeDirectionFromPrices(Number(t.entryPrice), Number(t.sl), Number(t.target2)),
-        plPct: await computePlPct(t),
-      })));
+      const enriched = await Promise.all(dayTrades.map(async (t) => {
+        const outcome = await resolveHistoricalTradeOutcome(t);
+        return {
+          ...t,
+          status: outcome.status,
+          direction: outcome.direction,
+          hitTime: outcome.hitTime,
+          plPct: outcome.plPct,
+        };
+      }));
       const terminal  = enriched.filter((t) => t.plPct !== null);
       const winners   = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
       const losers    = terminal.filter((t) => (t.plPct ?? 0) < 0).length;
