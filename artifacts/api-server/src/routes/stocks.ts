@@ -83,12 +83,27 @@ const SWING_MIN_SCORE = 70;
 const SWING_MIN_SIGNAL_SCORE = 4;
 const SWING_MAX_ENTRY_GAP_PCT = 3.0;
 const SWING_MIN_AVG_TURNOVER = 10_000_000 * 10;
+const SWING_PUBLIC_SHARE_MIN_TURNOVER = 10_000_000 * 20;
 const SWING_MIN_SECTOR_RELATIVE_STRENGTH = 0.25;
 const SWING_MIN_PULLBACK_GAP_PCT = 0.5;
 const SWING_MIN_CONSOLIDATION_CANDLES = 3;
 const SWING_EXPECTED_HOLD_DAYS = 8;
 const SWING_NIFTY_TOKEN = "99926000";
 const MAX_SWING_SCAN_JOBS = 8;
+const DD_MIN_TOP_PICK_SCORE = 5;
+const DD_MAX_RANKED_ENTRY_GAP_PERCENT = 3.0;
+const DD_OPPORTUNITY_SCORE_CURVE_SCALE = 1.25;
+const DD_EXHAUSTION_RVOL_THRESHOLD = 5.0;
+const DD_EXHAUSTION_EMA20_DISTANCE_THRESHOLD = 8.0;
+const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
+const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
+const DD_RANKING_WEIGHTS = {
+  relativeStrength: 0.35,
+  rvol: 0.25,
+  sector: 0.20,
+  liquidity: 0.10,
+  entry: 0.10,
+};
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const STRUCTURE_TIMEFRAME_SECS = 60 * 60;
@@ -179,6 +194,14 @@ interface SwingUniverseStock {
   changePct: number;
 }
 
+type DdSwingSetupType =
+  | "fresh_breakout"
+  | "sector_leader_continuation"
+  | "mean_reversion_bounce"
+  | "high_rvol_explosive"
+  | "slow_institutional_trend"
+  | "trend_continuation";
+
 interface SwingCandidate {
   symbol: string;
   sector: string;
@@ -205,6 +228,10 @@ interface SwingCandidate {
   trendPersistence: number;
   freshBreakoutAge: number | null;
   consolidationCandles: number;
+  setupType: DdSwingSetupType;
+  latestMovePct: number;
+  ema20DistancePct: number;
+  liquidityScore: number;
 }
 
 interface SwingScannerResult {
@@ -1383,6 +1410,18 @@ function percentChange(current: number, previous: number | null | undefined): nu
   return ((current - previous) / previous) * 100;
 }
 
+function calculateSwingRecentReturn(candles: Candle[], lookback = 5): number | null {
+  const validCandles = candles
+    .filter((c) => [c.o, c.h, c.l, c.c].every((value) => Number.isFinite(value) && value > 0))
+    .sort((a, b) => a.t - b.t);
+  if (validCandles.length < 2) return null;
+  const closes = validCandles.map((c) => c.c);
+  const windowStart = closes.at(-lookback) ?? closes.at(0);
+  const latest = closes.at(-1);
+  if (!latest || !windowStart) return null;
+  return percentChange(latest, windowStart);
+}
+
 function ensureSwingTradesTable(): Promise<void> {
   if (!swingTradesTableReady) {
     swingTradesTableReady = (async () => {
@@ -1591,45 +1630,366 @@ function calculateRsiLast(closes: number[], period = 14): number | null {
   return 100 - (100 / (1 + rs));
 }
 
-function calculateMacd(closes: number[]): { macd: number | null; signal: number | null; histogram: number | null } {
-  const ema12 = emaSeries(closes, 12);
-  const ema26 = emaSeries(closes, 26);
+function calculateMacd(
+  closes: number[],
+  fast = 8,
+  slow = 17,
+  signalPeriod = 9,
+): { macd: number | null; signal: number | null; histogram: number | null; series: number[] } {
+  const emaFast = emaSeries(closes, fast);
+  const emaSlow = emaSeries(closes, slow);
   const macdSeries = closes.map((_, i) =>
-    ema12[i] !== null && ema26[i] !== null ? (ema12[i] as number) - (ema26[i] as number) : null
+    emaFast[i] !== null && emaSlow[i] !== null ? (emaFast[i] as number) - (emaSlow[i] as number) : null
   );
   const validMacd = macdSeries.filter((value): value is number => value !== null);
-  if (validMacd.length < 9) return { macd: null, signal: null, histogram: null };
+  if (validMacd.length < signalPeriod) return { macd: null, signal: null, histogram: null, series: validMacd };
 
-  const signalSeries = emaSeries(validMacd, 9);
+  const signalSeries = emaSeries(validMacd, signalPeriod);
   const macd = validMacd.at(-1) ?? null;
   const signal = signalSeries.at(-1) ?? null;
   return {
     macd,
     signal,
     histogram: macd !== null && signal !== null ? macd - signal : null,
+    series: validMacd,
   };
 }
 
-function countConsolidationCandles(candles: Candle[], atr: number, currentPrice: number): number {
-  const prior = candles.slice(-9, -1);
-  if (prior.length < 3 || atr <= 0) return 0;
+function std(values: number[]): number {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
 
-  const high = Math.max(...prior.map((c) => c.h));
-  const low = Math.min(...prior.map((c) => c.l));
-  const bandPct = ((high - low) / currentPrice) * 100;
-  if (bandPct <= 4.5) return prior.length;
+function rollingMeanLast(values: number[], period: number): number | null {
+  if (values.length < period) return null;
+  return avg(values.slice(-period));
+}
 
-  return prior.filter((c) => (c.h - c.l) <= atr * 1.15).length;
+function calculateBollingerLast(closes: number[], period = 20, dev = 2): { upper: number | null; middle: number | null; lower: number | null } {
+  if (closes.length < period) return { upper: null, middle: null, lower: null };
+  const window = closes.slice(-period);
+  const middle = avg(window);
+  if (middle === null) return { upper: null, middle: null, lower: null };
+  const deviation = std(window);
+  return {
+    upper: middle + deviation * dev,
+    middle,
+    lower: middle - deviation * dev,
+  };
+}
+
+function calculateDonchianLast(candles: Candle[], period = 20): { upper: number | null; lower: number | null; middle: number | null } {
+  if (candles.length < period) return { upper: null, lower: null, middle: null };
+  const window = candles.slice(-period);
+  const upper = Math.max(...window.map((c) => c.h));
+  const lower = Math.min(...window.map((c) => c.l));
+  return { upper, lower, middle: (upper + lower) / 2 };
+}
+
+function calculateIchimokuLast(candles: Candle[]): { tenkan: number | null; kijun: number | null; spanA: number | null; spanB: number | null } {
+  const midpoint = (period: number): number | null => {
+    if (candles.length < period) return null;
+    const window = candles.slice(-period);
+    return (Math.max(...window.map((c) => c.h)) + Math.min(...window.map((c) => c.l))) / 2;
+  };
+  const tenkan = midpoint(9);
+  const kijun = midpoint(26);
+  const spanB = midpoint(52);
+  return {
+    tenkan,
+    kijun,
+    spanA: tenkan !== null && kijun !== null ? (tenkan + kijun) / 2 : null,
+    spanB,
+  };
+}
+
+function calculateCmfLast(candles: Candle[], period = 20): number | null {
+  if (candles.length < period) return null;
+  let mfvSum = 0;
+  let volumeSum = 0;
+  for (const candle of candles.slice(-period)) {
+    const range = candle.h - candle.l;
+    if (range === 0) continue;
+    const multiplier = ((candle.c - candle.l) - (candle.h - candle.c)) / range;
+    mfvSum += multiplier * candle.v;
+    volumeSum += candle.v;
+  }
+  return volumeSum ? mfvSum / volumeSum : null;
+}
+
+function calculateObvSeries(candles: Candle[]): number[] {
+  const output: number[] = [];
+  let obv = 0;
+  for (let i = 0; i < candles.length; i++) {
+    if (i === 0) {
+      output.push(0);
+      continue;
+    }
+    if (candles[i].c > candles[i - 1].c) obv += candles[i].v;
+    else if (candles[i].c < candles[i - 1].c) obv -= candles[i].v;
+    output.push(obv);
+  }
+  return output;
+}
+
+function calculateVptSeries(candles: Candle[]): number[] {
+  const output: number[] = [];
+  let vpt = 0;
+  for (let i = 0; i < candles.length; i++) {
+    if (i === 0 || candles[i - 1].c === 0) {
+      output.push(vpt);
+      continue;
+    }
+    vpt += candles[i].v * ((candles[i].c - candles[i - 1].c) / candles[i - 1].c);
+    output.push(vpt);
+  }
+  return output;
+}
+
+function calculateCmoLast(closes: number[], period = 14): number | null {
+  if (closes.length <= period) return null;
+  const diffs = closes.slice(1).map((close, i) => close - closes[i]);
+  const window = diffs.slice(-period);
+  const up = window.reduce((sum, diff) => sum + Math.max(diff, 0), 0);
+  const down = window.reduce((sum, diff) => sum + Math.abs(Math.min(diff, 0)), 0);
+  return up + down === 0 ? 0 : 100 * ((up - down) / (up + down));
+}
+
+function calculateTrixLast(closes: number[], period = 15): { current: number | null; previous: number | null } {
+  const ema1 = emaSeries(closes, period).map((value) => value ?? NaN);
+  const valid1 = ema1.filter((value) => Number.isFinite(value));
+  const ema2 = emaSeries(valid1, period).map((value) => value ?? NaN);
+  const valid2 = ema2.filter((value) => Number.isFinite(value));
+  const ema3 = emaSeries(valid2, period).filter((value): value is number => value !== null);
+  if (ema3.length < 2) return { current: null, previous: null };
+  const trix = ema3.map((value, i) => i === 0 ? null : ((value - ema3[i - 1]) / ema3[i - 1]) * 100);
+  return {
+    current: trix.at(-1) ?? null,
+    previous: trix.at(-2) ?? null,
+  };
+}
+
+function calculateUltimateOscLast(candles: Candle[]): number | null {
+  if (candles.length < 29) return null;
+  const bp: number[] = [];
+  const tr: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const prevClose = candles[i - 1].c;
+    bp.push(candles[i].c - Math.min(candles[i].l, prevClose));
+    tr.push(Math.max(candles[i].h, prevClose) - Math.min(candles[i].l, prevClose));
+  }
+  const avgWindow = (period: number): number | null => {
+    const bpSum = bp.slice(-period).reduce((sum, value) => sum + value, 0);
+    const trSum = tr.slice(-period).reduce((sum, value) => sum + value, 0);
+    return trSum ? bpSum / trSum : null;
+  };
+  const a7 = avgWindow(7);
+  const a14 = avgWindow(14);
+  const a28 = avgWindow(28);
+  return a7 !== null && a14 !== null && a28 !== null ? 100 * ((4 * a7 + 2 * a14 + a28) / 7) : null;
+}
+
+function calculateAdxLast(candles: Candle[], period = 14): number | null {
+  if (candles.length < period * 2) return null;
+  const trs: number[] = [];
+  const plusDm: number[] = [];
+  const minusDm: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const upMove = candles[i].h - candles[i - 1].h;
+    const downMove = candles[i - 1].l - candles[i].l;
+    trs.push(Math.max(
+      candles[i].h - candles[i].l,
+      Math.abs(candles[i].h - candles[i - 1].c),
+      Math.abs(candles[i].l - candles[i - 1].c),
+    ));
+    plusDm.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDm.push(downMove > upMove && downMove > 0 ? downMove : 0);
+  }
+  let trSmooth = trs.slice(0, period).reduce((sum, value) => sum + value, 0);
+  let plusSmooth = plusDm.slice(0, period).reduce((sum, value) => sum + value, 0);
+  let minusSmooth = minusDm.slice(0, period).reduce((sum, value) => sum + value, 0);
+  const dxValues: number[] = [];
+  for (let i = period; i < trs.length; i++) {
+    trSmooth = trSmooth - (trSmooth / period) + trs[i];
+    plusSmooth = plusSmooth - (plusSmooth / period) + plusDm[i];
+    minusSmooth = minusSmooth - (minusSmooth / period) + minusDm[i];
+    const plusDi = trSmooth ? 100 * (plusSmooth / trSmooth) : 0;
+    const minusDi = trSmooth ? 100 * (minusSmooth / trSmooth) : 0;
+    const denom = plusDi + minusDi;
+    dxValues.push(denom ? 100 * (Math.abs(plusDi - minusDi) / denom) : 0);
+  }
+  if (dxValues.length < period) return null;
+  let adx = dxValues.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  for (let i = period; i < dxValues.length; i++) {
+    adx = ((adx * (period - 1)) + dxValues[i]) / period;
+  }
+  return adx;
+}
+
+function detectDivergence(closes: number[], rsiSeries: Array<number | null>): "Bullish Divergence" | "Bearish Divergence" | "No Divergence" {
+  const recentCloses = closes.slice(-5);
+  const recentRsi = rsiSeries.slice(-5);
+  if (recentCloses.length < 5 || recentRsi.some((value) => value === null)) return "No Divergence";
+  const rsi = recentRsi as number[];
+  const priceHighPos = recentCloses.indexOf(Math.max(...recentCloses));
+  const priceLowPos = recentCloses.indexOf(Math.min(...recentCloses));
+  const rsiHighPos = rsi.indexOf(Math.max(...rsi));
+  const rsiLowPos = rsi.indexOf(Math.min(...rsi));
+  const lastPos = recentCloses.length - 1;
+  const bullish = priceLowPos > rsiLowPos && recentCloses[priceLowPos] < recentCloses[lastPos] && rsi[rsiLowPos] < rsi[lastPos];
+  const bearish = priceHighPos < rsiHighPos && recentCloses[priceHighPos] > recentCloses[lastPos] && rsi[rsiHighPos] > rsi[lastPos];
+  return bullish ? "Bullish Divergence" : bearish ? "Bearish Divergence" : "No Divergence";
+}
+
+function countConsolidationCandles(candles: Candle[], lookback = 8, maxRangePct = 3.0, endOffset = 0): number {
+  const endPosition = candles.length - endOffset;
+  if (endPosition < lookback) return 0;
+  const window = candles.slice(0, endPosition).slice(-lookback);
+  let count = 0;
+  for (const candle of [...window].reverse()) {
+    if (candle.c <= 0) break;
+    const candleRangePct = ((candle.h - candle.l) / candle.c) * 100;
+    if (candleRangePct <= maxRangePct) count += 1;
+    else break;
+  }
+  return count;
+}
+
+function countEntryConsolidationCandles(candles: Candle[], breakoutAge: number | null): number {
+  if (breakoutAge !== null && breakoutAge >= 1 && breakoutAge <= 3) {
+    return countConsolidationCandles(candles, 8, 3.0, breakoutAge);
+  }
+  return countConsolidationCandles(candles);
+}
+
+function calculateTrendPersistenceScore(candles: Candle[], lookback = 5): number {
+  if (candles.length < lookback) return 0;
+  const window = candles.slice(-lookback);
+  const closeLocations = window.map((c) => {
+    const range = c.h - c.l;
+    return range ? clamp((c.c - c.l) / range, 0, 1) : 0;
+  });
+  const closeLocation = closeLocations.reduce((sum, value) => sum + value, 0) / closeLocations.length;
+  const changes = window.slice(1).map((c, i) => c.c - window[i].c);
+  const advancingCloseRate = changes.filter((change) => change > 0).length / Math.max(1, changes.length);
+  const pathLength = changes.reduce((sum, change) => sum + Math.abs(change), 0);
+  const smoothness = pathLength ? clamp(Math.abs(window.at(-1)!.c - window[0].c) / pathLength, 0, 1) : 0;
+  return r2(((closeLocation * 0.45) + (advancingCloseRate * 0.35) + (smoothness * 0.20)) * 100);
 }
 
 function freshBreakoutAge(candles: Candle[], lookback = 20, maxAge = 3): number | null {
+  if (candles.length < lookback + maxAge + 2) return null;
   for (let age = 1; age <= maxAge; age++) {
-    const index = candles.length - age;
-    if (index < lookback) continue;
-    const previousHigh = Math.max(...candles.slice(index - lookback, index).map((c) => c.h));
-    if (candles[index].c > previousHigh) return age;
+    const breakoutIndex = candles.length - age;
+    const previousIndex = breakoutIndex - 1;
+    const priorStart = breakoutIndex - lookback;
+    const previousPriorStart = previousIndex - lookback;
+    if (priorStart < 0 || previousPriorStart < 0) continue;
+    const priorHigh = Math.max(...candles.slice(priorStart, breakoutIndex).map((c) => c.h));
+    const previousPriorHigh = Math.max(...candles.slice(previousPriorStart, previousIndex).map((c) => c.h));
+    const breakoutClose = candles[breakoutIndex].c;
+    const previousClose = candles[previousIndex].c;
+    if (breakoutClose > priorHigh && previousClose <= previousPriorHigh) return age;
   }
   return null;
+}
+
+function linearRegressionSlopeAndR2(values: number[]): { slope: number; r2: number } {
+  const n = values.length;
+  if (n < 2) return { slope: 0, r2: 0 };
+  const xs = values.map((_, i) => i);
+  const meanX = (n - 1) / 2;
+  const meanY = values.reduce((sum, value) => sum + value, 0) / n;
+  const cov = xs.reduce((sum, x, i) => sum + ((x - meanX) * (values[i] - meanY)), 0);
+  const varX = xs.reduce((sum, x) => sum + ((x - meanX) ** 2), 0);
+  const varY = values.reduce((sum, y) => sum + ((y - meanY) ** 2), 0);
+  const slope = varX ? cov / varX : 0;
+  const corr = varX && varY ? cov / Math.sqrt(varX * varY) : 0;
+  return { slope, r2: corr ** 2 };
+}
+
+function detectAdvancedPattern(candles: Candle[], ema50: number | null, window = 20): { action: "BUY" | "STRONG BUY"; pattern: string; desc: string; breakoutLevel: number } | null {
+  if (candles.length < window + 5) return null;
+  const recent = candles.slice(-window);
+  const currentClose = recent.at(-1)!.c;
+  if (ema50 !== null && currentClose < ema50) return null;
+  const avgVol = avg(recent.map((c) => c.v)) ?? 0;
+  if (recent.at(-1)!.v < avgVol * 0.5) return null;
+
+  const highs = recent.map((c) => c.h);
+  const lows = recent.map((c) => c.l);
+  const avgHigh = avg(highs.slice(-5)) ?? 0;
+  const resistanceVariance = std(highs.slice(-5)) ** 2;
+  const isResistanceFlat = resistanceVariance < currentClose * 0.005;
+  const { slope, r2: regressionR2 } = linearRegressionSlopeAndR2(lows);
+  const isDemandIncreasing = slope > 0.05 && regressionR2 > 0.6;
+  const nearResistance = currentClose >= avgHigh * 0.98;
+  if (isResistanceFlat && isDemandIncreasing && nearResistance) {
+    return {
+      pattern: "Increasing Demand",
+      action: "BUY",
+      desc: "Higher lows into resistance (Ascending Triangle). Buyers absorbing supply.",
+      breakoutLevel: avgHigh,
+    };
+  }
+
+  const supportWindow = candles.slice(-(window + 10), -5);
+  if (supportWindow.length) {
+    const recentSupport = Math.min(...supportWindow.map((c) => c.l));
+    const recentLow = Math.min(...recent.map((c) => c.l));
+    const currentOpen = recent.at(-1)!.o;
+    if (
+      recentLow < recentSupport &&
+      currentClose > recentSupport &&
+      currentClose > currentOpen &&
+      (recentSupport - recentLow) / recentSupport < 0.03
+    ) {
+      return {
+        pattern: "Fake-out Reversal",
+        action: "STRONG BUY",
+        desc: "Liquidity sweep below support followed by strong rejection (Bear Trap).",
+        breakoutLevel: currentClose,
+      };
+    }
+  }
+  return null;
+}
+
+function calculatePsarLast(candles: Candle[]): number | null {
+  if (candles.length < 2) return null;
+  let rising = candles[1].c >= candles[0].c;
+  let af = 0.02;
+  let ep = rising ? candles[0].h : candles[0].l;
+  let psar = rising ? candles[0].l : candles[0].h;
+  for (let i = 1; i < candles.length; i++) {
+    psar = psar + af * (ep - psar);
+    if (rising) {
+      psar = Math.min(psar, candles[i - 1].l, i > 1 ? candles[i - 2].l : candles[i - 1].l);
+      if (candles[i].l < psar) {
+        rising = false;
+        psar = ep;
+        ep = candles[i].l;
+        af = 0.02;
+      } else if (candles[i].h > ep) {
+        ep = candles[i].h;
+        af = Math.min(af + 0.02, 0.2);
+      }
+    } else {
+      psar = Math.max(psar, candles[i - 1].h, i > 1 ? candles[i - 2].h : candles[i - 1].h);
+      if (candles[i].h > psar) {
+        rising = true;
+        psar = ep;
+        ep = candles[i].h;
+        af = 0.02;
+      } else if (candles[i].l < ep) {
+        ep = candles[i].l;
+        af = Math.min(af + 0.02, 0.2);
+      }
+    }
+  }
+  return psar;
 }
 
 function sectorMomentumAdjustment(sectorRelativeStrength: number): number {
@@ -1712,7 +2072,7 @@ function breakoutQualityDetails(
 }
 
 function normalizeOpportunityScore(rawScore: number): number {
-  return r2(100 * (1 - Math.exp(-Math.max(rawScore, 0) / 1.25)));
+  return r2(100 * (1 - Math.exp(-Math.max(rawScore, 0) / DD_OPPORTUNITY_SCORE_CURVE_SCALE)));
 }
 
 function confidenceGrade(score: number): string {
@@ -1722,6 +2082,551 @@ function confidenceGrade(score: number): string {
   if (score >= 70) return "B";
   if (score >= 60) return "C+";
   return "C";
+}
+
+type DdRecommendationSignal = "Strong Buy" | "Buy" | "Hold" | "Sell" | "Strong Sell";
+
+interface DdRecommendation {
+  buyAt: number | null;
+  stopLoss: number | null;
+  target: number | null;
+  entryType: "Breakout" | "Pullback" | "Choppy" | "Standard" | "Unavailable";
+  score: number;
+  buyScore: number;
+  sellScore: number;
+  intraday: DdRecommendationSignal;
+  swing: DdRecommendationSignal;
+  shortTerm: DdRecommendationSignal;
+  longTerm: DdRecommendationSignal;
+  meanReversion: DdRecommendationSignal;
+  breakout: DdRecommendationSignal;
+  ichimokuTrend: DdRecommendationSignal;
+  majorTrendConflict: boolean;
+  notes: string[];
+}
+
+function isFinitePositive(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function calculateRsiSeries(closes: number[], period: number): Array<number | null> {
+  return closes.map((_, index) => {
+    if (index < period) return null;
+    return calculateRsiLast(closes.slice(0, index + 1), period);
+  });
+}
+
+function calculateKeltnerLast(
+  closes: number[],
+  candles: Candle[],
+): { upper: number | null; middle: number | null; lower: number | null } {
+  const middle = emaSeries(closes, 20).at(-1) ?? null;
+  const atr = calculateATR(candles, 10);
+  if (middle === null || atr === null) return { upper: null, middle, lower: null };
+  return {
+    upper: middle + (2 * atr),
+    middle,
+    lower: middle - (2 * atr),
+  };
+}
+
+function calculateFibLevels(candles: Candle[]): number[] {
+  const recentSwing = candles.slice(-50);
+  if (recentSwing.length < 2) return [];
+  const high = Math.max(...recentSwing.map((c) => c.h));
+  const low = Math.min(...recentSwing.map((c) => c.l));
+  const diff = high - low;
+  if (!Number.isFinite(diff) || diff <= 0) return [];
+  return [
+    high - (diff * 0.236),
+    high - (diff * 0.382),
+    high - (diff * 0.5),
+    high - (diff * 0.618),
+  ];
+}
+
+function calculateDdBuyAt(
+  currentClose: number,
+  atr: number | null,
+  adx: number | null,
+  upperBand: number | null,
+  volume: number,
+  avgVolume: number | null,
+): { buyAt: number | null; entryType: DdRecommendation["entryType"] } {
+  if (atr !== null) {
+    let volConfirm = true;
+    if (avgVolume !== null && Number.isFinite(avgVolume) && avgVolume > 0) {
+      volConfirm = volume >= avgVolume * 1.2;
+    }
+
+    if ((adx ?? 0) > 25) {
+      if (volConfirm) {
+        return {
+          buyAt: r2((upperBand !== null ? Math.max(currentClose, upperBand) : currentClose) * (upperBand !== null ? 1.001 : 1.002)),
+          entryType: "Breakout",
+        };
+      }
+      return {
+        buyAt: r2(currentClose - (0.2 * atr)),
+        entryType: "Pullback",
+      };
+    }
+
+    if ((adx ?? 0) > 20) {
+      return {
+        buyAt: r2(currentClose - (0.5 * atr)),
+        entryType: "Pullback",
+      };
+    }
+
+    return { buyAt: null, entryType: "Choppy" };
+  }
+
+  return {
+    buyAt: r2(currentClose * 0.995),
+    entryType: "Standard",
+  };
+}
+
+function calculateDdStopLoss(atr: number | null, entryPrice: number | null, atrMultiplier = 1.5): number | null {
+  if (atr === null || entryPrice === null) return null;
+  let stopLoss = entryPrice - (atrMultiplier * atr);
+  if (stopLoss > entryPrice) stopLoss = entryPrice - atr;
+  return r2(stopLoss);
+}
+
+function calculateDdTarget(adx: number | null, entryPrice: number | null, stopLoss: number | null, riskRewardRatio = 3): number | null {
+  if (entryPrice === null || stopLoss === null) return null;
+  const risk = entryPrice - stopLoss;
+  const adjustedRatio = (adx ?? 0) > 25 ? Math.min(riskRewardRatio, 5) : Math.min(riskRewardRatio, 3);
+  return r2(Math.min(entryPrice + (risk * adjustedRatio), entryPrice * 1.2));
+}
+
+function isBuyRecommendation(value: DdRecommendationSignal | string | null | undefined): boolean {
+  return typeof value === "string" && value.includes("Buy");
+}
+
+function ddSwingSignalForGrade(grade: string): "Strong Buy" | "Buy" | "WATCHLIST" | "AVOID" {
+  const normalized = grade.trim().toUpperCase();
+  if (normalized === "A+" || normalized === "A") return "Strong Buy";
+  if (normalized === "B+" || normalized === "B") return "Buy";
+  if (normalized === "C") return "AVOID";
+  if (normalized === "D") return "AVOID";
+  return "WATCHLIST";
+}
+
+function gradeMeetsMinimum(grade: string, minimumGrade: string): boolean {
+  const order = ["D", "C", "C+", "B", "B+", "A", "A+"];
+  const gradeIndex = order.indexOf(grade.trim().toUpperCase());
+  const minimumIndex = order.indexOf(minimumGrade.trim().toUpperCase());
+  return gradeIndex >= 0 && minimumIndex >= 0 && gradeIndex >= minimumIndex;
+}
+
+function isPublicShareSwingPick(candidate: SwingCandidate): boolean {
+  const displayedSwingSignal = ddSwingSignalForGrade(candidate.grade);
+  return (
+    gradeMeetsMinimum(candidate.grade, "B") &&
+    (displayedSwingSignal === "Buy" || displayedSwingSignal === "Strong Buy") &&
+    candidate.avgTurnover >= SWING_PUBLIC_SHARE_MIN_TURNOVER &&
+    candidate.liquidityScore >= 0.5
+  );
+}
+
+function setupTypeLabel(setupType: DdSwingSetupType): string {
+  return {
+    fresh_breakout: "Fresh Breakout",
+    sector_leader_continuation: "Sector Leader",
+    mean_reversion_bounce: "Mean Reversion Bounce",
+    high_rvol_explosive: "High RVOL",
+    slow_institutional_trend: "Slow Institutional Trend",
+    trend_continuation: "Trend Continuation",
+  }[setupType];
+}
+
+function expectedHoldDaysForSetup(setupType: DdSwingSetupType): number {
+  return {
+    fresh_breakout: 5,
+    sector_leader_continuation: 8,
+    mean_reversion_bounce: 3,
+    high_rvol_explosive: 2,
+    slow_institutional_trend: 15,
+    trend_continuation: 8,
+  }[setupType] ?? SWING_EXPECTED_HOLD_DAYS;
+}
+
+function classifyDdSetupType(
+  candidate: SwingCandidate,
+  freshBreakoutBonus: number,
+  sectorLeaderAdjustment: number,
+): DdSwingSetupType {
+  if (candidate.reason.includes("Mean_Reversion Buy")) return "mean_reversion_bounce";
+  if (candidate.rvol >= DD_EXHAUSTION_RVOL_THRESHOLD) return "high_rvol_explosive";
+  if (freshBreakoutBonus > 0) return "fresh_breakout";
+  if (sectorLeaderAdjustment > 0.25) return "sector_leader_continuation";
+  if (candidate.trendPersistence >= 75 && candidate.avgTurnover >= 100_000_000) return "slow_institutional_trend";
+  return "trend_continuation";
+}
+
+function freshBreakoutBonus(freshAge: number | null): number {
+  if (freshAge === 1) return 0.5;
+  if (freshAge === 2) return 0.3;
+  if (freshAge === 3) return 0.1;
+  return 0.0;
+}
+
+function sectorExhaustionPenalty(sectorPerformancePct: number): number {
+  return sectorPerformancePct > 10 ? -0.5 : 0.0;
+}
+
+function momentumExhaustionPenalty(candidate: SwingCandidate): number {
+  if (candidate.rvol <= DD_EXHAUSTION_RVOL_THRESHOLD) return 0.0;
+  const moveExcess = Math.max(0, candidate.latestMovePct - DD_EXHAUSTION_DAILY_MOVE_THRESHOLD);
+  const emaExcess = Math.max(0, candidate.ema20DistancePct - DD_EXHAUSTION_EMA20_DISTANCE_THRESHOLD);
+  const extensionExcess = Math.max(moveExcess, emaExcess);
+  if (extensionExcess <= 0) return 0.0;
+  const penalty = Math.min(
+    DD_MAX_EXHAUSTION_RANKING_PENALTY,
+    ((candidate.rvol - DD_EXHAUSTION_RVOL_THRESHOLD) * 0.25) + (extensionExcess * 0.15),
+  );
+  return -r2(penalty);
+}
+
+function rankValues(values: number[]): number[] {
+  if (values.length <= 1) return values.map(() => 0.5);
+  const finite = values.filter((value) => Number.isFinite(value));
+  const fallback = finite.length ? Math.min(...finite) : 0;
+  const normalized = values.map((value) => Number.isFinite(value) ? value : fallback);
+  const unique = new Set(normalized);
+  if (unique.size <= 1) return values.map(() => 0.5);
+  return normalized.map((value) => {
+    const lower = normalized.filter((other) => other < value).length;
+    const same = normalized.filter((other) => other === value).length;
+    const averageRank = lower + ((same + 1) / 2);
+    return (averageRank - 1) / (normalized.length - 1);
+  });
+}
+
+function absoluteSectorLeaderScore(candidate: SwingCandidate): number {
+  const turnoverCr = candidate.avgTurnover / 10_000_000;
+  const rsScore =
+    candidate.relativeStrength >= 6 ? 1.0
+      : candidate.relativeStrength >= 3 ? 0.9
+        : candidate.relativeStrength >= 1 ? 0.7
+          : candidate.relativeStrength > 0 ? 0.5
+            : 0.0;
+  const liquidityScore =
+    turnoverCr >= 100 ? 1.0
+      : turnoverCr >= 50 ? 0.8
+        : turnoverCr >= 20 ? 0.6
+          : turnoverCr >= 10 ? 0.4
+            : 0.0;
+  const persistenceScore =
+    candidate.trendPersistence >= 75 ? 1.0
+      : candidate.trendPersistence >= 60 ? 0.7
+        : candidate.trendPersistence >= 50 ? 0.5
+          : 0.0;
+  return (rsScore + liquidityScore + persistenceScore) / 3;
+}
+
+function sectorLeaderAdjustments(candidates: SwingCandidate[]): Map<string, { score: number; adjustment: number }> {
+  const bySector = new Map<string, SwingCandidate[]>();
+  for (const candidate of candidates) {
+    const group = bySector.get(candidate.sector) ?? [];
+    group.push(candidate);
+    bySector.set(candidate.sector, group);
+  }
+
+  const adjustments = new Map<string, { score: number; adjustment: number }>();
+  for (const sectorCandidates of bySector.values()) {
+    if (sectorCandidates.length < 2) {
+      const candidate = sectorCandidates[0];
+      const leaderScore = absoluteSectorLeaderScore(candidate);
+      let adjustment = Math.max(0, (leaderScore - 0.5) * 2 * 0.6);
+      if (candidate.sectorRelativeStrength < 0) adjustment *= 0.5;
+      adjustments.set(candidate.symbol, { score: r2(leaderScore), adjustment: r2(adjustment) });
+      continue;
+    }
+
+    const rsRanks = rankValues(sectorCandidates.map((candidate) => candidate.relativeStrength));
+    const liquidityRanks = rankValues(sectorCandidates.map((candidate) => candidate.avgTurnover));
+    const persistenceRanks = rankValues(sectorCandidates.map((candidate) => candidate.trendPersistence));
+    sectorCandidates.forEach((candidate, index) => {
+      const leaderScore = (rsRanks[index] + liquidityRanks[index] + persistenceRanks[index]) / 3;
+      let adjustment = clamp((leaderScore - 0.5) * 2 * 0.6, -0.6, 0.6);
+      if (candidate.sectorRelativeStrength < 0 && adjustment > 0) adjustment *= 0.5;
+      adjustments.set(candidate.symbol, { score: r2(leaderScore), adjustment: r2(adjustment) });
+    });
+  }
+  return adjustments;
+}
+
+function generateDdRecommendation(
+  candles: Candle[],
+  currentPrice: number,
+  previousClose: number,
+  indicators: {
+    rsi: number | null;
+    macd: ReturnType<typeof calculateMacd>;
+    bollinger: ReturnType<typeof calculateBollingerLast>;
+    atr: number | null;
+    adx: number | null;
+    avgVolume: number | null;
+    divergence: ReturnType<typeof detectDivergence>;
+    ichimoku: ReturnType<typeof calculateIchimokuLast>;
+    cmf: number | null;
+    donchian: ReturnType<typeof calculateDonchianLast>;
+    keltner: ReturnType<typeof calculateKeltnerLast>;
+    trix: ReturnType<typeof calculateTrixLast>;
+    ultimateOsc: number | null;
+    cmo: number | null;
+    vpt: number[];
+    obv: number[];
+    fibLevels: number[];
+    psar: number | null;
+    advancedPattern: ReturnType<typeof detectAdvancedPattern>;
+  },
+): DdRecommendation {
+  let buyScore = 0;
+  let sellScore = 0;
+  let intraday: DdRecommendationSignal = "Hold";
+  let swing: DdRecommendationSignal = "Hold";
+  let shortTerm: DdRecommendationSignal = "Hold";
+  let longTerm: DdRecommendationSignal = "Hold";
+  let meanReversion: DdRecommendationSignal = "Hold";
+  let breakout: DdRecommendationSignal = "Hold";
+  let ichimokuTrend: DdRecommendationSignal = "Hold";
+  const notes: string[] = [];
+  const last = candles.at(-1)!;
+
+  if (indicators.advancedPattern) {
+    if (indicators.advancedPattern.action === "BUY") {
+      buyScore += 5;
+      breakout = "Buy";
+    } else {
+      buyScore += 8;
+      breakout = "Strong Buy";
+    }
+    notes.push(`${indicators.advancedPattern.pattern}: ${indicators.advancedPattern.desc}`);
+  }
+
+  if (indicators.rsi !== null) {
+    if (indicators.rsi <= 20) buyScore += 4;
+    else if (indicators.rsi < 30) buyScore += 2;
+    else if (indicators.rsi > 70) sellScore += 2;
+  }
+
+  if (indicators.macd.macd !== null && indicators.macd.signal !== null) {
+    if (indicators.macd.macd > indicators.macd.signal) buyScore += 1;
+    else if (indicators.macd.macd < indicators.macd.signal) sellScore += 1;
+  }
+
+  if (indicators.bollinger.lower !== null && indicators.bollinger.upper !== null) {
+    if (currentPrice < indicators.bollinger.lower) buyScore += 1;
+    else if (currentPrice > indicators.bollinger.upper) sellScore += 1;
+  }
+
+  if (indicators.avgVolume !== null && indicators.avgVolume > 0) {
+    const volumeRatio = last.v / indicators.avgVolume;
+    if (volumeRatio > 1.5 && currentPrice > previousClose) buyScore += 2;
+    else if (volumeRatio > 1.5 && currentPrice < previousClose) sellScore += 2;
+    else if (volumeRatio < 0.5) sellScore += 1;
+
+    const volumeSpike = last.v > indicators.avgVolume * 1.5;
+    if (volumeSpike) {
+      if (currentPrice > previousClose) buyScore += 1;
+      else sellScore += 1;
+    }
+  }
+
+  if (indicators.divergence === "Bullish Divergence") buyScore += 1;
+  else if (indicators.divergence === "Bearish Divergence") sellScore += 1;
+
+  if (indicators.ichimoku.spanA !== null && indicators.ichimoku.spanB !== null) {
+    if (currentPrice > Math.max(indicators.ichimoku.spanA, indicators.ichimoku.spanB)) {
+      buyScore += 1;
+      ichimokuTrend = "Buy";
+    } else if (currentPrice < Math.min(indicators.ichimoku.spanA, indicators.ichimoku.spanB)) {
+      sellScore += 1;
+      ichimokuTrend = "Sell";
+    }
+  }
+
+  if (indicators.cmf !== null) {
+    if (indicators.cmf > 0) buyScore += 1;
+    else if (indicators.cmf < 0) sellScore += 1;
+  }
+
+  if (indicators.donchian.upper !== null && indicators.donchian.lower !== null) {
+    if (currentPrice > indicators.donchian.upper) {
+      buyScore += 1;
+      breakout = "Buy";
+    } else if (currentPrice < indicators.donchian.lower) {
+      sellScore += 1;
+      breakout = "Sell";
+    }
+  }
+
+  if (indicators.rsi !== null && indicators.bollinger.lower !== null && indicators.bollinger.upper !== null) {
+    if (indicators.rsi < 30 && currentPrice >= indicators.bollinger.lower) {
+      buyScore += 2;
+      meanReversion = "Buy";
+    } else if (indicators.rsi > 70 && currentPrice >= indicators.bollinger.upper) {
+      sellScore += 2;
+      meanReversion = "Sell";
+    }
+  }
+
+  if (
+    indicators.ichimoku.tenkan !== null &&
+    indicators.ichimoku.kijun !== null &&
+    indicators.ichimoku.spanA !== null &&
+    indicators.ichimoku.spanB !== null
+  ) {
+    if (indicators.ichimoku.tenkan > indicators.ichimoku.kijun && currentPrice > indicators.ichimoku.spanA) {
+      buyScore += 1;
+      ichimokuTrend = "Strong Buy";
+    } else if (indicators.ichimoku.tenkan < indicators.ichimoku.kijun && currentPrice < indicators.ichimoku.spanB) {
+      sellScore += 1;
+      ichimokuTrend = "Strong Sell";
+    }
+  }
+
+  if (indicators.keltner.lower !== null && indicators.keltner.upper !== null) {
+    if (currentPrice < indicators.keltner.lower) buyScore += 1;
+    else if (currentPrice > indicators.keltner.upper) sellScore += 1;
+  }
+
+  if (indicators.trix.current !== null && indicators.trix.previous !== null) {
+    if (indicators.trix.current > 0 && indicators.trix.current > indicators.trix.previous) buyScore += 1;
+    else if (indicators.trix.current < 0 && indicators.trix.current < indicators.trix.previous) sellScore += 1;
+  }
+
+  if (indicators.ultimateOsc !== null) {
+    if (indicators.ultimateOsc < 30) buyScore += 1;
+    else if (indicators.ultimateOsc > 70) sellScore += 1;
+  }
+
+  if (indicators.cmo !== null) {
+    if (indicators.cmo < -50) buyScore += 1;
+    else if (indicators.cmo > 50) sellScore += 1;
+  }
+
+  if (indicators.vpt.length >= 2) {
+    const currentVpt = indicators.vpt.at(-1)!;
+    const previousVpt = indicators.vpt.at(-2)!;
+    if (currentVpt > previousVpt) buyScore += 1;
+    else if (currentVpt < previousVpt) sellScore += 1;
+  }
+
+  for (const level of indicators.fibLevels) {
+    if (Math.abs(currentPrice - level) / currentPrice < 0.01) {
+      if (currentPrice > level) buyScore += 1;
+      else sellScore += 1;
+    }
+  }
+
+  if (indicators.psar !== null) {
+    if (currentPrice > indicators.psar) buyScore += 1;
+    else if (currentPrice < indicators.psar) sellScore += 1;
+  }
+
+  if (indicators.obv.length >= 2) {
+    const currentObv = indicators.obv.at(-1)!;
+    const previousObv = indicators.obv.at(-2)!;
+    if (currentObv > previousObv) buyScore += 1;
+    else if (currentObv < previousObv) sellScore += 1;
+  }
+
+  const hasStrongSellCloud = ichimokuTrend === "Strong Sell";
+  if (hasStrongSellCloud) {
+    buyScore = Math.max(0, buyScore - 2);
+    sellScore += 2;
+  }
+
+  const netScore = buyScore - sellScore;
+  if (buyScore > sellScore && buyScore >= 4) {
+    intraday = "Strong Buy";
+    swing = buyScore >= 3 ? "Buy" : "Hold";
+    shortTerm = buyScore >= 2 ? "Buy" : "Hold";
+    longTerm = buyScore >= 1 ? "Buy" : "Hold";
+  } else if (sellScore > buyScore && sellScore >= 4) {
+    intraday = "Strong Sell";
+    swing = sellScore >= 3 ? "Sell" : "Hold";
+    shortTerm = sellScore >= 2 ? "Sell" : "Hold";
+    longTerm = sellScore >= 1 ? "Sell" : "Hold";
+  } else if (netScore > 0) {
+    intraday = netScore >= 3 ? "Buy" : "Hold";
+    swing = netScore >= 2 ? "Buy" : "Hold";
+    shortTerm = netScore >= 1 ? "Buy" : "Hold";
+    longTerm = "Hold";
+  } else if (netScore < 0) {
+    intraday = netScore <= -3 ? "Sell" : "Hold";
+    swing = netScore <= -2 ? "Sell" : "Hold";
+    shortTerm = netScore <= -1 ? "Sell" : "Hold";
+    longTerm = "Hold";
+  }
+
+  if (meanReversion === "Sell" && swing === "Buy") {
+    buyScore = Math.max(0, buyScore - 1);
+  }
+
+  const majorTrendConflict = hasStrongSellCloud;
+  if (majorTrendConflict) {
+    for (const key of ["intraday", "swing", "shortTerm", "longTerm", "breakout"] as const) {
+      if (isBuyRecommendation({ intraday, swing, shortTerm, longTerm, breakout }[key])) {
+        if (key === "intraday") intraday = "Hold";
+        if (key === "swing") swing = "Hold";
+        if (key === "shortTerm") shortTerm = "Hold";
+        if (key === "longTerm") longTerm = "Hold";
+        if (key === "breakout") breakout = "Hold";
+      }
+    }
+    notes.push("Major trend conflict: Ichimoku Strong Sell blocked bullish recommendation.");
+  }
+
+  const buyAt = calculateDdBuyAt(
+    currentPrice,
+    indicators.atr,
+    indicators.adx,
+    indicators.bollinger.upper,
+    last.v,
+    indicators.avgVolume,
+  );
+  const stopLoss = isFinitePositive(buyAt.buyAt)
+    ? calculateDdStopLoss(indicators.atr, buyAt.buyAt)
+    : null;
+  const target = isFinitePositive(buyAt.buyAt)
+    ? calculateDdTarget(indicators.adx, buyAt.buyAt, stopLoss)
+    : null;
+  const finalScore = majorTrendConflict ? 0 : buyScore - sellScore;
+
+  const signalNotes = [
+    `Swing ${swing}`,
+    `Breakout ${breakout}`,
+    `Mean_Reversion ${meanReversion}`,
+    `Ichimoku ${ichimokuTrend}`,
+    `Buy score ${r2(buyScore)}`,
+    `Sell score ${r2(sellScore)}`,
+  ];
+
+  return {
+    buyAt: buyAt.buyAt,
+    stopLoss,
+    target,
+    entryType: buyAt.entryType,
+    score: Math.min(Math.max(finalScore, -7), 7),
+    buyScore,
+    sellScore,
+    intraday,
+    swing,
+    shortTerm,
+    longTerm,
+    meanReversion,
+    breakout,
+    ichimokuTrend,
+    majorTrendConflict,
+    notes: [...signalNotes, ...notes],
+  };
 }
 
 function analyzeSwingCandidate(
@@ -1742,140 +2647,93 @@ function analyzeSwingCandidate(
   const closes = validCandles.map((c) => c.c);
   const volumes = validCandles.map((c) => c.v);
   const ema20All = emaSeries(closes, 20);
-  const ema50All = emaSeries(closes, 50);
   const ema20 = ema20All.at(-1) ?? null;
-  const ema50 = ema50All.at(-1) ?? null;
-  const sma50 = smaLast(closes, 50);
-  const rsi = calculateRsiLast(closes);
-  const macd = calculateMacd(closes);
   const atr = calculateATR(validCandles, 14);
-  const avgVolume = avg(volumes.slice(-21, -1));
-  if (!atr || !avgVolume || avgVolume <= 0 || !previous || !ema20 || !ema50 || !sma50 || rsi === null) {
-    return null;
-  }
+  const rsiPeriod = atr !== null && (atr / currentPrice) > 0.03 ? 9 : 14;
+  const rsi = calculateRsiLast(closes, rsiPeriod);
+  const rsiSeries = calculateRsiSeries(closes, rsiPeriod);
+  const macd = calculateMacd(closes);
+  const bollinger = calculateBollingerLast(closes);
+  const avgVolume = rollingMeanLast(volumes, 10);
+  const adx = calculateAdxLast(validCandles, 14);
+  const ichimoku = calculateIchimokuLast(validCandles);
+  const cmf = calculateCmfLast(validCandles);
+  const donchian = calculateDonchianLast(validCandles);
+  const keltner = calculateKeltnerLast(closes, validCandles);
+  const trix = calculateTrixLast(closes);
+  const ultimateOsc = calculateUltimateOscLast(validCandles);
+  const cmo = calculateCmoLast(closes);
+  const vpt = calculateVptSeries(validCandles);
+  const obv = calculateObvSeries(validCandles);
+  const fibLevels = calculateFibLevels(validCandles);
+  const psar = calculatePsarLast(validCandles);
+  const divergence = detectDivergence(closes, rsiSeries);
+  const advancedPattern = detectAdvancedPattern(validCandles, emaSeries(closes, 50).at(-1) ?? null);
+  if (!previous || rsi === null || avgVolume === null || avgVolume <= 0 || ema20 === null) return null;
 
-  const prev20 = validCandles.slice(-21, -1);
-  if (prev20.length < 20) return null;
-
-  const prev20High = Math.max(...prev20.map((c) => c.h));
-  const avgTurnover = avgVolume * currentPrice;
-  const rvol = last.v > 0 ? last.v / avgVolume : 0;
-  const recentReturn = percentChange(currentPrice, closes.at(-6));
-  const relativeStrength = recentReturn - niftyReturn;
-  const sectorRelativeStrength = stock.changePct ? stock.changePct - niftyReturn : 0;
-  const latestMovePct = percentChange(currentPrice, previous.c);
-  const ema20DistancePct = ((currentPrice - ema20) / ema20) * 100;
-  const trendPersistence = (() => {
-    const recentCloses = closes.slice(-5);
-    const recentEma = ema20All.slice(-5);
-    const valid = recentCloses.filter((close, i) => recentEma[i] !== null && close > (recentEma[i] as number));
-    return (valid.length / Math.max(1, recentCloses.length)) * 100;
-  })();
-  const freshAge = freshBreakoutAge(validCandles);
-  const consolidationCandles = countConsolidationCandles(validCandles, atr, currentPrice);
-  const isBreakout = currentPrice > prev20High || freshAge !== null;
-  const trendOk = currentPrice > ema20 && ema20 > ema50 && currentPrice > sma50;
-
-  let signalScore = 0;
-  const reasons: string[] = [];
-
-  if (trendOk) {
-    signalScore += 1.5;
-    reasons.push("trend above EMA20/EMA50");
-  }
-  if (rsi >= 45 && rsi <= 68) {
-    signalScore += 1;
-    reasons.push(`RSI ${r2(rsi)}`);
-  } else if (rsi >= 35 && rsi < 45) {
-    signalScore += 0.5;
-    reasons.push(`healthy pullback RSI ${r2(rsi)}`);
-  } else if (rsi > 75) {
-    signalScore -= 1.5;
-    reasons.push("RSI extended");
-  }
-  if ((macd.histogram ?? 0) > 0) {
-    signalScore += 1;
-    reasons.push("MACD positive");
-  }
-  if (rvol > 1.5 && currentPrice >= previous.c) {
-    signalScore += 2;
-    reasons.push(`RVOL ${r2(rvol)}x`);
-  } else if (rvol > 1) {
-    signalScore += 0.5;
-  } else if (rvol < 0.5) {
-    signalScore -= 1;
-  }
-  if (isBreakout) {
-    signalScore += 2;
-    reasons.push(freshAge ? `fresh breakout D-${freshAge - 1}` : "breakout");
-  }
-  if (latestMovePct > 8 || ema20DistancePct > 10) {
-    signalScore -= 1.5;
-    reasons.push("extension risk");
-  }
-
-  if (signalScore < SWING_MIN_SIGNAL_SCORE || (!trendOk && !isBreakout)) return null;
-
-  const entryType: SwingCandidate["entryType"] = isBreakout ? "BREAKOUT" : "PULLBACK";
-  const rawEntry = entryType === "BREAKOUT"
-    ? Math.max(currentPrice, prev20High) * 1.001
-    : currentPrice - (atr * 0.5);
-  const entryPrice = r2(rawEntry);
-  const entryDistancePct = Math.abs(entryPrice - currentPrice) / currentPrice * 100;
-  if (entryDistancePct > SWING_MAX_ENTRY_GAP_PCT) return null;
+  const recommendation = generateDdRecommendation(
+    validCandles,
+    currentPrice,
+    previous.c,
+    {
+      rsi,
+      macd,
+      bollinger,
+      atr,
+      adx,
+      avgVolume,
+      divergence,
+      ichimoku,
+      cmf,
+      donchian,
+      keltner,
+      trix,
+      ultimateOsc,
+      cmo,
+      vpt,
+      obv,
+      fibLevels,
+      psar,
+      advancedPattern,
+    },
+  );
+  if (recommendation.majorTrendConflict || recommendation.score < DD_MIN_TOP_PICK_SCORE) return null;
   if (
-    entryType === "PULLBACK" &&
-    entryDistancePct < SWING_MIN_PULLBACK_GAP_PCT &&
-    consolidationCandles < SWING_MIN_CONSOLIDATION_CANDLES
+    ![
+      recommendation.swing,
+      recommendation.shortTerm,
+      recommendation.longTerm,
+      recommendation.breakout,
+      recommendation.ichimokuTrend,
+    ].some(isBuyRecommendation)
   ) {
     return null;
   }
 
-  const stopMultiplier = entryType === "BREAKOUT" ? 2.2 : 1.5;
-  const sl = r2(Math.max(entryPrice - (atr * stopMultiplier), entryPrice * 0.9));
+  const entryPrice = recommendation.buyAt;
+  const sl = recommendation.stopLoss;
+  const target = recommendation.target;
+  if (!isFinitePositive(entryPrice) || !isFinitePositive(sl) || !isFinitePositive(target)) return null;
+
+  const entryDistancePct = Math.abs(entryPrice - currentPrice) / currentPrice * 100;
   const risk = entryPrice - sl;
-  if (!Number.isFinite(risk) || risk <= 0) return null;
+  const reward = target - entryPrice;
+  const rewardRisk = risk > 0 ? reward / risk : 0;
+  if (!(entryPrice > sl && target > entryPrice && entryDistancePct <= 8 && rewardRisk >= 1.8)) return null;
 
-  const targetMultiplier = entryType === "BREAKOUT" ? 3 : 2.5;
-  const target = r2(Math.min(entryPrice + (risk * targetMultiplier), entryPrice * 1.2));
-  const rewardRisk = (target - entryPrice) / risk;
-  if (!Number.isFinite(rewardRisk) || rewardRisk < 1.8) return null;
-
-  if (avgTurnover < SWING_MIN_AVG_TURNOVER && sectorRelativeStrength < SWING_MIN_SECTOR_RELATIVE_STRENGTH) {
-    return null;
-  }
-
-  const relativeStrengthScore = relativeStrengthAdjustment(relativeStrength);
-  const sectorMomentumScore = sectorMomentumAdjustment(sectorRelativeStrength);
+  const avgTurnover = avgVolume * currentPrice;
+  const rvol = last.v / avgVolume;
+  const recentReturn = percentChange(currentPrice, closes.at(-5));
+  const relativeStrength = recentReturn - niftyReturn;
+  const sectorRelativeStrength = stock.changePct ? stock.changePct - niftyReturn : 0;
+  const latestMovePct = percentChange(currentPrice, previous.c);
+  const ema20DistancePct = ((currentPrice - ema20) / ema20) * 100;
+  const trendPersistence = calculateTrendPersistenceScore(validCandles);
+  const freshAge = freshBreakoutAge(validCandles);
+  const consolidationCandles = countEntryConsolidationCandles(validCandles, freshAge);
   const liquidityScore = liquidityAdjustment(avgTurnover);
-  const rvolScore = rvolAdjustment(rvol);
-  const entryScore = entryDistanceAdjustment(entryDistancePct);
-  const breakoutBonus = freshAge ? ({ 1: 0.5, 2: 0.3, 3: 0.1 } as Record<number, number>)[freshAge] ?? 0 : 0;
-  const trendAdjustment = trendPersistenceAdjustment(trendPersistence);
-  const exhaustionPenalty = rvol > 5 && (latestMovePct > 8 || ema20DistancePct > 8)
-    ? -clamp(((rvol - 5) * 0.25) + (Math.max(latestMovePct - 8, ema20DistancePct - 8) * 0.15), 0, 2)
-    : 0;
-  const rawScore =
-    (relativeStrengthScore * 0.35) +
-    (rvolScore * 0.25) +
-    (sectorMomentumScore * 0.20) +
-    (liquidityScore * 0.10) +
-    (entryScore * 0.10) +
-    breakoutBonus +
-    trendAdjustment +
-    exhaustionPenalty;
-  const score = normalizeOpportunityScore(rawScore);
-  if (score < SWING_MIN_SCORE) return null;
-
-  const grade = confidenceGrade(score);
   const quality = breakoutQualityDetails(freshAge, consolidationCandles, rvol, trendPersistence, liquidityScore);
-  const setup = freshAge
-    ? "Fresh Breakout"
-    : relativeStrength > 1 && sectorRelativeStrength > 0
-      ? "Sector Leader"
-      : entryType === "PULLBACK"
-        ? "Trend Pullback"
-        : "Trend Continuation";
+  const entryType: SwingCandidate["entryType"] = recommendation.entryType === "Breakout" ? "BREAKOUT" : "PULLBACK";
 
   return {
     symbol: stock.symbol,
@@ -1885,12 +2743,12 @@ function analyzeSwingCandidate(
     entryPrice,
     sl,
     target,
-    score,
-    signalScore: r2(signalScore),
-    grade,
-    setup,
+    score: 0,
+    signalScore: r2(recommendation.score),
+    grade: "C",
+    setup: "Trend Continuation",
     entryType,
-    reason: reasons.join("; "),
+    reason: recommendation.notes.join("; "),
     expectedHoldDays: SWING_EXPECTED_HOLD_DAYS,
     recentReturn: r2(recentReturn),
     relativeStrength: r2(relativeStrength),
@@ -1903,7 +2761,103 @@ function analyzeSwingCandidate(
     trendPersistence: r2(trendPersistence),
     freshBreakoutAge: freshAge,
     consolidationCandles,
+    setupType: "trend_continuation",
+    latestMovePct: r2(latestMovePct),
+    ema20DistancePct: r2(ema20DistancePct),
+    liquidityScore: r2(liquidityScore),
   };
+}
+
+function finalizeSwingCandidates(
+  candidates: SwingCandidate[],
+  niftyReturn: number,
+  sectorPerformanceInput?: Map<string, number>,
+): SwingCandidate[] {
+  if (candidates.length === 0) return [];
+
+  const sectorPerformance = new Map(sectorPerformanceInput ?? []);
+  if (sectorPerformance.size === 0) {
+    const bySector = new Map<string, { sum: number; count: number }>();
+    for (const candidate of candidates) {
+      const existing = bySector.get(candidate.sector) ?? { sum: 0, count: 0 };
+      existing.sum += candidate.recentReturn;
+      existing.count += 1;
+      bySector.set(candidate.sector, existing);
+    }
+
+    for (const [sector, values] of bySector.entries()) {
+      sectorPerformance.set(sector, values.count ? values.sum / values.count : 0);
+    }
+  }
+
+  const withSector = candidates.map((candidate) => {
+    const sectorPerf = sectorPerformance.get(candidate.sector) ?? 0;
+    const sectorRelativeStrength = sectorPerf - niftyReturn;
+    return {
+      ...candidate,
+      relativeStrength: r2(candidate.recentReturn - niftyReturn),
+      sectorRelativeStrength: r2(sectorRelativeStrength),
+    };
+  });
+
+  const leaderAdjustments = sectorLeaderAdjustments(withSector);
+  return withSector
+    .map((candidate) => {
+      const sectorPerf = sectorPerformance.get(candidate.sector) ?? 0;
+      if (candidate.entryDistancePct > DD_MAX_RANKED_ENTRY_GAP_PERCENT) return null;
+
+      const weakLiquidity = candidate.avgTurnover < SWING_MIN_AVG_TURNOVER;
+      const weakSector = candidate.sectorRelativeStrength < SWING_MIN_SECTOR_RELATIVE_STRENGTH;
+      if (weakLiquidity && weakSector) return null;
+
+      const hasConsolidation = candidate.consolidationCandles >= SWING_MIN_CONSOLIDATION_CANDLES;
+      if (candidate.entryDistancePct < SWING_MIN_PULLBACK_GAP_PCT && !hasConsolidation) return null;
+
+      const relativeStrengthScore = relativeStrengthAdjustment(candidate.relativeStrength);
+      const sectorMomentumScore = sectorMomentumAdjustment(candidate.sectorRelativeStrength);
+      const liquidityScore = liquidityAdjustment(candidate.avgTurnover);
+      const rvolScore = rvolAdjustment(candidate.rvol);
+      const entryScore = entryDistanceAdjustment(candidate.entryDistancePct);
+      const breakoutBonus = freshBreakoutBonus(candidate.freshBreakoutAge);
+      const trendAdjustment = trendPersistenceAdjustment(candidate.trendPersistence);
+      const leaderAdjustment = leaderAdjustments.get(candidate.symbol)?.adjustment ?? 0;
+      const rawScore =
+        (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
+        (rvolScore * DD_RANKING_WEIGHTS.rvol) +
+        (sectorMomentumScore * DD_RANKING_WEIGHTS.sector) +
+        (liquidityScore * DD_RANKING_WEIGHTS.liquidity) +
+        (entryScore * DD_RANKING_WEIGHTS.entry) +
+        breakoutBonus +
+        trendAdjustment +
+        leaderAdjustment +
+        sectorExhaustionPenalty(sectorPerf) +
+        momentumExhaustionPenalty(candidate);
+      const score = normalizeOpportunityScore(rawScore);
+      const grade = confidenceGrade(score);
+      const quality = breakoutQualityDetails(
+        candidate.freshBreakoutAge,
+        candidate.consolidationCandles,
+        candidate.rvol,
+        candidate.trendPersistence,
+        liquidityScore,
+      );
+      const setupType = classifyDdSetupType(candidate, breakoutBonus, leaderAdjustment);
+      const finalized = {
+        ...candidate,
+        score,
+        grade,
+        setupType,
+        setup: setupTypeLabel(setupType),
+        expectedHoldDays: expectedHoldDaysForSetup(setupType),
+        liquidityScore: r2(liquidityScore),
+        breakoutQuality: quality.grade,
+        reason: `${candidate.reason}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+      };
+      if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
+      return finalized;
+    })
+    .filter((candidate): candidate is SwingCandidate => candidate !== null)
+    .sort((a, b) => b.score - a.score || b.rewardRisk - a.rewardRisk || b.signalScore - a.signalScore);
 }
 
 function parseRequestedSwingSectors(value: unknown): string[] {
@@ -1990,6 +2944,7 @@ async function runSwingScanner(
   const scanTime = new Date().toISOString();
   const niftyReturn = await fetchNiftyDailyReturn();
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
+  const sectorReturnTotals = new Map<string, { sum: number; count: number }>();
   let processedCount = 0;
   let candidateCount = 0;
 
@@ -2003,6 +2958,13 @@ async function runSwingScanner(
       let candidate: SwingCandidate | null = null;
       const candles = await fetchDailyCandles(symbol);
       if (candles) {
+        const recentReturn = calculateSwingRecentReturn(candles);
+        if (recentReturn !== null) {
+          const existing = sectorReturnTotals.get(stock.sectorName) ?? { sum: 0, count: 0 };
+          existing.sum += recentReturn;
+          existing.count += 1;
+          sectorReturnTotals.set(stock.sectorName, existing);
+        }
         candidate = analyzeSwingCandidate(stock, candles, niftyReturn);
         if (candidate) {
           candidate.signalTime = scanTime;
@@ -2016,9 +2978,16 @@ async function runSwingScanner(
     },
   );
 
-  const candidates = analyzed
-    .filter((candidate): candidate is SwingCandidate => candidate !== null)
-    .sort((a, b) => b.score - a.score);
+  const candidates = finalizeSwingCandidates(
+    analyzed.filter((candidate): candidate is SwingCandidate => candidate !== null),
+    niftyReturn,
+    new Map(
+      [...sectorReturnTotals.entries()].map(([sector, value]) => [
+        sector,
+        value.count ? value.sum / value.count : 0,
+      ]),
+    ),
+  );
   const picks = limitSwingPicksBySector(candidates, limit);
   const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr(), scanTime);
 
