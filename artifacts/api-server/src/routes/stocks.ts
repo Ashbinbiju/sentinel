@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
-import { db, tradesTable, type Trade, type TradeStatus } from "@workspace/db";
+import {
+  db,
+  pool,
+  type Trade,
+  type TradeStatus,
+  tradesTable,
+} from "@workspace/db";
 import { and, eq, gte, desc } from "drizzle-orm";
 import { TOTP } from "totp-generator";
 
@@ -69,6 +75,21 @@ const MIN_ENTRY_STOCK_CHANGE_PCT = 0;
 const MIN_ENTRY_PRICE = 100;
 const MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR = 4;
 const MAX_DAILY_ENTRY_SIGNALS = 10;
+const MAX_SWING_SCAN_SYMBOLS = 64;
+const DEFAULT_SWING_SECTOR_LIMIT = 8;
+const DEFAULT_SWING_STOCKS_PER_SECTOR = 8;
+const DEFAULT_SWING_PICK_LIMIT = 5;
+const SWING_FETCH_LOOKBACK_CALENDAR_DAYS = 560;
+const SWING_MIN_PRICE = 100;
+const SWING_MIN_SCORE = 70;
+const SWING_MIN_SIGNAL_SCORE = 4;
+const SWING_MAX_ENTRY_GAP_PCT = 3.0;
+const SWING_MIN_AVG_TURNOVER = 10_000_000 * 10;
+const SWING_MIN_SECTOR_RELATIVE_STRENGTH = 0.25;
+const SWING_MIN_PULLBACK_GAP_PCT = 0.5;
+const SWING_MIN_CONSOLIDATION_CANDLES = 3;
+const SWING_EXPECTED_HOLD_DAYS = 8;
+const SWING_NIFTY_TOKEN = "99926000";
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const STRUCTURE_TIMEFRAME_SECS = 60 * 60;
@@ -148,6 +169,73 @@ let angelLoginPromise: Promise<any> | null = null;
 let angelSessionExpiresAt = 0;
 let angelScripMapPromise: Promise<Map<string, string>> | null = null;
 let angelCredentialsWarningShown = false;
+let swingTradesTableReady: Promise<void> | null = null;
+
+interface SwingUniverseStock {
+  symbol: string;
+  sectorName: string;
+  ltp: number;
+  changePct: number;
+}
+
+interface SwingCandidate {
+  symbol: string;
+  sector: string;
+  signalTime: string;
+  currentPrice: number;
+  entryPrice: number;
+  sl: number;
+  target: number;
+  score: number;
+  signalScore: number;
+  grade: string;
+  setup: string;
+  entryType: "BREAKOUT" | "PULLBACK";
+  reason: string;
+  expectedHoldDays: number;
+  recentReturn: number;
+  relativeStrength: number;
+  sectorRelativeStrength: number;
+  rvol: number;
+  avgTurnover: number;
+  entryDistancePct: number;
+  rewardRisk: number;
+  breakoutQuality: string;
+  trendPersistence: number;
+  freshBreakoutAge: number | null;
+  consolidationCandles: number;
+}
+
+type SwingTradeStatus = "WATCHLIST" | "ACTIVE" | "TARGET HIT" | "SL HIT" | "EXIT REVIEW" | "CLOSED";
+
+interface PersistedSwingTrade {
+  id: number;
+  symbol: string;
+  date: string;
+  signalTime: string;
+  sector: string | null;
+  direction: string;
+  entryType: "BREAKOUT" | "PULLBACK";
+  currentPrice: string;
+  entryPrice: string;
+  sl: string;
+  target: string;
+  score: string;
+  grade: string;
+  setup: string;
+  reason: string | null;
+  expectedHoldDays: string;
+  status: SwingTradeStatus;
+  entryHitDate: string | null;
+  exitDate: string | null;
+  lastPrice: string | null;
+  lastCheckedAt: string | null;
+}
+
+interface SwingTrackerTrade extends PersistedSwingTrade {
+  plPct: number | null;
+  daysOpen: number | null;
+}
 
 function getISTDateStr(epochSecs: number): string {
   return new Date(epochSecs * 1000 + IST_OFFSET_MS).toISOString().slice(0, 10);
@@ -1246,6 +1334,909 @@ function plPctForScaledExit(
   return r2(firstLeg + finalLeg);
 }
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+function avg(values: number[]): number | null {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (valid.length === 0) return null;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function percentChange(current: number, previous: number | null | undefined): number {
+  if (!previous || !Number.isFinite(previous) || previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function ensureSwingTradesTable(): Promise<void> {
+  if (!swingTradesTableReady) {
+    swingTradesTableReady = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS swing_trades (
+          id SERIAL PRIMARY KEY,
+          symbol TEXT NOT NULL,
+          date TEXT NOT NULL,
+          signal_time TIMESTAMPTZ NOT NULL,
+          sector TEXT,
+          direction TEXT NOT NULL DEFAULT 'LONG',
+          entry_type TEXT NOT NULL DEFAULT 'PULLBACK',
+          current_price NUMERIC NOT NULL,
+          entry_price NUMERIC NOT NULL,
+          sl NUMERIC NOT NULL,
+          target NUMERIC NOT NULL,
+          score NUMERIC NOT NULL,
+          grade TEXT NOT NULL,
+          setup TEXT NOT NULL,
+          reason TEXT,
+          expected_hold_days NUMERIC NOT NULL DEFAULT 8,
+          status TEXT NOT NULL DEFAULT 'WATCHLIST',
+          entry_hit_date TEXT,
+          exit_date TEXT,
+          last_price NUMERIC,
+          last_checked_at TIMESTAMPTZ
+        )
+      `);
+      await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS swing_symbol_date_unique
+        ON swing_trades (symbol, date)
+      `);
+    })();
+  }
+
+  return swingTradesTableReady;
+}
+
+async function fetchAngelDailyCandles(
+  symbol: string,
+  tokenOverride?: string,
+): Promise<Candle[] | null> {
+  if (process.env.ANGEL_MARKET_DATA_ENABLED === "false") return null;
+
+  if (!hasAngelMarketDataCredentials()) {
+    if (!angelCredentialsWarningShown) {
+      console.warn("[DATA] Angel One market data disabled: missing credentials.");
+      angelCredentialsWarningShown = true;
+    }
+    return null;
+  }
+
+  let token = tokenOverride;
+  if (!token) {
+    const scripMap = await getAngelScripMap();
+    token = scripMap.get(symbol.toUpperCase().trim());
+  }
+  if (!token) throw new Error(`No Angel One token found for ${symbol}`);
+
+  const now = new Date();
+  const from = new Date(now.getTime() - SWING_FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
+  const smartApi = await getAngelSmartApi();
+  const response: any = await smartApiLimiters.getCandleData.schedule(() =>
+    smartApi.getCandleData({
+      exchange: "NSE",
+      symboltoken: token,
+      interval: "ONE_DAY",
+      fromdate: formatAngelDate(from),
+      todate: formatAngelDate(now),
+    })
+  );
+
+  if (!response?.status || !Array.isArray(response.data)) {
+    throw new Error(response?.message || "Angel One returned no daily candle data");
+  }
+
+  const candles: Candle[] = [];
+  for (const row of response.data as AngelCandleRow[]) {
+    const epochSecs = parseAngelEpochSecs(row[0]);
+    if (epochSecs === null) continue;
+
+    const candle = {
+      t: epochSecs,
+      o: Number(row[1]),
+      h: Number(row[2]),
+      l: Number(row[3]),
+      c: Number(row[4]),
+      v: Number(row[5]),
+    };
+    if ([candle.o, candle.h, candle.l, candle.c].every((value) => Number.isFinite(value) && value > 0)) {
+      candles.push(candle);
+    }
+  }
+
+  return candles.sort((a, b) => a.t - b.t);
+}
+
+async function fetchMoneycontrolDailyCandles(symbol: string): Promise<Candle[] | null> {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - SWING_FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600;
+  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=1D&from=${from}&to=${to}&countback=420&currencyCode=INR`;
+
+  const response = await fetch(url, { headers: MC_HEADERS });
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as {
+    s: string;
+    t?: number[];
+    o?: number[];
+    h?: number[];
+    l?: number[];
+    c?: number[];
+    v?: number[];
+  };
+
+  if (data.s !== "ok" || !data.t || data.t.length === 0) return null;
+
+  return data.t
+    .map((t, i) => ({
+      t,
+      o: data.o?.[i] ?? 0,
+      h: data.h?.[i] ?? 0,
+      l: data.l?.[i] ?? 0,
+      c: data.c?.[i] ?? 0,
+      v: data.v?.[i] ?? 0,
+    }))
+    .filter((c) => [c.o, c.h, c.l, c.c].every((value) => Number.isFinite(value) && value > 0))
+    .sort((a, b) => a.t - b.t);
+}
+
+async function fetchDailyCandles(symbol: string): Promise<Candle[] | null> {
+  try {
+    const angelCandles = await fetchAngelDailyCandles(symbol);
+    if (angelCandles?.length) return angelCandles;
+  } catch (err) {
+    console.warn(`[DATA] ${symbol}: Angel One daily candle fetch failed.`, err);
+  }
+
+  try {
+    const fallbackCandles = await fetchMoneycontrolDailyCandles(symbol);
+    if (fallbackCandles?.length) return fallbackCandles;
+  } catch (err) {
+    console.warn(`[DATA] ${symbol}: Moneycontrol daily candle fetch failed.`, err);
+  }
+
+  return null;
+}
+
+async function fetchNiftyDailyReturn(): Promise<number> {
+  try {
+    const candles = await fetchAngelDailyCandles("NIFTY", SWING_NIFTY_TOKEN);
+    const closes = (candles ?? []).map((c) => c.c);
+    const last = closes.at(-1);
+    const previous = closes.at(-6);
+    return last && previous ? percentChange(last, previous) : 0;
+  } catch (err) {
+    console.warn("[DATA] NIFTY daily return fetch failed.", err);
+    return 0;
+  }
+}
+
+function emaSeries(values: number[], period: number): Array<number | null> {
+  const output: Array<number | null> = new Array(values.length).fill(null);
+  if (values.length < period) return output;
+
+  const k = 2 / (period + 1);
+  let ema = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  output[period - 1] = ema;
+  for (let i = period; i < values.length; i++) {
+    ema = values[i] * k + ema * (1 - k);
+    output[i] = ema;
+  }
+  return output;
+}
+
+function smaLast(values: number[], period: number): number | null {
+  if (values.length < period) return null;
+  return avg(values.slice(-period));
+}
+
+function calculateRsiLast(closes: number[], period = 14): number | null {
+  if (closes.length <= period) return null;
+
+  let gainSum = 0;
+  let lossSum = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff >= 0) gainSum += diff;
+    else lossSum += Math.abs(diff);
+  }
+
+  let avgGain = gainSum / period;
+  let avgLoss = lossSum / period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    avgGain = ((avgGain * (period - 1)) + Math.max(diff, 0)) / period;
+    avgLoss = ((avgLoss * (period - 1)) + Math.max(-diff, 0)) / period;
+  }
+
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+function calculateMacd(closes: number[]): { macd: number | null; signal: number | null; histogram: number | null } {
+  const ema12 = emaSeries(closes, 12);
+  const ema26 = emaSeries(closes, 26);
+  const macdSeries = closes.map((_, i) =>
+    ema12[i] !== null && ema26[i] !== null ? (ema12[i] as number) - (ema26[i] as number) : null
+  );
+  const validMacd = macdSeries.filter((value): value is number => value !== null);
+  if (validMacd.length < 9) return { macd: null, signal: null, histogram: null };
+
+  const signalSeries = emaSeries(validMacd, 9);
+  const macd = validMacd.at(-1) ?? null;
+  const signal = signalSeries.at(-1) ?? null;
+  return {
+    macd,
+    signal,
+    histogram: macd !== null && signal !== null ? macd - signal : null,
+  };
+}
+
+function countConsolidationCandles(candles: Candle[], atr: number, currentPrice: number): number {
+  const prior = candles.slice(-9, -1);
+  if (prior.length < 3 || atr <= 0) return 0;
+
+  const high = Math.max(...prior.map((c) => c.h));
+  const low = Math.min(...prior.map((c) => c.l));
+  const bandPct = ((high - low) / currentPrice) * 100;
+  if (bandPct <= 4.5) return prior.length;
+
+  return prior.filter((c) => (c.h - c.l) <= atr * 1.15).length;
+}
+
+function freshBreakoutAge(candles: Candle[], lookback = 20, maxAge = 3): number | null {
+  for (let age = 1; age <= maxAge; age++) {
+    const index = candles.length - age;
+    if (index < lookback) continue;
+    const previousHigh = Math.max(...candles.slice(index - lookback, index).map((c) => c.h));
+    if (candles[index].c > previousHigh) return age;
+  }
+  return null;
+}
+
+function sectorMomentumAdjustment(sectorRelativeStrength: number): number {
+  if (sectorRelativeStrength > 4) return 2.0;
+  if (sectorRelativeStrength > 2) return 1.5;
+  if (sectorRelativeStrength > 1) return 1.0;
+  if (sectorRelativeStrength < -1) return -1.0;
+  return 0.0;
+}
+
+function relativeStrengthAdjustment(relativeStrength: number): number {
+  if (relativeStrength > 3) return 2.0;
+  if (relativeStrength > 1) return 1.0;
+  if (relativeStrength < -2) return -2.0;
+  return 0.0;
+}
+
+function entryDistanceAdjustment(distancePct: number): number {
+  if (distancePct <= 1) return 1.5;
+  if (distancePct <= 2) return 0.8;
+  if (distancePct <= 2.5) return 0.2;
+  return 0.0;
+}
+
+function liquidityAdjustment(avgTurnover: number): number {
+  const turnoverCr = avgTurnover / 10_000_000;
+  if (turnoverCr < 20) return 0.0;
+  if (turnoverCr < 50) return 0.5;
+  if (turnoverCr < 100) return 1.0;
+  if (turnoverCr < 250) return 1.5;
+  return 2.2;
+}
+
+function rvolAdjustment(rvol: number): number {
+  if (rvol > 2) return 2.0;
+  if (rvol > 1.5) return 1.0;
+  return 0.0;
+}
+
+function trendPersistenceAdjustment(trendPersistence: number): number {
+  const centered = (trendPersistence - 50) / 50;
+  return r2(clamp(centered * 0.8, -0.8, 0.8));
+}
+
+function breakoutQualityDetails(
+  freshAge: number | null,
+  consolidationCandles: number,
+  rvol: number,
+  trendPersistence: number,
+  liquidityScore: number,
+): { score: number; grade: string } {
+  const ageScore = freshAge === 1 ? 40 : freshAge === 2 ? 22 : freshAge === 3 ? 14 : 10;
+  const consolidationScore =
+    consolidationCandles >= 6 ? 20
+      : consolidationCandles >= 4 ? 16
+        : consolidationCandles >= 2 ? 10
+          : freshAge === 1 ? 8
+            : 6;
+  const rvolScore =
+    rvol >= 2 ? 20
+      : rvol >= 1.5 ? 14
+        : rvol >= 1 ? 8
+          : rvol >= 0.8 ? 5
+            : 0;
+  const persistenceScore =
+    trendPersistence >= 90 ? 30
+      : trendPersistence >= 85 ? 28
+        : trendPersistence >= 75 ? 20
+          : trendPersistence >= 60 ? 12
+            : trendPersistence >= 50 ? 8
+              : 0;
+
+  let score = ageScore + consolidationScore + rvolScore + persistenceScore;
+  let grade = score >= 80 ? "A+" : score >= 70 ? "A" : score >= 48 ? "B+" : score >= 35 ? "B" : "C";
+  if (liquidityScore < 0.75 && ["B+", "A", "A+"].includes(grade)) {
+    grade = "B";
+    score = Math.min(score, 47);
+  }
+  return { score: r2(score), grade };
+}
+
+function normalizeOpportunityScore(rawScore: number): number {
+  return r2(100 * (1 - Math.exp(-Math.max(rawScore, 0) / 1.25)));
+}
+
+function confidenceGrade(score: number): string {
+  if (score >= 90) return "A+";
+  if (score >= 85) return "A";
+  if (score >= 80) return "B+";
+  if (score >= 70) return "B";
+  if (score >= 60) return "C+";
+  return "C";
+}
+
+function analyzeSwingCandidate(
+  stock: SwingUniverseStock,
+  candles: Candle[],
+  niftyReturn: number,
+): SwingCandidate | null {
+  const validCandles = candles
+    .filter((c) => [c.o, c.h, c.l, c.c].every((value) => Number.isFinite(value) && value > 0))
+    .sort((a, b) => a.t - b.t);
+  if (validCandles.length < 60) return null;
+
+  const last = validCandles.at(-1)!;
+  const previous = validCandles.at(-2);
+  const currentPrice = r2(last.c);
+  if (currentPrice < SWING_MIN_PRICE) return null;
+
+  const closes = validCandles.map((c) => c.c);
+  const volumes = validCandles.map((c) => c.v);
+  const ema20All = emaSeries(closes, 20);
+  const ema50All = emaSeries(closes, 50);
+  const ema20 = ema20All.at(-1) ?? null;
+  const ema50 = ema50All.at(-1) ?? null;
+  const sma50 = smaLast(closes, 50);
+  const rsi = calculateRsiLast(closes);
+  const macd = calculateMacd(closes);
+  const atr = calculateATR(validCandles, 14);
+  const avgVolume = avg(volumes.slice(-21, -1));
+  if (!atr || !avgVolume || avgVolume <= 0 || !previous || !ema20 || !ema50 || !sma50 || rsi === null) {
+    return null;
+  }
+
+  const prev20 = validCandles.slice(-21, -1);
+  if (prev20.length < 20) return null;
+
+  const prev20High = Math.max(...prev20.map((c) => c.h));
+  const avgTurnover = avgVolume * currentPrice;
+  const rvol = last.v > 0 ? last.v / avgVolume : 0;
+  const recentReturn = percentChange(currentPrice, closes.at(-6));
+  const relativeStrength = recentReturn - niftyReturn;
+  const sectorRelativeStrength = (stock.changePct ?? 0) - niftyReturn;
+  const latestMovePct = percentChange(currentPrice, previous.c);
+  const ema20DistancePct = ((currentPrice - ema20) / ema20) * 100;
+  const trendPersistence = (() => {
+    const recentCloses = closes.slice(-5);
+    const recentEma = ema20All.slice(-5);
+    const valid = recentCloses.filter((close, i) => recentEma[i] !== null && close > (recentEma[i] as number));
+    return (valid.length / Math.max(1, recentCloses.length)) * 100;
+  })();
+  const freshAge = freshBreakoutAge(validCandles);
+  const consolidationCandles = countConsolidationCandles(validCandles, atr, currentPrice);
+  const isBreakout = currentPrice > prev20High || freshAge !== null;
+  const trendOk = currentPrice > ema20 && ema20 > ema50 && currentPrice > sma50;
+
+  let signalScore = 0;
+  const reasons: string[] = [];
+
+  if (trendOk) {
+    signalScore += 1.5;
+    reasons.push("trend above EMA20/EMA50");
+  }
+  if (rsi >= 45 && rsi <= 68) {
+    signalScore += 1;
+    reasons.push(`RSI ${r2(rsi)}`);
+  } else if (rsi >= 35 && rsi < 45) {
+    signalScore += 0.5;
+    reasons.push(`healthy pullback RSI ${r2(rsi)}`);
+  } else if (rsi > 75) {
+    signalScore -= 1.5;
+    reasons.push("RSI extended");
+  }
+  if ((macd.histogram ?? 0) > 0) {
+    signalScore += 1;
+    reasons.push("MACD positive");
+  }
+  if (rvol > 1.5 && currentPrice >= previous.c) {
+    signalScore += 2;
+    reasons.push(`RVOL ${r2(rvol)}x`);
+  } else if (rvol > 1) {
+    signalScore += 0.5;
+  } else if (rvol < 0.5) {
+    signalScore -= 1;
+  }
+  if (isBreakout) {
+    signalScore += 2;
+    reasons.push(freshAge ? `fresh breakout D-${freshAge - 1}` : "breakout");
+  }
+  if (latestMovePct > 8 || ema20DistancePct > 10) {
+    signalScore -= 1.5;
+    reasons.push("extension risk");
+  }
+
+  if (signalScore < SWING_MIN_SIGNAL_SCORE || (!trendOk && !isBreakout)) return null;
+
+  const entryType: SwingCandidate["entryType"] = isBreakout ? "BREAKOUT" : "PULLBACK";
+  const rawEntry = entryType === "BREAKOUT"
+    ? Math.max(currentPrice, prev20High) * 1.001
+    : currentPrice - (atr * 0.5);
+  const entryPrice = r2(rawEntry);
+  const entryDistancePct = Math.abs(entryPrice - currentPrice) / currentPrice * 100;
+  if (entryDistancePct > SWING_MAX_ENTRY_GAP_PCT) return null;
+  if (
+    entryType === "PULLBACK" &&
+    entryDistancePct < SWING_MIN_PULLBACK_GAP_PCT &&
+    consolidationCandles < SWING_MIN_CONSOLIDATION_CANDLES
+  ) {
+    return null;
+  }
+
+  const stopMultiplier = entryType === "BREAKOUT" ? 2.2 : 1.5;
+  const sl = r2(Math.max(entryPrice - (atr * stopMultiplier), entryPrice * 0.9));
+  const risk = entryPrice - sl;
+  if (!Number.isFinite(risk) || risk <= 0) return null;
+
+  const targetMultiplier = entryType === "BREAKOUT" ? 3 : 2.5;
+  const target = r2(Math.min(entryPrice + (risk * targetMultiplier), entryPrice * 1.2));
+  const rewardRisk = (target - entryPrice) / risk;
+  if (!Number.isFinite(rewardRisk) || rewardRisk < 1.8) return null;
+
+  if (avgTurnover < SWING_MIN_AVG_TURNOVER && sectorRelativeStrength < SWING_MIN_SECTOR_RELATIVE_STRENGTH) {
+    return null;
+  }
+
+  const relativeStrengthScore = relativeStrengthAdjustment(relativeStrength);
+  const sectorMomentumScore = sectorMomentumAdjustment(sectorRelativeStrength);
+  const liquidityScore = liquidityAdjustment(avgTurnover);
+  const rvolScore = rvolAdjustment(rvol);
+  const entryScore = entryDistanceAdjustment(entryDistancePct);
+  const breakoutBonus = freshAge ? ({ 1: 0.5, 2: 0.3, 3: 0.1 } as Record<number, number>)[freshAge] ?? 0 : 0;
+  const trendAdjustment = trendPersistenceAdjustment(trendPersistence);
+  const exhaustionPenalty = rvol > 5 && (latestMovePct > 8 || ema20DistancePct > 8)
+    ? -clamp(((rvol - 5) * 0.25) + (Math.max(latestMovePct - 8, ema20DistancePct - 8) * 0.15), 0, 2)
+    : 0;
+  const rawScore =
+    (relativeStrengthScore * 0.35) +
+    (rvolScore * 0.25) +
+    (sectorMomentumScore * 0.20) +
+    (liquidityScore * 0.10) +
+    (entryScore * 0.10) +
+    breakoutBonus +
+    trendAdjustment +
+    exhaustionPenalty;
+  const score = normalizeOpportunityScore(rawScore);
+  if (score < SWING_MIN_SCORE) return null;
+
+  const grade = confidenceGrade(score);
+  const quality = breakoutQualityDetails(freshAge, consolidationCandles, rvol, trendPersistence, liquidityScore);
+  const setup = freshAge
+    ? "Fresh Breakout"
+    : relativeStrength > 1 && sectorRelativeStrength > 0
+      ? "Sector Leader"
+      : entryType === "PULLBACK"
+        ? "Trend Pullback"
+        : "Trend Continuation";
+
+  return {
+    symbol: stock.symbol,
+    sector: stock.sectorName,
+    signalTime: new Date(last.t * 1000).toISOString(),
+    currentPrice,
+    entryPrice,
+    sl,
+    target,
+    score,
+    signalScore: r2(signalScore),
+    grade,
+    setup,
+    entryType,
+    reason: reasons.join("; "),
+    expectedHoldDays: SWING_EXPECTED_HOLD_DAYS,
+    recentReturn: r2(recentReturn),
+    relativeStrength: r2(relativeStrength),
+    sectorRelativeStrength: r2(sectorRelativeStrength),
+    rvol: r2(rvol),
+    avgTurnover: Math.round(avgTurnover),
+    entryDistancePct: r2(entryDistancePct),
+    rewardRisk: r2(rewardRisk),
+    breakoutQuality: quality.grade,
+    trendPersistence: r2(trendPersistence),
+    freshBreakoutAge: freshAge,
+    consolidationCandles,
+  };
+}
+
+async function fetchSwingUniverse(sectorLimit: number, stocksPerSector: number): Promise<SwingUniverseStock[]> {
+  const sectorResponse = await fetch(
+    "https://intradayscreener.com/api/indices/sectorData/1",
+    { headers: HEADERS },
+  );
+  if (!sectorResponse.ok) {
+    throw new Error(`Upstream sector API responded with ${sectorResponse.status}`);
+  }
+
+  const sectorData = (await sectorResponse.json()) as {
+    labels: string[];
+    keywords: string[];
+    datasets: number[];
+  };
+
+  const sectors = sectorData.labels
+    .map((name, i) => ({
+      name,
+      keyword: sectorData.keywords[i],
+      changePct: sectorData.datasets[i] ?? 0,
+    }))
+    .filter((sector) => sector.keyword)
+    .sort((a, b) => b.changePct - a.changePct)
+    .slice(0, sectorLimit);
+
+  const seen = new Set<string>();
+  const stocks: SwingUniverseStock[] = [];
+
+  await Promise.all(sectors.map(async (sector) => {
+    const url = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
+    const response = await fetch(url, { headers: HEADERS });
+    if (!response.ok) return;
+
+    const data = (await response.json()) as {
+      indexConstituents?: Array<{ symbol: string; ltp: number; changePct: number }>;
+      nonIndexConstituents?: Array<{ symbol: string; ltp: number; changePct: number }>;
+    };
+
+    const candidates = [
+      ...(data.indexConstituents ?? []),
+      ...(data.nonIndexConstituents ?? []),
+    ]
+      .filter((stock) =>
+        stock.symbol &&
+        stock.ltp >= SWING_MIN_PRICE &&
+        Number.isFinite(stock.changePct) &&
+        Math.abs(stock.changePct) < 12
+      )
+      .sort((a, b) => b.changePct - a.changePct)
+      .slice(0, stocksPerSector);
+
+    for (const stock of candidates) {
+      const symbol = stock.symbol.toUpperCase().trim();
+      if (seen.has(symbol)) continue;
+      seen.add(symbol);
+      stocks.push({
+        symbol,
+        sectorName: sector.name,
+        ltp: stock.ltp,
+        changePct: sector.changePct,
+      });
+    }
+  }));
+
+  return stocks.slice(0, MAX_SWING_SCAN_SYMBOLS);
+}
+
+function limitSwingPicksBySector(candidates: SwingCandidate[], limit: number): SwingCandidate[] {
+  const selected: SwingCandidate[] = [];
+  const sectorCounts = new Map<string, number>();
+
+  for (const candidate of candidates) {
+    const count = sectorCounts.get(candidate.sector) ?? 0;
+    if (count >= 2) continue;
+    selected.push(candidate);
+    sectorCounts.set(candidate.sector, count + 1);
+    if (selected.length >= limit) break;
+  }
+
+  return selected.length > 0 ? selected : candidates.slice(0, limit);
+}
+
+function dbTimeToIso(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  const text = String(value ?? "");
+  const parsed = Date.parse(text);
+  return Number.isNaN(parsed) ? text : new Date(parsed).toISOString();
+}
+
+function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
+  return {
+    id: Number(row.id),
+    symbol: String(row.symbol),
+    date: String(row.date),
+    signalTime: dbTimeToIso(row.signal_time),
+    sector: row.sector === null || row.sector === undefined ? null : String(row.sector),
+    direction: String(row.direction ?? "LONG"),
+    entryType: String(row.entry_type ?? "PULLBACK") === "BREAKOUT" ? "BREAKOUT" : "PULLBACK",
+    currentPrice: String(row.current_price),
+    entryPrice: String(row.entry_price),
+    sl: String(row.sl),
+    target: String(row.target),
+    score: String(row.score),
+    grade: String(row.grade),
+    setup: String(row.setup),
+    reason: row.reason === null || row.reason === undefined ? null : String(row.reason),
+    expectedHoldDays: String(row.expected_hold_days),
+    status: String(row.status ?? "WATCHLIST") as SwingTradeStatus,
+    entryHitDate: row.entry_hit_date === null || row.entry_hit_date === undefined ? null : String(row.entry_hit_date),
+    exitDate: row.exit_date === null || row.exit_date === undefined ? null : String(row.exit_date),
+    lastPrice: row.last_price === null || row.last_price === undefined ? null : String(row.last_price),
+    lastCheckedAt: row.last_checked_at === null || row.last_checked_at === undefined ? null : dbTimeToIso(row.last_checked_at),
+  };
+}
+
+async function persistSwingCandidates(candidates: SwingCandidate[], date: string): Promise<number> {
+  await ensureSwingTradesTable();
+  let saved = 0;
+
+  for (const candidate of candidates) {
+    const result = await pool.query(
+      `
+        INSERT INTO swing_trades (
+          symbol, date, signal_time, sector, direction, entry_type,
+          current_price, entry_price, sl, target, score, grade, setup, reason,
+          expected_hold_days, status, last_price, last_checked_at
+        )
+        VALUES (
+          $1, $2, $3, $4, 'LONG', $5,
+          $6, $7, $8, $9, $10, $11, $12, $13,
+          $14, 'WATCHLIST', $15, $16
+        )
+        ON CONFLICT (symbol, date) DO NOTHING
+        RETURNING id
+      `,
+      [
+        candidate.symbol,
+        date,
+        candidate.signalTime,
+        candidate.sector,
+        candidate.entryType,
+        String(candidate.currentPrice),
+        String(candidate.entryPrice),
+        String(candidate.sl),
+        String(candidate.target),
+        String(candidate.score),
+        candidate.grade,
+        candidate.setup,
+        candidate.reason,
+        String(candidate.expectedHoldDays),
+        String(candidate.currentPrice),
+        new Date().toISOString(),
+      ],
+    );
+
+    saved += result.rowCount ?? 0;
+  }
+
+  return saved;
+}
+
+function tradingDaysOpen(candles: Candle[], entryHitDate: string | null, latestDate: string | null): number | null {
+  if (!entryHitDate || !latestDate) return null;
+  return candles.filter((c) => {
+    const date = getISTDateStr(c.t);
+    return date > entryHitDate && date <= latestDate;
+  }).length;
+}
+
+async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrackerTrade> {
+  const entry = Number(trade.entryPrice);
+  const sl = Number(trade.sl);
+  const target = Number(trade.target);
+  let status = trade.status as SwingTradeStatus;
+  let entryHitDate = trade.entryHitDate ?? null;
+  let exitDate = trade.exitDate ?? null;
+  let lastPrice = Number(trade.lastPrice ?? trade.currentPrice);
+
+  const candles = await fetchDailyCandles(trade.symbol).catch(() => null);
+  const latestDate = candles?.at(-1) ? getISTDateStr(candles.at(-1)!.t) : null;
+  if (candles?.length) {
+    lastPrice = r2(candles.at(-1)!.c);
+  }
+
+  if (candles?.length && status !== "TARGET HIT" && status !== "SL HIT" && status !== "CLOSED") {
+    const postSignalCandles = candles
+      .filter((c) => getISTDateStr(c.t) >= trade.date)
+      .sort((a, b) => a.t - b.t);
+
+    for (const candle of postSignalCandles) {
+      const candleDate = getISTDateStr(candle.t);
+
+      if (status === "WATCHLIST" && !entryHitDate) {
+        const entryTouched = trade.entryType === "BREAKOUT"
+          ? candle.h >= entry
+          : candle.l <= entry;
+        if (entryTouched) {
+          status = "ACTIVE";
+          entryHitDate = candleDate;
+          continue;
+        }
+      }
+
+      if ((status === "ACTIVE" || status === "EXIT REVIEW") && entryHitDate && candleDate > entryHitDate) {
+        if (candle.l <= sl) {
+          status = "SL HIT";
+          exitDate = candleDate;
+          break;
+        }
+        if (candle.h >= target) {
+          status = "TARGET HIT";
+          exitDate = candleDate;
+          break;
+        }
+      }
+    }
+
+    const openDays = tradingDaysOpen(candles, entryHitDate, latestDate);
+    if (status === "ACTIVE" && openDays !== null && openDays >= Number(trade.expectedHoldDays)) {
+      status = "EXIT REVIEW";
+    }
+  }
+
+  const lastCheckedAt = new Date().toISOString();
+  if (
+    status !== trade.status ||
+    entryHitDate !== trade.entryHitDate ||
+    exitDate !== trade.exitDate ||
+    String(lastPrice) !== String(trade.lastPrice ?? "") ||
+    !trade.lastCheckedAt
+  ) {
+    await pool.query(
+      `
+        UPDATE swing_trades
+        SET status = $1,
+            entry_hit_date = $2,
+            exit_date = $3,
+            last_price = $4,
+            last_checked_at = $5
+        WHERE id = $6
+      `,
+      [status, entryHitDate, exitDate, String(lastPrice), lastCheckedAt, trade.id],
+    );
+  }
+
+  const plPct =
+    status === "WATCHLIST" ? null
+      : status === "TARGET HIT" ? r2(((target - entry) / entry) * 100)
+        : status === "SL HIT" ? r2(((sl - entry) / entry) * 100)
+          : Number.isFinite(lastPrice) ? r2(((lastPrice - entry) / entry) * 100)
+            : null;
+
+  return {
+    ...trade,
+    status,
+    entryHitDate,
+    exitDate,
+    lastPrice: String(lastPrice),
+    lastCheckedAt,
+    plPct,
+    daysOpen: tradingDaysOpen(candles ?? [], entryHitDate, latestDate),
+  };
+}
+
+router.get("/swing-scanner", async (req, res) => {
+  try {
+    await ensureSwingTradesTable();
+
+    const limit = Math.min(10, Math.max(1, parseInt(String(req.query.limit ?? DEFAULT_SWING_PICK_LIMIT), 10) || DEFAULT_SWING_PICK_LIMIT));
+    const sectorLimit = Math.min(14, Math.max(1, parseInt(String(req.query.sectorLimit ?? DEFAULT_SWING_SECTOR_LIMIT), 10) || DEFAULT_SWING_SECTOR_LIMIT));
+    const stocksPerSector = Math.min(12, Math.max(1, parseInt(String(req.query.stocksPerSector ?? DEFAULT_SWING_STOCKS_PER_SECTOR), 10) || DEFAULT_SWING_STOCKS_PER_SECTOR));
+
+    const [universe, niftyReturn] = await Promise.all([
+      fetchSwingUniverse(sectorLimit, stocksPerSector),
+      fetchNiftyDailyReturn(),
+    ]);
+
+    const analyzed = await runWithConcurrency(
+      universe.map((stock) => stock.symbol),
+      2,
+      async (symbol) => {
+        const stock = universe.find((item) => item.symbol === symbol);
+        if (!stock) return null;
+        const candles = await fetchDailyCandles(symbol);
+        return candles ? analyzeSwingCandidate(stock, candles, niftyReturn) : null;
+      },
+    );
+
+    const candidates = analyzed
+      .filter((candidate): candidate is SwingCandidate => candidate !== null)
+      .sort((a, b) => b.score - a.score);
+    const picks = limitSwingPicksBySector(candidates, limit);
+    const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr());
+
+    return res.json({
+      fetchedAt: new Date().toISOString(),
+      date: getTodayISTDateStr(),
+      universeCount: universe.length,
+      candidateCount: candidates.length,
+      savedCount,
+      niftyReturn: r2(niftyReturn),
+      picks,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to run swing scanner");
+    return res.status(500).json({ error: "Failed to run swing scanner" });
+  }
+});
+
+router.get("/swing-trades", async (req, res) => {
+  try {
+    await ensureSwingTradesTable();
+
+    const days = Math.min(180, Math.max(1, parseInt(String(req.query.days ?? "45"), 10) || 45));
+    const startDate = new Date(Date.now() + IST_OFFSET_MS - days * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const statusFilter = String(req.query.status ?? "all").toUpperCase();
+
+    const tradeRows = await pool.query(
+      `
+        SELECT id, symbol, date, signal_time, sector, direction, entry_type,
+               current_price, entry_price, sl, target, score, grade, setup, reason,
+               expected_hold_days, status, entry_hit_date, exit_date, last_price, last_checked_at
+        FROM swing_trades
+        WHERE date >= $1
+        ORDER BY date DESC, signal_time ASC
+      `,
+      [startDate],
+    );
+    const trades = tradeRows.rows.map(mapSwingTradeRow);
+
+    const enriched = await runWithConcurrency(
+      trades.map((trade) => String(trade.id)),
+      2,
+      async (id) => {
+        const trade = trades.find((item) => String(item.id) === id);
+        return trade ? resolveSwingTrade(trade) : null;
+      },
+    );
+
+    let resolved = enriched.filter((trade): trade is SwingTrackerTrade => trade !== null);
+    if (statusFilter !== "ALL") {
+      resolved = resolved.filter((trade) => String(trade.status).toUpperCase() === statusFilter);
+    }
+
+    const activeStatuses = new Set(["WATCHLIST", "ACTIVE", "EXIT REVIEW"]);
+    const summary = {
+      total: resolved.length,
+      watchlist: resolved.filter((trade) => trade.status === "WATCHLIST").length,
+      active: resolved.filter((trade) => trade.status === "ACTIVE").length,
+      targetHit: resolved.filter((trade) => trade.status === "TARGET HIT").length,
+      slHit: resolved.filter((trade) => trade.status === "SL HIT").length,
+      exitReview: resolved.filter((trade) => trade.status === "EXIT REVIEW").length,
+      open: resolved.filter((trade) => activeStatuses.has(trade.status)).length,
+    };
+
+    return res.json({
+      fetchedAt: new Date().toISOString(),
+      days,
+      summary,
+      trades: resolved,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to fetch swing trades");
+    return res.status(500).json({ error: "Failed to fetch swing trades" });
+  }
+});
+
 router.get("/market-indices", async (req, res) => {
   try {
     const ts = Date.now();
@@ -1476,8 +2467,8 @@ router.get("/momentum-picks", async (req, res) => {
                 direction: ind.direction,
                 setup: ind.setup,
                 smartExit: ind.smartExit,
-                vwap: ind.vwap,
-                ema20: ind.ema20,
+                vwap: ind.vwap ?? 0,
+                ema20: ind.ema20 ?? 0,
                 sparkline: ind.sparkline,
                 circuitLimit: ind.circuitLimit,
                 volumeRatio: ind.volumeRatio,

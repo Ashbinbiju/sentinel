@@ -1,5 +1,12 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
+import { BarChart3, ChevronDown, History as HistoryIcon, LineChart } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function SentinelLogo({ className }: { className?: string }) {
   return (
@@ -92,6 +99,9 @@ function SentinelLogo({ className }: { className?: string }) {
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const scannerActive = location === "/" || location === "/swing";
+  const scannerLabel = location === "/swing" ? "Swing Scanner" : "Intraday Scanner";
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b border-border bg-card">
@@ -103,25 +113,44 @@ export function Layout({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <nav className="flex items-center gap-1">
-            <Link
-              href="/"
-              className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
-                location === "/"
-                  ? "bg-emerald-500/10 text-emerald-400"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-              }`}
-            >
-              Dashboard
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md transition-colors outline-none ${
+                  scannerActive
+                    ? "bg-emerald-500/10 text-emerald-400"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                }`}
+              >
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">{scannerLabel}</span>
+                <span className="sm:hidden">Scanner</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-44">
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="flex items-center gap-2 cursor-pointer">
+                    <BarChart3 className="h-4 w-4" />
+                    Intraday Scanner
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/swing" className="flex items-center gap-2 cursor-pointer">
+                    <LineChart className="h-4 w-4" />
+                    Swing Scanner
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Link
               href="/history"
-              className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+              className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
                 location === "/history"
                   ? "bg-emerald-500/10 text-emerald-400"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
               }`}
             >
-              History
+              <HistoryIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">History</span>
             </Link>
           </nav>
         </div>

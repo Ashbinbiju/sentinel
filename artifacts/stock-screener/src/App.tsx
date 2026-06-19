@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import History from "@/pages/history";
+import Swing from "@/pages/swing";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,6 +19,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/swing" component={Swing} />
       <Route path="/history" component={History} />
       <Route component={NotFound} />
     </Switch>
