@@ -305,9 +305,9 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={`block group ${fullWidth ? "w-full" : "shrink-0 w-[78vw] max-w-[280px] sm:flex-1 sm:w-auto sm:min-w-[180px] sm:max-w-none"}`}
+      className={`block group ${fullWidth ? "w-full" : "shrink-0 w-[78vw] max-w-[280px] sm:flex-1 sm:w-auto sm:min-w-[180px] sm:max-w-none"} h-full`}
     >
-      <div className={`relative rounded-xl border overflow-hidden transition-all duration-200 ${
+      <div className={`relative rounded-xl border overflow-hidden transition-all duration-200 h-full ${
         isShort
           ? "border-rose-500/25 bg-gradient-to-br from-rose-950/35 via-card to-card hover:border-rose-400/40 shadow-[0_0_20px_rgba(244,63,94,0.06)]"
           : "border-emerald-500/25 bg-gradient-to-br from-emerald-950/40 via-card to-card hover:border-emerald-400/40 shadow-[0_0_20px_rgba(16,185,129,0.06)]"
@@ -318,7 +318,7 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
             : "bg-gradient-to-r from-emerald-500/60 via-emerald-400 to-emerald-500/60"
         }`} />
 
-        <div className="p-4">
+        <div className="p-4 h-full flex flex-col">
           {/* Circuit breaker banner */}
           {pick.circuitLimit != null && (
             <div className={`-mx-4 -mt-4 mb-3 px-4 py-1.5 flex items-center gap-2 ${
@@ -335,16 +335,16 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
           )}
 
           {/* Rank + symbol + sector + % */}
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between mb-3 min-h-[46px]">
+            <div className="flex items-center gap-2 min-w-0">
               <span className={`w-6 h-6 rounded-full text-[11px] font-bold flex items-center justify-center shrink-0 ${
                 isShort ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/20 text-emerald-400"
               }`}>
                 {rank}
               </span>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1.5 leading-none">
-                  <span className="font-bold text-base text-foreground">{pick.symbol}</span>
+                  <span className="font-bold text-base text-foreground truncate">{pick.symbol}</span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${
                     isShort
                       ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
@@ -362,12 +362,12 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">
+                <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                   {cleanSectorName(pick.sectorName)}{pick.setup ? ` · ${pick.setup}` : ""}
                 </div>
               </div>
             </div>
-            <span className={`text-sm font-mono font-bold px-2 py-0.5 rounded ${pick.changePct >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+            <span className={`shrink-0 text-sm font-mono font-bold px-2 py-0.5 rounded ${pick.changePct >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
               {formatPercent(pick.changePct)}
             </span>
           </div>
@@ -447,10 +447,10 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
           </div>
 
           {/* Smart exit */}
-          <div className="bg-muted/20 rounded-lg p-2 border border-border/30">
+          <div className="bg-muted/20 rounded-lg p-2 border border-border/30 mt-auto min-h-[42px]">
             <div className="flex items-start gap-1.5">
               <Zap className="w-3 h-3 text-amber-400/70 shrink-0 mt-0.5" />
-              <p className={`text-[10px] text-muted-foreground leading-relaxed ${fullWidth ? "" : "line-clamp-2"}`}>
+              <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2">
                 {pick.smartExit}
               </p>
             </div>
