@@ -1987,6 +1987,7 @@ async function runSwingScanner(
   limit: number,
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
+  const scanTime = new Date().toISOString();
   const niftyReturn = await fetchNiftyDailyReturn();
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
   let processedCount = 0;
@@ -2003,6 +2004,9 @@ async function runSwingScanner(
       const candles = await fetchDailyCandles(symbol);
       if (candles) {
         candidate = analyzeSwingCandidate(stock, candles, niftyReturn);
+        if (candidate) {
+          candidate.signalTime = scanTime;
+        }
       }
 
       processedCount += 1;
@@ -2016,10 +2020,10 @@ async function runSwingScanner(
     .filter((candidate): candidate is SwingCandidate => candidate !== null)
     .sort((a, b) => b.score - a.score);
   const picks = limitSwingPicksBySector(candidates, limit);
-  const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr());
+  const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr(), scanTime);
 
   return {
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: scanTime,
     date: getTodayISTDateStr(),
     selectedSectors,
     sectorCount: selectedSectors.length,
@@ -2150,9 +2154,19 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
   };
 }
 
-async function persistSwingCandidates(candidates: SwingCandidate[], date: string): Promise<number> {
+async function persistSwingCandidates(candidates: SwingCandidate[], date: string, scanTime: string): Promise<number> {
   await ensureSwingTradesTable();
   let saved = 0;
+
+  await pool.query(
+    `
+      UPDATE swing_trades
+      SET signal_time = $2
+      WHERE date = $1
+        AND to_char(signal_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') = '00:00'
+    `,
+    [date, scanTime],
+  );
 
   for (const candidate of candidates) {
     const result = await pool.query(
@@ -2167,7 +2181,9 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
           $6, $7, $8, $9, $10, $11, $12, $13,
           $14, 'WATCHLIST', $15, $16
         )
-        ON CONFLICT (symbol, date) DO NOTHING
+        ON CONFLICT (symbol, date) DO UPDATE
+        SET signal_time = EXCLUDED.signal_time
+        WHERE to_char(swing_trades.signal_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') = '00:00'
         RETURNING id
       `,
       [

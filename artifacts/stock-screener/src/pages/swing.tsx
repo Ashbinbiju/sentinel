@@ -255,7 +255,7 @@ function PickCard({ pick }: { pick: SwingPick }) {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Metric label="Current" value={formatCurrency(pick.currentPrice)} />
+        <Metric label="CMP" value={formatCurrency(pick.currentPrice)} />
         <Metric label="Entry" value={formatCurrency(pick.entryPrice)} tone="blue" />
         <Metric label="SL" value={formatCurrency(pick.sl)} tone="red" />
         <Metric label="Target" value={formatCurrency(pick.target)} tone="green" />
@@ -319,7 +319,7 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
             <StatusBadge status={trade.status} />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {trade.sector ?? "Sector"} - {trade.setup} - Signal {toISTTime(trade.signalTime)} IST
+            {trade.sector ?? "Sector"} - {trade.setup} - Scan {toISTTime(trade.signalTime)} IST
           </p>
         </div>
         <div className="text-right">
@@ -332,7 +332,7 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <Metric label="Entry" value={formatCurrency(entry)} tone="blue" />
-        <Metric label="Last" value={formatCurrency(last)} />
+        <Metric label="CMP" value={formatCurrency(last)} />
         <Metric label="SL" value={formatCurrency(sl)} tone="red" />
         <Metric label="Target" value={formatCurrency(target)} tone="green" />
         <Metric label="Score" value={Number(trade.score).toFixed(1)} tone="green" />
