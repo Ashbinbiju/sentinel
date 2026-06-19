@@ -97,12 +97,61 @@ const DD_EXHAUSTION_RVOL_THRESHOLD = 5.0;
 const DD_EXHAUSTION_EMA20_DISTANCE_THRESHOLD = 8.0;
 const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
+const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
+const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
+const MARKET_REGIME_BULL_BREADTH_THRESHOLD = 60.0;
+const MARKET_REGIME_WEAK_BREADTH_THRESHOLD = 50.0;
+const STRICT_WEAK_MARKET_SIGNAL_BREADTH_THRESHOLD = 30.0;
+const WEAK_MARKET_REGIME_SCORE_MULTIPLIER = 0.90;
+const WEAK_INDUSTRY_ADVANCE_RATIO_THRESHOLD = 0.20;
+const WEAK_INDUSTRY_BREADTH_PENALTY = -0.30;
+const BANK_WEAK_MARKET_SECTOR_SCORE_PENALTY = -0.40;
 const DD_RANKING_WEIGHTS = {
   relativeStrength: 0.35,
   rvol: 0.25,
   sector: 0.20,
   liquidity: 0.10,
   entry: 0.10,
+};
+const MARKET_STATS_INDUSTRY_ALIASES: Record<string, string> = {
+  Auto: "Automobile and Auto Components",
+  Bank: "Financial Services",
+  Finance: "Financial Services",
+  Insurance: "Financial Services",
+  ConstructionMaterials: "Construction Materials",
+  CapitalGoods: "Capital Goods",
+  Chemicals: "Chemicals",
+  FMCG: "Fast Moving Consumer Goods",
+  Healthcare: "Healthcare",
+  IT: "Information Technology",
+  ConsumerDurables: "Consumer Durables",
+  Jewellery: "Consumer Durables",
+  Electricals: "Capital Goods",
+  Agri: "Agricultural Food & other Products",
+  Hospitality: "Consumer Services",
+  "Consumer Services": "Consumer Services",
+  Retail: "Consumer Services",
+  Textiles: "Textiles",
+  Industrial_Gases_Fuels: "Oil Gas & Consumable Fuels",
+  Logistics: "Services",
+  Trading: "Services",
+  Aviation: "Services",
+  Alcohol: "Fast Moving Consumer Goods",
+  Plastic: "Chemicals",
+  ShipBuilding: "Capital Goods",
+  Defence: "Capital Goods",
+  Media: "Media Entertainment & Publication",
+  Footwear: "Consumer Durables",
+  Manufacturing: "Capital Goods",
+  Infrastructure: "Construction",
+  Paper: "Forest Materials",
+  ContainersPackaging: "Forest Materials",
+  PhotographicProducts: "Consumer Durables",
+  Metals: "Metals & Mining",
+  OilGas: "Oil Gas & Consumable Fuels",
+  Power: "Power",
+  RealEstate: "Realty",
+  Telecom: "Telecommunication",
 };
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
@@ -186,6 +235,7 @@ let angelCredentialsWarningShown = false;
 let swingTradesTableReady: Promise<void> | null = null;
 let activeSwingScanJobId: string | null = null;
 const swingScanJobs = new Map<string, SwingScanJob>();
+let marketStatsCache: { fetchedAt: number; payload: MarketStatsPayload | null } | null = null;
 
 interface SwingUniverseStock {
   symbol: string;
@@ -232,6 +282,17 @@ interface SwingCandidate {
   latestMovePct: number;
   ema20DistancePct: number;
   liquidityScore: number;
+  intradaySignal: string;
+  swingSignal: string;
+  shortTermSignal: string;
+  longTermSignal: string;
+  breakoutSignal: string;
+  ichimokuTrend: string;
+  marketRegime: "Bull" | "Neutral" | "Weak" | "Unknown";
+  marketBreadthPct: number | null;
+  industryAdvanceRatio: number | null;
+  industryBreadthText: string | null;
+  weakMarketSignalDowngrade: boolean;
 }
 
 interface SwingScannerResult {
@@ -243,6 +304,8 @@ interface SwingScannerResult {
   candidateCount: number;
   savedCount: number;
   niftyReturn: number;
+  marketRegime: MarketRegimeSnapshot["marketRegime"];
+  marketBreadthPct: number | null;
   picks: SwingCandidate[];
 }
 
@@ -265,6 +328,34 @@ interface SwingScanJob {
   message: string;
   error: string | null;
   result: SwingScannerResult | null;
+}
+
+interface MarketStatsIndustryRow {
+  Industry?: string;
+  total?: number;
+  advancing?: number;
+  declining?: number;
+  avgChange?: number;
+}
+
+interface MarketStatsPayload {
+  breadth?: {
+    total?: number;
+    advancing?: number;
+    declining?: number;
+  };
+  industry?: MarketStatsIndustryRow[];
+}
+
+interface MarketRegimeSnapshot {
+  marketRegime: "Bull" | "Neutral" | "Weak" | "Unknown";
+  marketBreadthAbove: number | null;
+  marketBreadthTotal: number | null;
+  marketBreadthPct: number | null;
+  marketBreadthSource: "brkpoint_market_stats" | "unavailable";
+  niftyAboveEma20: boolean | null;
+  niftyAboveEma50: boolean | null;
+  marketStats: MarketStatsPayload | null;
 }
 
 type SwingTradeStatus = "WATCHLIST" | "ACTIVE" | "TARGET HIT" | "SL HIT" | "EXIT REVIEW" | "CLOSED";
@@ -1587,6 +1678,186 @@ async function fetchNiftyDailyReturn(): Promise<number> {
   }
 }
 
+async function fetchMarketStats(): Promise<MarketStatsPayload | null> {
+  if (marketStatsCache && Date.now() - marketStatsCache.fetchedAt < MARKET_STATS_CACHE_TTL_MS) {
+    return marketStatsCache.payload;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(MARKET_STATS_URL, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const parsed = payload && typeof payload === "object" ? payload as MarketStatsPayload : null;
+    marketStatsCache = { fetchedAt: Date.now(), payload: parsed };
+    return parsed;
+  } catch (err) {
+    console.warn("[SWING] Failed to fetch market stats breadth.", err);
+    marketStatsCache = { fetchedAt: Date.now(), payload: null };
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function numberOrNull(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function fetchNiftyRegimeSnapshot(): Promise<{ niftyAboveEma20: boolean | null; niftyAboveEma50: boolean | null }> {
+  try {
+    const candles = await fetchAngelDailyCandles("NIFTY", SWING_NIFTY_TOKEN);
+    const closes = (candles ?? []).map((c) => c.c);
+    const latest = closes.at(-1);
+    const ema20 = emaSeries(closes, 20).at(-1) ?? null;
+    const ema50 = emaSeries(closes, 50).at(-1) ?? null;
+    return {
+      niftyAboveEma20: latest !== undefined && ema20 !== null ? latest > ema20 : null,
+      niftyAboveEma50: latest !== undefined && ema50 !== null ? latest > ema50 : null,
+    };
+  } catch (err) {
+    console.warn("[SWING] NIFTY regime snapshot failed.", err);
+    return { niftyAboveEma20: null, niftyAboveEma50: null };
+  }
+}
+
+function marketStatsBreadthSummary(marketStats: MarketStatsPayload | null): {
+  above: number | null;
+  total: number | null;
+  pct: number | null;
+  source: MarketRegimeSnapshot["marketBreadthSource"];
+} {
+  const breadth = marketStats?.breadth;
+  const total = numberOrNull(breadth?.total);
+  const advancing = numberOrNull(breadth?.advancing);
+  if (!total || total <= 0 || advancing === null) {
+    return { above: null, total: null, pct: null, source: "unavailable" };
+  }
+  return {
+    above: advancing,
+    total,
+    pct: (advancing / total) * 100,
+    source: "brkpoint_market_stats",
+  };
+}
+
+function marketRegimeFromInputs(
+  niftySnapshot: { niftyAboveEma20: boolean | null; niftyAboveEma50: boolean | null },
+  breadthPct: number | null,
+): MarketRegimeSnapshot["marketRegime"] {
+  if (niftySnapshot.niftyAboveEma20 === null || niftySnapshot.niftyAboveEma50 === null) {
+    if (breadthPct !== null && breadthPct < MARKET_REGIME_WEAK_BREADTH_THRESHOLD) return "Weak";
+    return "Unknown";
+  }
+  if (
+    niftySnapshot.niftyAboveEma20 &&
+    niftySnapshot.niftyAboveEma50 &&
+    (breadthPct === null || breadthPct >= MARKET_REGIME_BULL_BREADTH_THRESHOLD)
+  ) {
+    return "Bull";
+  }
+  if (
+    (!niftySnapshot.niftyAboveEma20 && !niftySnapshot.niftyAboveEma50) ||
+    (breadthPct !== null && breadthPct < MARKET_REGIME_WEAK_BREADTH_THRESHOLD)
+  ) {
+    return "Weak";
+  }
+  return "Neutral";
+}
+
+async function fetchMarketRegimeSnapshot(): Promise<MarketRegimeSnapshot> {
+  const [marketStats, niftySnapshot] = await Promise.all([
+    fetchMarketStats(),
+    fetchNiftyRegimeSnapshot(),
+  ]);
+  const breadth = marketStatsBreadthSummary(marketStats);
+  return {
+    marketRegime: marketRegimeFromInputs(niftySnapshot, breadth.pct),
+    marketBreadthAbove: breadth.above,
+    marketBreadthTotal: breadth.total,
+    marketBreadthPct: breadth.pct,
+    marketBreadthSource: breadth.source,
+    niftyAboveEma20: niftySnapshot.niftyAboveEma20,
+    niftyAboveEma50: niftySnapshot.niftyAboveEma50,
+    marketStats,
+  };
+}
+
+function marketRegimeScoreMultiplier(marketRegime: MarketRegimeSnapshot["marketRegime"]): number {
+  return marketRegime === "Weak" ? WEAK_MARKET_REGIME_SCORE_MULTIPLIER : 1.0;
+}
+
+function marketStatsIndustryLookup(marketStats: MarketStatsPayload | null): Map<string, MarketStatsIndustryRow> {
+  const lookup = new Map<string, MarketStatsIndustryRow>();
+  for (const row of marketStats?.industry ?? []) {
+    if (row.Industry) lookup.set(row.Industry, row);
+  }
+  return lookup;
+}
+
+function marketStatsForSector(
+  sector: string,
+  marketStats: MarketStatsPayload | null,
+): MarketStatsIndustryRow | null {
+  const industryName = MARKET_STATS_INDUSTRY_ALIASES[sector] ?? sector;
+  return marketStatsIndustryLookup(marketStats).get(industryName) ?? null;
+}
+
+function marketStatsSectorText(sector: string, marketStats: MarketStatsPayload | null): string | null {
+  const stats = marketStatsForSector(sector, marketStats);
+  const total = numberOrNull(stats?.total);
+  const advancing = numberOrNull(stats?.advancing);
+  if (!total || total <= 0 || advancing === null) return null;
+  const avgChange = numberOrNull(stats?.avgChange);
+  const avgChangeText = avgChange !== null ? `, Avg: ${r2(avgChange)}%` : "";
+  return `${sector} Advance Breadth: ${Math.round(advancing)}/${Math.round(total)}${avgChangeText}`;
+}
+
+function marketStatsSectorAdvanceRatio(sector: string, marketStats: MarketStatsPayload | null): number | null {
+  const stats = marketStatsForSector(sector, marketStats);
+  const total = numberOrNull(stats?.total);
+  const advancing = numberOrNull(stats?.advancing);
+  if (!total || total <= 0 || advancing === null) return null;
+  return advancing / total;
+}
+
+function industryBreadthPenalty(advanceRatio: number | null): number {
+  if (advanceRatio === null) return 0.0;
+  return advanceRatio < WEAK_INDUSTRY_ADVANCE_RATIO_THRESHOLD ? WEAK_INDUSTRY_BREADTH_PENALTY : 0.0;
+}
+
+function bankWeakMarketSectorPenalty(candidate: SwingCandidate, marketRegime: MarketRegimeSnapshot): number {
+  if (candidate.sector.trim().toLowerCase() !== "bank") return 0.0;
+  return marketRegime.niftyAboveEma20 === false && marketRegime.niftyAboveEma50 === false
+    ? BANK_WEAK_MARKET_SECTOR_SCORE_PENALTY
+    : 0.0;
+}
+
+function isStrictWeakMarketContext(marketRegime: MarketRegimeSnapshot): boolean {
+  return (
+    marketRegime.marketBreadthPct !== null &&
+    marketRegime.marketBreadthPct < STRICT_WEAK_MARKET_SIGNAL_BREADTH_THRESHOLD &&
+    marketRegime.niftyAboveEma20 === false &&
+    marketRegime.niftyAboveEma50 === false
+  );
+}
+
+function downgradeBuySignalForWeakMarket(value: string): string {
+  const signal = value.trim();
+  if (signal === "Strong Buy") return "Buy";
+  if (signal === "Buy") return "Hold";
+  return value;
+}
+
+function downgradeIntradaySignalForWeakMarket(value: string): string {
+  return value.trim() === "Strong Buy" ? "Buy" : value;
+}
+
 function emaSeries(values: number[], period: number): Array<number | null> {
   const output: Array<number | null> = new Array(values.length).fill(null);
   if (values.length < period) return output;
@@ -2765,6 +3036,17 @@ function analyzeSwingCandidate(
     latestMovePct: r2(latestMovePct),
     ema20DistancePct: r2(ema20DistancePct),
     liquidityScore: r2(liquidityScore),
+    intradaySignal: recommendation.intraday,
+    swingSignal: recommendation.swing,
+    shortTermSignal: recommendation.shortTerm,
+    longTermSignal: recommendation.longTerm,
+    breakoutSignal: recommendation.breakout,
+    ichimokuTrend: recommendation.ichimokuTrend,
+    marketRegime: "Unknown",
+    marketBreadthPct: null,
+    industryAdvanceRatio: null,
+    industryBreadthText: null,
+    weakMarketSignalDowngrade: false,
   };
 }
 
@@ -2772,6 +3054,16 @@ function finalizeSwingCandidates(
   candidates: SwingCandidate[],
   niftyReturn: number,
   sectorPerformanceInput?: Map<string, number>,
+  marketRegime: MarketRegimeSnapshot = {
+    marketRegime: "Unknown",
+    marketBreadthAbove: null,
+    marketBreadthTotal: null,
+    marketBreadthPct: null,
+    marketBreadthSource: "unavailable",
+    niftyAboveEma20: null,
+    niftyAboveEma50: null,
+    marketStats: null,
+  },
 ): SwingCandidate[] {
   if (candidates.length === 0) return [];
 
@@ -2814,13 +3106,16 @@ function finalizeSwingCandidates(
       if (candidate.entryDistancePct < SWING_MIN_PULLBACK_GAP_PCT && !hasConsolidation) return null;
 
       const relativeStrengthScore = relativeStrengthAdjustment(candidate.relativeStrength);
-      const sectorMomentumScore = sectorMomentumAdjustment(candidate.sectorRelativeStrength);
+      const sectorMomentumScore = sectorMomentumAdjustment(candidate.sectorRelativeStrength) +
+        bankWeakMarketSectorPenalty(candidate, marketRegime);
       const liquidityScore = liquidityAdjustment(candidate.avgTurnover);
       const rvolScore = rvolAdjustment(candidate.rvol);
       const entryScore = entryDistanceAdjustment(candidate.entryDistancePct);
       const breakoutBonus = freshBreakoutBonus(candidate.freshBreakoutAge);
       const trendAdjustment = trendPersistenceAdjustment(candidate.trendPersistence);
       const leaderAdjustment = leaderAdjustments.get(candidate.symbol)?.adjustment ?? 0;
+      const industryAdvanceRatio = marketStatsSectorAdvanceRatio(candidate.sector, marketRegime.marketStats);
+      const industryPenalty = industryBreadthPenalty(industryAdvanceRatio);
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
         (rvolScore * DD_RANKING_WEIGHTS.rvol) +
@@ -2831,8 +3126,9 @@ function finalizeSwingCandidates(
         trendAdjustment +
         leaderAdjustment +
         sectorExhaustionPenalty(sectorPerf) +
+        industryPenalty +
         momentumExhaustionPenalty(candidate);
-      const score = normalizeOpportunityScore(rawScore);
+      const score = r2(normalizeOpportunityScore(rawScore) * marketRegimeScoreMultiplier(marketRegime.marketRegime));
       const grade = confidenceGrade(score);
       const quality = breakoutQualityDetails(
         candidate.freshBreakoutAge,
@@ -2842,7 +3138,26 @@ function finalizeSwingCandidates(
         liquidityScore,
       );
       const setupType = classifyDdSetupType(candidate, breakoutBonus, leaderAdjustment);
-      const finalized = {
+      const weakMarketSignalDowngrade = isStrictWeakMarketContext(marketRegime);
+      const intradaySignal = weakMarketSignalDowngrade
+        ? downgradeIntradaySignalForWeakMarket(candidate.intradaySignal)
+        : candidate.intradaySignal;
+      const swingSignal = weakMarketSignalDowngrade
+        ? downgradeBuySignalForWeakMarket(candidate.swingSignal)
+        : candidate.swingSignal;
+      const longTermSignal = weakMarketSignalDowngrade
+        ? downgradeBuySignalForWeakMarket(candidate.longTermSignal)
+        : candidate.longTermSignal;
+      const hasBuySignalAfterMarketFilter = [
+        swingSignal,
+        candidate.shortTermSignal,
+        longTermSignal,
+        candidate.breakoutSignal,
+        candidate.ichimokuTrend,
+      ].some(isBuyRecommendation);
+      if (!hasBuySignalAfterMarketFilter) return null;
+
+      const finalized: SwingCandidate = {
         ...candidate,
         score,
         grade,
@@ -2851,7 +3166,15 @@ function finalizeSwingCandidates(
         expectedHoldDays: expectedHoldDaysForSetup(setupType),
         liquidityScore: r2(liquidityScore),
         breakoutQuality: quality.grade,
-        reason: `${candidate.reason}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        intradaySignal,
+        swingSignal,
+        longTermSignal,
+        marketRegime: marketRegime.marketRegime,
+        marketBreadthPct: marketRegime.marketBreadthPct !== null ? r2(marketRegime.marketBreadthPct) : null,
+        industryAdvanceRatio: industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : null,
+        industryBreadthText: marketStatsSectorText(candidate.sector, marketRegime.marketStats),
+        weakMarketSignalDowngrade,
+        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
@@ -2942,7 +3265,10 @@ async function runSwingScanner(
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
   const scanTime = new Date().toISOString();
-  const niftyReturn = await fetchNiftyDailyReturn();
+  const [niftyReturn, marketRegime] = await Promise.all([
+    fetchNiftyDailyReturn(),
+    fetchMarketRegimeSnapshot(),
+  ]);
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
   const sectorReturnTotals = new Map<string, { sum: number; count: number }>();
   let processedCount = 0;
@@ -2987,6 +3313,7 @@ async function runSwingScanner(
         value.count ? value.sum / value.count : 0,
       ]),
     ),
+    marketRegime,
   );
   const picks = limitSwingPicksBySector(candidates, limit);
   const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr(), scanTime);
@@ -3000,6 +3327,8 @@ async function runSwingScanner(
     candidateCount: candidates.length,
     savedCount,
     niftyReturn: r2(niftyReturn),
+    marketRegime: marketRegime.marketRegime,
+    marketBreadthPct: marketRegime.marketBreadthPct !== null ? r2(marketRegime.marketBreadthPct) : null,
     picks,
   };
 }
