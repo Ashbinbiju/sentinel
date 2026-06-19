@@ -570,11 +570,6 @@ function getStatusBadge(status: string, size: "sm" | "md" = "sm", hitTimeText: s
       {size === "sm" ? "SL HIT" : `SL Hit 🛑${hitTimeText}`}
     </span>;
   }
-  if (status === "ENTRY INVALID") {
-    return <span className={`${baseClasses} bg-orange-500/10 text-orange-400 border border-orange-500/20`}>
-      {size === "sm" ? "INV" : `Entry Invalid${hitTimeText}`}
-    </span>;
-  }
   if (status === "T1 HIT & TRAILING SL HIT") {
     return <span className={`${baseClasses} bg-amber-500/10 text-amber-400 border border-amber-500/20`}>
       {size === "sm" ? "BE" : `Breakeven ⚖️${hitTimeText}`}
@@ -773,7 +768,7 @@ function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
   const filteredTrades = trades.filter((t) => {
     if (filter === "All") return true;
     if (filter === "Winners") return t.status === "TARGET 1 HIT" || t.status === "TARGET 2 HIT";
-    if (filter === "Losers") return t.status === "SL HIT" || t.status === "ENTRY INVALID";
+    if (filter === "Losers") return t.status === "SL HIT";
     if (filter === "Breakeven") return t.status === "T1 HIT & TRAILING SL HIT";
     if (filter === "Active") return !t.status || t.status === "PENDING" || t.status === "ACTIVE";
     return true;

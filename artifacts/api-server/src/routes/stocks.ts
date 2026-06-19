@@ -85,7 +85,6 @@ const SIGNAL_COOLDOWN_BARS = 5;
 const MIN_SIGNAL_RR = 1.2;
 const SL_ATR_BUFFER_MULT = 0.12;
 const FALLBACK_RISK_REWARD = 1.5;
-const ENTRY_INVALIDATION_RISK_MULT = 0.5;
 const ANGEL_SCRIP_MASTER_URL =
   "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json";
 
@@ -1138,28 +1137,6 @@ function plPctForExit(entry: number, exit: number, direction: SignalDirection): 
     : r2(((entry - exit) / entry) * 100);
 }
 
-function entryInvalidationDistance(
-  _candleData: CandleData,
-  _signalTimeMs: number,
-  entry: number,
-  sl: number,
-): number | null {
-  const riskDistance = Math.abs(entry - sl) * ENTRY_INVALIDATION_RISK_MULT;
-  return Number.isFinite(riskDistance) && riskDistance > 0 ? riskDistance : null;
-}
-
-function isEntryInvalidated(
-  candle: Candle,
-  entry: number,
-  direction: SignalDirection,
-  invalidationDistance: number | null,
-): boolean {
-  if (invalidationDistance === null) return false;
-  return direction === "LONG"
-    ? candle.c < entry - invalidationDistance
-    : candle.c > entry + invalidationDistance;
-}
-
 router.get("/market-indices", async (req, res) => {
   try {
     const ts = Date.now();
@@ -1540,7 +1517,6 @@ router.get("/trades/today", async (req, res) => {
       const entryPrice = Number(trade.entryPrice);
       const originalSl = Number(trade.sl);
       const direction = inferTradeDirectionFromPrices(entryPrice, originalSl, target2);
-      const invalidationDistance = entryInvalidationDistance(candleData, signalTimeMs, entryPrice, originalSl);
       const hitsTarget = (c: Candle, target: number) =>
         direction === "LONG" ? c.h >= target : c.l <= target;
       const hitsStop = (c: Candle, stop: number) =>
@@ -1574,11 +1550,6 @@ router.get("/trades/today", async (req, res) => {
 
         if (hitsTarget(c, target2)) {
           newStatus = "TARGET 2 HIT";
-          hitTime = getISTTimeStr(c.t);
-          break;
-        }
-        if (maxTargetReached < 1 && isEntryInvalidated(c, entryPrice, direction, invalidationDistance)) {
-          newStatus = "ENTRY INVALID";
           hitTime = getISTTimeStr(c.t);
           break;
         }
@@ -1682,7 +1653,6 @@ router.get("/trades/history", async (req, res) => {
       }
 
       const postSignalCandles = getTradeExitCandles(candleData, trade, signalTimeMs);
-      const invalidationDistance = entryInvalidationDistance(candleData, signalTimeMs, entry, sl);
       const hitsTarget = (c: Candle, target: number) =>
         direction === "LONG" ? c.h >= target : c.l <= target;
       const hitsStop = (c: Candle, stop: number) =>
@@ -1723,13 +1693,6 @@ router.get("/trades/history", async (req, res) => {
           status = "TARGET 2 HIT";
           hitTime = getISTTimeStr(c.t);
           exitPrice = t2;
-          break;
-        }
-
-        if (isEntryInvalidated(c, entry, direction, invalidationDistance)) {
-          status = "ENTRY INVALID";
-          hitTime = getISTTimeStr(c.t);
-          exitPrice = c.c;
           break;
         }
 

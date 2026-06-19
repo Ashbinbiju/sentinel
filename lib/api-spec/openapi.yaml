@@ -363,10 +363,10 @@ components:
           description: Inferred trade direction based on entry, SL, and target
         status:
           type: string
-          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, ENTRY INVALID, SQUARED OFF, ACTIVE, PENDING)
+          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)
         plPct:
           type: ["number", "null"]
-          description: Estimated P&L % based on final status. ENTRY INVALID uses the first post-signal candle close beyond the entry zone. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+          description: Estimated P&L % based on final status. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
       required:
         - id
         - symbol
