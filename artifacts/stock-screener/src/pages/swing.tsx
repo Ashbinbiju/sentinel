@@ -62,6 +62,27 @@ interface SwingScannerResponse {
   picks: SwingPick[];
 }
 
+type SwingScanJobStatus = "queued" | "running" | "completed" | "failed";
+
+interface SwingScanJobResponse {
+  jobId: string;
+  status: SwingScanJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  selectedSectors: string[];
+  sectorCount: number;
+  universeCount: number;
+  processedCount: number;
+  candidateCount: number;
+  savedCount: number;
+  progressPct: number;
+  message: string;
+  error: string | null;
+  result: SwingScannerResponse | null;
+}
+
 interface SwingSectorOption {
   name: string;
   count: number;
@@ -118,7 +139,7 @@ function apiUrl(path: string): string {
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(apiUrl(path));
+  const response = await fetch(apiUrl(path), { cache: "no-store" });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(text || `HTTP ${response.status}`);
@@ -329,6 +350,7 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
 
 export default function Swing() {
   const [scanner, setScanner] = useState<SwingScannerResponse | null>(null);
+  const [scanJob, setScanJob] = useState<SwingScanJobResponse | null>(null);
   const [tracker, setTracker] = useState<SwingTrackerResponse | null>(null);
   const [sectorOptions, setSectorOptions] = useState<SwingSectorOption[]>([]);
   const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
@@ -382,25 +404,6 @@ export default function Swing() {
     });
   }
 
-  async function loadScanner() {
-    setScannerLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (selectedSectors.length > 0 && selectedSectors.length !== sectorOptions.length) {
-        params.set("sectors", selectedSectors.join(","));
-      }
-      const query = params.toString();
-      const data = await fetchJson<SwingScannerResponse>(`/api/stocks/swing-scanner${query ? `?${query}` : ""}`);
-      setScanner(data);
-      await loadTracker();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Swing scanner failed");
-    } finally {
-      setScannerLoading(false);
-    }
-  }
-
   async function loadTracker() {
     setTrackerLoading(true);
     try {
@@ -413,12 +416,71 @@ export default function Swing() {
     }
   }
 
+  async function handleScanJob(data: SwingScanJobResponse) {
+    setScanJob(data);
+
+    if (data.status === "completed" && data.result) {
+      setScanner(data.result);
+      setScannerLoading(false);
+      await loadTracker();
+      return;
+    }
+
+    if (data.status === "failed") {
+      setScannerLoading(false);
+      setError(data.error || "Swing scanner failed");
+      return;
+    }
+
+    setScannerLoading(true);
+  }
+
+  async function pollScanJob(jobId: string) {
+    try {
+      const data = await fetchJson<SwingScanJobResponse>(`/api/stocks/swing-scanner/jobs/${encodeURIComponent(jobId)}`);
+      await handleScanJob(data);
+    } catch (err) {
+      setScannerLoading(false);
+      setError(err instanceof Error ? err.message : "Failed to check swing scan progress");
+    }
+  }
+
+  async function loadScanner() {
+    setScanner(null);
+    setScanJob(null);
+    setScannerLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (selectedSectors.length > 0 && selectedSectors.length !== sectorOptions.length) {
+        params.set("sectors", selectedSectors.join(","));
+      }
+      const query = params.toString();
+      const data = await fetchJson<SwingScanJobResponse>(`/api/stocks/swing-scanner${query ? `?${query}` : ""}`);
+      await handleScanJob(data);
+    } catch (err) {
+      setScannerLoading(false);
+      setError(err instanceof Error ? err.message : "Swing scanner failed");
+    }
+  }
+
   useEffect(() => {
     loadSectors();
     loadTracker();
   }, []);
 
+  useEffect(() => {
+    if (!scanJob || !["queued", "running"].includes(scanJob.status)) return;
+    const timer = window.setTimeout(() => {
+      void pollScanJob(scanJob.jobId);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [scanJob?.jobId, scanJob?.status, scanJob?.processedCount]);
+
   const summary = tracker?.summary;
+  const scanIsActive = scanJob?.status === "queued" || scanJob?.status === "running";
+  const scanProgressText = scanJob ? `${scanJob.processedCount}/${scanJob.universeCount}` : null;
+  const scanProgressPct = scanJob ? Math.max(0, Math.min(100, scanJob.progressPct)) : 0;
 
   return (
     <Layout>
@@ -495,7 +557,7 @@ export default function Swing() {
               className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:opacity-60"
             >
               <RefreshCw className={`h-4 w-4 ${scannerLoading ? "animate-spin" : ""}`} />
-              Run Scan
+              {scannerLoading ? "Scanning" : "Run Scan"}
             </button>
           </div>
         </section>
@@ -506,11 +568,33 @@ export default function Swing() {
           </div>
         )}
 
+        {scanJob && (
+          <section className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-bold text-emerald-200">
+                  {scanIsActive ? "Swing scan running" : scanJob.status === "completed" ? "Swing scan complete" : "Swing scan failed"}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{scanJob.message}</div>
+              </div>
+              <div className="font-mono text-sm font-bold text-emerald-300">
+                {scanProgressText} symbols
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-background/70">
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-all"
+                style={{ width: `${scanProgressPct}%` }}
+              />
+            </div>
+          </section>
+        )}
+
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric label="Sectors" value={scanner ? `${scanner.sectorCount}/${sectorOptions.length || scanner.sectorCount}` : `${selectedSectorCount}/${sectorOptions.length || selectedSectorCount}`} tone="blue" />
-          <Metric label="Symbols" value={scanner ? scanner.universeCount : selectedSymbolCount || "-"} tone="blue" />
-          <Metric label="Candidates" value={scanner ? scanner.candidateCount : "-"} tone="green" />
-          <Metric label="Saved Today" value={scanner ? scanner.savedCount : "-"} tone="amber" />
+          <Metric label="Sectors" value={scanner ? `${scanner.sectorCount}/${sectorOptions.length || scanner.sectorCount}` : scanJob ? `${scanJob.sectorCount}/${sectorOptions.length || scanJob.sectorCount}` : `${selectedSectorCount}/${sectorOptions.length || selectedSectorCount}`} tone="blue" />
+          <Metric label="Symbols" value={scanner ? scanner.universeCount : scanJob ? scanProgressText : selectedSymbolCount || "-"} tone="blue" />
+          <Metric label="Candidates" value={scanner ? scanner.candidateCount : scanJob ? scanJob.candidateCount : "-"} tone="green" />
+          <Metric label="Saved Today" value={scanner ? scanner.savedCount : scanJob ? scanJob.savedCount : "-"} tone="amber" />
           <Metric label="Open Tracker" value={summary ? summary.open : "-"} tone="green" />
         </section>
 
@@ -526,7 +610,9 @@ export default function Swing() {
           </div>
 
           {scannerLoading && !scanner ? (
-            <div className="rounded-lg border border-border/50 bg-card p-8 text-center text-muted-foreground">Scanning daily candles...</div>
+            <div className="rounded-lg border border-border/50 bg-card p-8 text-center text-muted-foreground">
+              {scanJob ? scanJob.message : "Starting swing scan..."}
+            </div>
           ) : scanner?.picks?.length ? (
             <div className="grid auto-rows-fr gap-4 xl:grid-cols-2">
               {scanner.picks.map((pick) => (

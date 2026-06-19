@@ -88,6 +88,7 @@ const SWING_MIN_PULLBACK_GAP_PCT = 0.5;
 const SWING_MIN_CONSOLIDATION_CANDLES = 3;
 const SWING_EXPECTED_HOLD_DAYS = 8;
 const SWING_NIFTY_TOKEN = "99926000";
+const MAX_SWING_SCAN_JOBS = 8;
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
 const STRUCTURE_TIMEFRAME_SECS = 60 * 60;
@@ -168,6 +169,8 @@ let angelSessionExpiresAt = 0;
 let angelScripMapPromise: Promise<Map<string, string>> | null = null;
 let angelCredentialsWarningShown = false;
 let swingTradesTableReady: Promise<void> | null = null;
+let activeSwingScanJobId: string | null = null;
+const swingScanJobs = new Map<string, SwingScanJob>();
 
 interface SwingUniverseStock {
   symbol: string;
@@ -202,6 +205,39 @@ interface SwingCandidate {
   trendPersistence: number;
   freshBreakoutAge: number | null;
   consolidationCandles: number;
+}
+
+interface SwingScannerResult {
+  fetchedAt: string;
+  date: string;
+  selectedSectors: string[];
+  sectorCount: number;
+  universeCount: number;
+  candidateCount: number;
+  savedCount: number;
+  niftyReturn: number;
+  picks: SwingCandidate[];
+}
+
+type SwingScanJobStatus = "queued" | "running" | "completed" | "failed";
+
+interface SwingScanJob {
+  id: string;
+  status: SwingScanJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  selectedSectors: string[];
+  sectorCount: number;
+  universeCount: number;
+  processedCount: number;
+  candidateCount: number;
+  savedCount: number;
+  limit: number;
+  message: string;
+  error: string | null;
+  result: SwingScannerResult | null;
 }
 
 type SwingTradeStatus = "WATCHLIST" | "ACTIVE" | "TARGET HIT" | "SL HIT" | "EXIT REVIEW" | "CLOSED";
@@ -1907,6 +1943,165 @@ function fetchSwingUniverse(selectedSectors: string[]): SwingUniverseStock[] {
   return stocks;
 }
 
+function createSwingScanJobId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function pruneSwingScanJobs() {
+  const jobs = [...swingScanJobs.values()]
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  for (const job of jobs.slice(MAX_SWING_SCAN_JOBS)) {
+    if (job.status !== "running" && job.status !== "queued") {
+      swingScanJobs.delete(job.id);
+    }
+  }
+}
+
+function serializeSwingScanJob(job: SwingScanJob) {
+  const progressPct = job.universeCount > 0
+    ? r2((job.processedCount / job.universeCount) * 100)
+    : 0;
+  return {
+    jobId: job.id,
+    status: job.status,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    selectedSectors: job.selectedSectors,
+    sectorCount: job.sectorCount,
+    universeCount: job.universeCount,
+    processedCount: job.processedCount,
+    candidateCount: job.candidateCount,
+    savedCount: job.savedCount,
+    progressPct,
+    message: job.message,
+    error: job.error,
+    result: job.result,
+  };
+}
+
+async function runSwingScanner(
+  selectedSectors: string[],
+  universe: SwingUniverseStock[],
+  limit: number,
+  onProgress?: (processedCount: number, candidateCount: number) => void,
+): Promise<SwingScannerResult> {
+  const niftyReturn = await fetchNiftyDailyReturn();
+  const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
+  let processedCount = 0;
+  let candidateCount = 0;
+
+  const analyzed = await runWithConcurrency(
+    universe.map((stock) => stock.symbol),
+    2,
+    async (symbol) => {
+      const stock = stockBySymbol.get(symbol);
+      if (!stock) return null;
+
+      let candidate: SwingCandidate | null = null;
+      const candles = await fetchDailyCandles(symbol);
+      if (candles) {
+        candidate = analyzeSwingCandidate(stock, candles, niftyReturn);
+      }
+
+      processedCount += 1;
+      if (candidate) candidateCount += 1;
+      onProgress?.(processedCount, candidateCount);
+      return candidate;
+    },
+  );
+
+  const candidates = analyzed
+    .filter((candidate): candidate is SwingCandidate => candidate !== null)
+    .sort((a, b) => b.score - a.score);
+  const picks = limitSwingPicksBySector(candidates, limit);
+  const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr());
+
+  return {
+    fetchedAt: new Date().toISOString(),
+    date: getTodayISTDateStr(),
+    selectedSectors,
+    sectorCount: selectedSectors.length,
+    universeCount: universe.length,
+    candidateCount: candidates.length,
+    savedCount,
+    niftyReturn: r2(niftyReturn),
+    picks,
+  };
+}
+
+function startSwingScanJob(selectedSectors: string[], limit: number): SwingScanJob {
+  if (activeSwingScanJobId) {
+    const activeJob = swingScanJobs.get(activeSwingScanJobId);
+    if (activeJob && ["queued", "running"].includes(activeJob.status)) {
+      return activeJob;
+    }
+  }
+
+  const universe = fetchSwingUniverse(selectedSectors);
+  const now = new Date().toISOString();
+  const job: SwingScanJob = {
+    id: createSwingScanJobId(),
+    status: "queued",
+    createdAt: now,
+    updatedAt: now,
+    startedAt: null,
+    completedAt: null,
+    selectedSectors,
+    sectorCount: selectedSectors.length,
+    universeCount: universe.length,
+    processedCount: 0,
+    candidateCount: 0,
+    savedCount: 0,
+    limit,
+    message: `Queued ${universe.length} symbols across ${selectedSectors.length} sectors.`,
+    error: null,
+    result: null,
+  };
+
+  swingScanJobs.set(job.id, job);
+  activeSwingScanJobId = job.id;
+  pruneSwingScanJobs();
+
+  void (async () => {
+    job.status = "running";
+    job.startedAt = new Date().toISOString();
+    job.updatedAt = job.startedAt;
+    job.message = `Scanning ${job.universeCount} symbols.`;
+
+    try {
+      const result = await runSwingScanner(selectedSectors, universe, limit, (processed, candidates) => {
+        job.processedCount = processed;
+        job.candidateCount = candidates;
+        job.updatedAt = new Date().toISOString();
+        job.message = `Scanned ${processed}/${job.universeCount} symbols.`;
+      });
+      job.status = "completed";
+      job.result = result;
+      job.processedCount = result.universeCount;
+      job.candidateCount = result.candidateCount;
+      job.savedCount = result.savedCount;
+      job.completedAt = new Date().toISOString();
+      job.updatedAt = job.completedAt;
+      job.message = `Completed. Saved ${result.savedCount} swing picks.`;
+    } catch (err) {
+      job.status = "failed";
+      job.error = err instanceof Error ? err.message : "Swing scanner failed";
+      job.completedAt = new Date().toISOString();
+      job.updatedAt = job.completedAt;
+      job.message = "Swing scan failed.";
+      console.error("[SWING] Background scanner failed", err);
+    } finally {
+      if (activeSwingScanJobId === job.id) {
+        activeSwingScanJobId = null;
+      }
+    }
+  })();
+
+  return job;
+}
+
 function limitSwingPicksBySector(candidates: SwingCandidate[], limit: number): SwingCandidate[] {
   const selected: SwingCandidate[] = [];
   const sectorCounts = new Map<string, number>();
@@ -2110,43 +2305,21 @@ router.get("/swing-scanner", async (req, res) => {
 
     const limit = Math.min(10, Math.max(1, parseInt(String(req.query.limit ?? DEFAULT_SWING_PICK_LIMIT), 10) || DEFAULT_SWING_PICK_LIMIT));
     const selectedSectors = parseRequestedSwingSectors(req.query.sectors);
-    const universe = fetchSwingUniverse(selectedSectors);
+    const job = startSwingScanJob(selectedSectors, limit);
 
-    const niftyReturn = await fetchNiftyDailyReturn();
-    const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
-
-    const analyzed = await runWithConcurrency(
-      universe.map((stock) => stock.symbol),
-      2,
-      async (symbol) => {
-        const stock = stockBySymbol.get(symbol);
-        if (!stock) return null;
-        const candles = await fetchDailyCandles(symbol);
-        return candles ? analyzeSwingCandidate(stock, candles, niftyReturn) : null;
-      },
-    );
-
-    const candidates = analyzed
-      .filter((candidate): candidate is SwingCandidate => candidate !== null)
-      .sort((a, b) => b.score - a.score);
-    const picks = limitSwingPicksBySector(candidates, limit);
-    const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr());
-
-    return res.json({
-      fetchedAt: new Date().toISOString(),
-      date: getTodayISTDateStr(),
-      selectedSectors,
-      sectorCount: selectedSectors.length,
-      universeCount: universe.length,
-      candidateCount: candidates.length,
-      savedCount,
-      niftyReturn: r2(niftyReturn),
-      picks,
-    });
+    return res.json(serializeSwingScanJob(job));
   } catch (err) {
     req.log.error({ err }, "Failed to run swing scanner");
     return res.status(500).json({ error: "Failed to run swing scanner" });
   }
+});
+
+router.get("/swing-scanner/jobs/:jobId", async (req, res) => {
+  const job = swingScanJobs.get(String(req.params.jobId));
+  if (!job) {
+    return res.status(404).json({ error: "Swing scan job expired. Start a new scan." });
+  }
+  return res.json(serializeSwingScanJob(job));
 });
 
 router.get("/swing-sectors", async (_req, res) => {
