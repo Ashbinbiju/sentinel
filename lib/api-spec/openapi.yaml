@@ -70,7 +70,7 @@ paths:
       operationId: getMomentumPicks
       tags: [stocks]
       summary: Get ChartPrime Power Channel stock picks with SL/Target
-      description: Returns filtered stocks from the most active sectors, enriched with ChartPrime Power Channel zone reaction signals, direction, SL, targets, reward:risk, and smart exit rules. Entry candidates must trade at or above INR 100. Also returns top 5 intraday picks.
+      description: Returns filtered stocks from the most active sectors, enriched with ChartPrime Power Channel zone reaction signals, direction, SL, targets, reward:risk, and smart exit rules. Entry candidates must trade at or above INR 100 and avoid repeated zone-tap consolidation. Also returns top 5 intraday picks.
       responses:
         "200":
           description: Power Channel stock picks grouped by sector

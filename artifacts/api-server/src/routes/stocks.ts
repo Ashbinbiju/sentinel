@@ -82,6 +82,10 @@ const POWER_CHANNEL_ATR_MULT = 0.5;
 const POWER_CHANNEL_SL_BUFFER_MULT = 0.05;
 const POWER_CHANNEL_MAX_ENTRY_EXTENSION_MULT = 0.25;
 const FRESH_SIGNAL_LOOKBACK_BARS = 2;
+const POWER_CHANNEL_CHOP_LOOKBACK_BARS = 8;
+const POWER_CHANNEL_MAX_CHOP_ZONE_TOUCHES = 3;
+const POWER_CHANNEL_MIN_IMPULSE_BODY_RATIO = 0.35;
+const POWER_CHANNEL_MIN_IMPULSE_CLOSE_POSITION = 0.65;
 const VOLUME_CONFIRMATION_MULTIPLIER = 1.15;
 const SKIP_OPENING_BARS = 2;
 const MIN_SIGNAL_RR = 1.2;
@@ -711,6 +715,50 @@ function buildPowerChannelContext(candles: Candle[]): PowerChannelContext | null
   };
 }
 
+function touchesPowerChannelZone(
+  candle: Candle,
+  direction: SignalDirection,
+  channel: PowerChannelContext,
+): boolean {
+  return direction === "LONG"
+    ? candle.l <= channel.supportTop && candle.h >= channel.supportBottom
+    : candle.h >= channel.resistanceBottom && candle.l <= channel.resistanceTop;
+}
+
+function hasDirectionalImpulse(candle: Candle, direction: SignalDirection): boolean {
+  const range = candle.h - candle.l;
+  if (!Number.isFinite(range) || range <= 0) return false;
+
+  const bodyRatio = Math.abs(candle.c - candle.o) / range;
+  const closePosition = direction === "LONG"
+    ? (candle.c - candle.l) / range
+    : (candle.h - candle.c) / range;
+  const candleColorOk = direction === "LONG"
+    ? candle.c >= candle.o
+    : candle.c <= candle.o;
+
+  return candleColorOk &&
+    bodyRatio >= POWER_CHANNEL_MIN_IMPULSE_BODY_RATIO &&
+    closePosition >= POWER_CHANNEL_MIN_IMPULSE_CLOSE_POSITION;
+}
+
+function isPowerChannelChop(
+  recentCandles: Candle[],
+  direction: SignalDirection,
+  channel: PowerChannelContext,
+): boolean {
+  const signalCandle = recentCandles.at(-1);
+  if (!signalCandle) return false;
+
+  const previousTouches = recentCandles
+    .slice(0, -1)
+    .filter((candle) => touchesPowerChannelZone(candle, direction, channel))
+    .length;
+
+  return previousTouches >= POWER_CHANNEL_MAX_CHOP_ZONE_TOUCHES &&
+    !hasDirectionalImpulse(signalCandle, direction);
+}
+
 function crossesOver(prev: number, current: number, level: number): boolean {
   return prev <= level && current > level;
 }
@@ -909,12 +957,20 @@ function findEntrySignalMatch(
     const sellRejection =
       previousCandle.h >= channel.resistanceBottom &&
       candle.h < channel.resistanceBottom;
+    const recentCandles = sessionCandles.slice(
+      Math.max(0, i - POWER_CHANNEL_CHOP_LOOKBACK_BARS),
+      i + 1,
+    );
 
     let signal: PriceActionSignal | null = null;
     if (buyReaction) {
-      signal = buildPowerChannelSignal(candle, "LONG", channel);
+      signal = isPowerChannelChop(recentCandles, "LONG", channel)
+        ? null
+        : buildPowerChannelSignal(candle, "LONG", channel);
     } else if (sellRejection) {
-      signal = buildPowerChannelSignal(candle, "SHORT", channel);
+      signal = isPowerChannelChop(recentCandles, "SHORT", channel)
+        ? null
+        : buildPowerChannelSignal(candle, "SHORT", channel);
     }
 
     if (signal) {
