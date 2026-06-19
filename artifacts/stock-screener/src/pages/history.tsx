@@ -81,9 +81,9 @@ function getStatusConfig(status: string): {
       };
     case "T1 HIT & TRAILING SL HIT":
       return {
-        label: "Breakeven ⚖️",
+        label: "T1 + Trail",
         classes: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        icon: <Minus className="w-3 h-3" />,
+        icon: <TrendingUp className="w-3 h-3" />,
       };
     case "SL HIT":
       return {

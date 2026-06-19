@@ -572,7 +572,7 @@ function getStatusBadge(status: string, size: "sm" | "md" = "sm", hitTimeText: s
   }
   if (status === "T1 HIT & TRAILING SL HIT") {
     return <span className={`${baseClasses} bg-amber-500/10 text-amber-400 border border-amber-500/20`}>
-      {size === "sm" ? "BE" : `Breakeven ⚖️${hitTimeText}`}
+      {size === "sm" ? "T1 TRL" : `T1 + Trail${hitTimeText}`}
     </span>;
   }
   if (status === "SQUARED OFF") {
@@ -761,7 +761,7 @@ function TodayTradesWidget({ trades }: { trades: TodayTrade[] }) {
 // ── Today's Performance Section ────────────────────────────────────────────────
 
 function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
-  const [filter, setFilter] = useState<"All" | "Winners" | "Losers" | "Active" | "Breakeven">("All");
+  const [filter, setFilter] = useState<"All" | "Winners" | "Losers" | "Active" | "T1 Trail">("All");
 
   if (trades.length === 0) return null;
 
@@ -769,7 +769,7 @@ function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
     if (filter === "All") return true;
     if (filter === "Winners") return t.status === "TARGET 1 HIT" || t.status === "TARGET 2 HIT";
     if (filter === "Losers") return t.status === "SL HIT";
-    if (filter === "Breakeven") return t.status === "T1 HIT & TRAILING SL HIT";
+    if (filter === "T1 Trail") return t.status === "T1 HIT & TRAILING SL HIT";
     if (filter === "Active") return !t.status || t.status === "PENDING" || t.status === "ACTIVE";
     return true;
   });
@@ -784,7 +784,7 @@ function TodayPerformanceSection({ trades }: { trades: TodayTrade[] }) {
         
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider mr-1">Filter:</span>
-          {(["All", "Winners", "Losers", "Breakeven", "Active"] as const).map(f => (
+          {(["All", "Winners", "Losers", "T1 Trail", "Active"] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}

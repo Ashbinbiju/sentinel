@@ -83,6 +83,7 @@ const VOLUME_CONFIRMATION_MULTIPLIER = 1.15;
 const SKIP_OPENING_BARS = 2;
 const SIGNAL_COOLDOWN_BARS = 5;
 const MIN_SIGNAL_RR = 1.2;
+const T1_SCALE_OUT_FRACTION = 0.5;
 const SL_ATR_BUFFER_MULT = 0.12;
 const FALLBACK_RISK_REWARD = 1.5;
 const ANGEL_SCRIP_MASTER_URL =
@@ -1137,6 +1138,17 @@ function plPctForExit(entry: number, exit: number, direction: SignalDirection): 
     : r2(((entry - exit) / entry) * 100);
 }
 
+function plPctForScaledExit(
+  entry: number,
+  firstExit: number,
+  finalExit: number,
+  direction: SignalDirection,
+): number {
+  const firstLeg = plPctForExit(entry, firstExit, direction) * T1_SCALE_OUT_FRACTION;
+  const finalLeg = plPctForExit(entry, finalExit, direction) * (1 - T1_SCALE_OUT_FRACTION);
+  return r2(firstLeg + finalLeg);
+}
+
 router.get("/market-indices", async (req, res) => {
   try {
     const ts = Date.now();
@@ -1661,6 +1673,7 @@ router.get("/trades/history", async (req, res) => {
       let status: TradeStatus = "ACTIVE";
       let hitTime: string | null = null;
       let exitPrice: number | null = null;
+      let plPctOverride: number | null = null;
       let maxTargetReached = 0;
 
       for (const c of postSignalCandles) {
@@ -1669,6 +1682,7 @@ router.get("/trades/history", async (req, res) => {
             status = "TARGET 2 HIT";
             hitTime = getISTTimeStr(c.t);
             exitPrice = t2;
+            plPctOverride = plPctForScaledExit(entry, t1, t2, direction);
             break;
           }
 
@@ -1676,6 +1690,7 @@ router.get("/trades/history", async (req, res) => {
             status = "T1 HIT & TRAILING SL HIT";
             hitTime = getISTTimeStr(c.t);
             exitPrice = entry;
+            plPctOverride = plPctForScaledExit(entry, t1, entry, direction);
             break;
           }
 
@@ -1693,6 +1708,7 @@ router.get("/trades/history", async (req, res) => {
           status = "TARGET 2 HIT";
           hitTime = getISTTimeStr(c.t);
           exitPrice = t2;
+          plPctOverride = plPctForScaledExit(entry, t1, t2, direction);
           break;
         }
 
@@ -1701,6 +1717,7 @@ router.get("/trades/history", async (req, res) => {
           status = "TARGET 1 HIT";
           hitTime = getISTTimeStr(c.t);
           exitPrice = t1;
+          plPctOverride = plPctForScaledExit(entry, t1, entry, direction);
         }
       }
 
@@ -1711,9 +1728,12 @@ router.get("/trades/history", async (req, res) => {
         status = "SQUARED OFF";
         hitTime = squareOffCandle ? getISTTimeStr(squareOffCandle.t) : "15:15";
         exitPrice = squareOffCandle?.c ?? exitPrice;
+        if (maxTargetReached >= 1 && exitPrice !== null) {
+          plPctOverride = plPctForScaledExit(entry, t1, exitPrice, direction);
+        }
       }
 
-      const plPct = exitPrice !== null ? plPctForExit(entry, exitPrice, direction) : null;
+      const plPct = plPctOverride ?? (exitPrice !== null ? plPctForExit(entry, exitPrice, direction) : null);
 
       if (status !== trade.status) {
         try {
