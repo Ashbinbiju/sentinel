@@ -89,7 +89,7 @@ paths:
       operationId: getTradeHistory
       tags: [stocks]
       summary: Get historical trade signals from the database
-      description: Returns trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status.
+      description: Returns current-strategy trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status. Legacy rows saved before the active Power Channel rules are filtered out.
       parameters:
         - in: query
           name: days

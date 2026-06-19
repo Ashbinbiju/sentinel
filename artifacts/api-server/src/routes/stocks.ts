@@ -63,6 +63,7 @@ const CANDLE_INTERVAL_SECS = 5 * 60;
 const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
 const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
 const ENTRY_SIGNAL_END_MIN_IST = 15 * 60 + 15;
+const CURRENT_STRATEGY_EFFECTIVE_AT_MS = Date.parse("2026-06-19T09:41:31.000Z");
 const MIN_ENTRY_SECTOR_CHANGE_PCT = 0;
 const MIN_ENTRY_STOCK_CHANGE_PCT = 0;
 const MIN_ENTRY_PRICE = 100;
@@ -186,10 +187,19 @@ function isSignalTimeInEntryWindowIST(signalTime: string): boolean {
   return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
 }
 
+function isCurrentStrategySignalTime(signalTime: string): boolean {
+  const ms = Date.parse(signalTime);
+  return !Number.isNaN(ms) && ms >= CURRENT_STRATEGY_EFFECTIVE_AT_MS;
+}
+
+function isCurrentStrategyEntrySignal(signalTime: string): boolean {
+  return isCurrentStrategySignalTime(signalTime) && isSignalTimeInEntryWindowIST(signalTime);
+}
+
 function filterEntryWindowTrades<T extends { date: string; signalTime: string }>(trades: T[]): T[] {
   const countsByDate = new Map<string, number>();
   return trades.filter((trade) => {
-    if (!isSignalTimeInEntryWindowIST(trade.signalTime)) return false;
+    if (!isCurrentStrategyEntrySignal(trade.signalTime)) return false;
 
     const count = countsByDate.get(trade.date) ?? 0;
     if (count >= MAX_DAILY_ENTRY_SIGNALS) return false;
@@ -1019,10 +1029,10 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
 
     const firstExistingTrade = existingTrades[0] ?? null;
     const existingTrade = existingTrades.find((trade) =>
-      isSignalTimeInEntryWindowIST(trade.signalTime)
+      isCurrentStrategyEntrySignal(trade.signalTime)
     ) ?? null;
     const invalidExistingTrade =
-      firstExistingTrade && !isSignalTimeInEntryWindowIST(firstExistingTrade.signalTime)
+      firstExistingTrade && !isCurrentStrategyEntrySignal(firstExistingTrade.signalTime)
         ? firstExistingTrade
         : null;
 
