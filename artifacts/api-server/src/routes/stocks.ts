@@ -80,9 +80,9 @@ const POWER_CHANNEL_ATR_PERIOD = 200;
 const POWER_CHANNEL_ATR_MULT = 0.5;
 const POWER_CHANNEL_SL_BUFFER_MULT = 0.05;
 const POWER_CHANNEL_MAX_ENTRY_EXTENSION_MULT = 0.25;
+const FRESH_SIGNAL_LOOKBACK_BARS = 2;
 const VOLUME_CONFIRMATION_MULTIPLIER = 1.15;
 const SKIP_OPENING_BARS = 2;
-const SIGNAL_COOLDOWN_BARS = 5;
 const MIN_SIGNAL_RR = 1.2;
 const T1_SCALE_OUT_FRACTION = 0.5;
 const SL_ATR_BUFFER_MULT = 0.12;
@@ -872,20 +872,35 @@ function findEntrySignalMatch(
 ): PriceActionSignal | null {
   if (!isTradingDay || lastTradingDate !== today) return null;
 
-  let lastSignalIndex = Number.NEGATIVE_INFINITY;
+  const latestCandle = sessionCandles.at(-1);
+  if (!latestCandle) return null;
 
-  for (let i = 0; i < sessionCandles.length; i++) {
+  const latestCloseSecs = latestCandle.t + CANDLE_INTERVAL_SECS;
+  const maxSignalAgeSecs = CANDLE_INTERVAL_SECS * FRESH_SIGNAL_LOOKBACK_BARS;
+  const latestHistoricalCandles = historicalCandles.filter((c) => c.t <= latestCandle.t);
+  const channel = buildPowerChannelContext(latestHistoricalCandles);
+  if (!channel) return null;
+
+  const historicalIndexByTime = new Map<number, number>();
+  historicalCandles.forEach((candle, index) => {
+    historicalIndexByTime.set(candle.t, index);
+  });
+
+  for (let i = sessionCandles.length - 1; i >= 0; i--) {
     const candle = sessionCandles[i];
     if (getCandleCloseDateIST(candle) !== today || !candleClosesInEntryWindow(candle)) continue;
 
-    if (i < SKIP_OPENING_BARS || i - lastSignalIndex <= SIGNAL_COOLDOWN_BARS) continue;
+    const signalAgeSecs = latestCloseSecs - (candle.t + CANDLE_INTERVAL_SECS);
+    if (signalAgeSecs > maxSignalAgeSecs) break;
 
-    const historicalThroughCandle = historicalCandles.filter((c) => c.t <= candle.t);
-    const previousCandle = historicalThroughCandle.at(-2);
+    if (i < SKIP_OPENING_BARS) continue;
+
+    const historicalIndex = historicalIndexByTime.get(candle.t);
+    const previousCandle =
+      historicalIndex !== undefined && historicalIndex > 0
+        ? historicalCandles[historicalIndex - 1]
+        : null;
     if (!previousCandle) continue;
-
-    const channel = buildPowerChannelContext(historicalThroughCandle);
-    if (!channel) continue;
 
     const buyReaction =
       previousCandle.l <= channel.supportTop &&
@@ -902,7 +917,6 @@ function findEntrySignalMatch(
     }
 
     if (signal) {
-      lastSignalIndex = i;
       return signal;
     }
   }
