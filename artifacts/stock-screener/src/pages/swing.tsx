@@ -6,12 +6,21 @@ import {
   BarChart3,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   Clock3,
+  Layers3,
   LineChart,
   RefreshCw,
   Target,
   TrendingDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SwingPick {
   symbol: string;
@@ -44,11 +53,24 @@ interface SwingPick {
 interface SwingScannerResponse {
   fetchedAt: string;
   date: string;
+  selectedSectors: string[];
+  sectorCount: number;
   universeCount: number;
   candidateCount: number;
   savedCount: number;
   niftyReturn: number;
   picks: SwingPick[];
+}
+
+interface SwingSectorOption {
+  name: string;
+  count: number;
+}
+
+interface SwingSectorsResponse {
+  totalSectors: number;
+  totalSymbols: number;
+  sectors: SwingSectorOption[];
 }
 
 interface SwingTrackerTrade {
@@ -308,15 +330,68 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
 export default function Swing() {
   const [scanner, setScanner] = useState<SwingScannerResponse | null>(null);
   const [tracker, setTracker] = useState<SwingTrackerResponse | null>(null);
+  const [sectorOptions, setSectorOptions] = useState<SwingSectorOption[]>([]);
+  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [scannerLoading, setScannerLoading] = useState(false);
   const [trackerLoading, setTrackerLoading] = useState(false);
+  const [sectorsLoading, setSectorsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedSectorCount = selectedSectors.length || sectorOptions.length;
+  const allSectorsSelected = sectorOptions.length > 0 && selectedSectorCount === sectorOptions.length;
+  const selectedSectorLabel =
+    sectorOptions.length === 0 ? "Loading sectors"
+      : allSectorsSelected ? `All sectors (${sectorOptions.length})`
+        : selectedSectors.length === 1 ? selectedSectors[0]
+          : `${selectedSectors.length} sectors`;
+  const selectedSymbolCount = allSectorsSelected
+    ? sectorOptions.reduce((sum, sector) => sum + sector.count, 0)
+    : sectorOptions
+      .filter((sector) => selectedSectors.includes(sector.name))
+      .reduce((sum, sector) => sum + sector.count, 0);
+
+  async function loadSectors() {
+    setSectorsLoading(true);
+    try {
+      const data = await fetchJson<SwingSectorsResponse>("/api/stocks/swing-sectors");
+      setSectorOptions(data.sectors);
+      setSelectedSectors((current) => current.length > 0 ? current : data.sectors.map((sector) => sector.name));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load swing sectors");
+    } finally {
+      setSectorsLoading(false);
+    }
+  }
+
+  function selectAllSectors() {
+    setSelectedSectors(sectorOptions.map((sector) => sector.name));
+  }
+
+  function selectOnlySector(name: string) {
+    setSelectedSectors([name]);
+  }
+
+  function toggleSector(name: string) {
+    setSelectedSectors((current) => {
+      const base = current.length > 0 ? current : sectorOptions.map((sector) => sector.name);
+      if (base.includes(name)) {
+        const next = base.filter((sector) => sector !== name);
+        return next.length > 0 ? next : [name];
+      }
+      return [...base, name];
+    });
+  }
 
   async function loadScanner() {
     setScannerLoading(true);
     setError(null);
     try {
-      const data = await fetchJson<SwingScannerResponse>("/api/stocks/swing-scanner");
+      const params = new URLSearchParams();
+      if (selectedSectors.length > 0 && selectedSectors.length !== sectorOptions.length) {
+        params.set("sectors", selectedSectors.join(","));
+      }
+      const query = params.toString();
+      const data = await fetchJson<SwingScannerResponse>(`/api/stocks/swing-scanner${query ? `?${query}` : ""}`);
       setScanner(data);
       await loadTracker();
     } catch (err) {
@@ -339,7 +414,8 @@ export default function Swing() {
   }
 
   useEffect(() => {
-    loadScanner();
+    loadSectors();
+    loadTracker();
   }, []);
 
   const summary = tracker?.summary;
@@ -356,6 +432,55 @@ export default function Swing() {
             <h1 className="mt-2 text-2xl font-extrabold text-foreground">Daily swing entries</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={sectorsLoading || sectorOptions.length === 0}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-60"
+              >
+                <Layers3 className="h-4 w-4" />
+                <span>{selectedSectorLabel}</span>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    selectAllSectors();
+                  }}
+                  className="cursor-pointer font-semibold text-emerald-300"
+                >
+                  All sectors
+                  <span className="ml-auto font-mono text-xs text-muted-foreground">
+                    {sectorOptions.reduce((sum, sector) => sum + sector.count, 0)}
+                  </span>
+                </DropdownMenuItem>
+                <div className="max-h-80 overflow-y-auto py-1">
+                  {sectorOptions.map((sector) => (
+                    <DropdownMenuCheckboxItem
+                      key={sector.name}
+                      checked={selectedSectors.includes(sector.name)}
+                      onCheckedChange={() => toggleSector(sector.name)}
+                      onSelect={(event) => event.preventDefault()}
+                      className="gap-2 pr-1"
+                    >
+                      <span className="min-w-0 flex-1 truncate">{sector.name}</span>
+                      <span className="font-mono text-[11px] text-muted-foreground">{sector.count}</span>
+                      <button
+                        type="button"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          selectOnlySector(sector.name);
+                        }}
+                        className="rounded border border-border/70 px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-300"
+                      >
+                        Only
+                      </button>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <button
               onClick={loadTracker}
               disabled={trackerLoading}
@@ -366,7 +491,7 @@ export default function Swing() {
             </button>
             <button
               onClick={loadScanner}
-              disabled={scannerLoading}
+              disabled={scannerLoading || sectorsLoading}
               className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:opacity-60"
             >
               <RefreshCw className={`h-4 w-4 ${scannerLoading ? "animate-spin" : ""}`} />
@@ -381,8 +506,9 @@ export default function Swing() {
           </div>
         )}
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Universe" value={scanner ? scanner.universeCount : "-"} tone="blue" />
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Sectors" value={scanner ? `${scanner.sectorCount}/${sectorOptions.length || scanner.sectorCount}` : `${selectedSectorCount}/${sectorOptions.length || selectedSectorCount}`} tone="blue" />
+          <Metric label="Symbols" value={scanner ? scanner.universeCount : selectedSymbolCount || "-"} tone="blue" />
           <Metric label="Candidates" value={scanner ? scanner.candidateCount : "-"} tone="green" />
           <Metric label="Saved Today" value={scanner ? scanner.savedCount : "-"} tone="amber" />
           <Metric label="Open Tracker" value={summary ? summary.open : "-"} tone="green" />
@@ -409,7 +535,7 @@ export default function Swing() {
             </div>
           ) : (
             <div className="rounded-lg border border-border/50 bg-card p-8 text-center text-muted-foreground">
-              No swing picks found.
+              Run scan to generate swing picks from the selected sector universe.
             </div>
           )}
         </section>

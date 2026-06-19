@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
+import { SWING_SECTORS, SWING_SECTOR_NAMES } from "../swing-universe.js";
 import {
   db,
   pool,
@@ -75,9 +76,6 @@ const MIN_ENTRY_STOCK_CHANGE_PCT = 0;
 const MIN_ENTRY_PRICE = 100;
 const MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR = 4;
 const MAX_DAILY_ENTRY_SIGNALS = 10;
-const MAX_SWING_SCAN_SYMBOLS = 64;
-const DEFAULT_SWING_SECTOR_LIMIT = 8;
-const DEFAULT_SWING_STOCKS_PER_SECTOR = 8;
 const DEFAULT_SWING_PICK_LIMIT = 5;
 const SWING_FETCH_LOOKBACK_CALENDAR_DAYS = 560;
 const SWING_MIN_PRICE = 100;
@@ -1404,7 +1402,7 @@ async function fetchAngelDailyCandles(
   let token = tokenOverride;
   if (!token) {
     const scripMap = await getAngelScripMap();
-    token = scripMap.get(symbol.toUpperCase().trim());
+    token = scripMap.get(normalizeEquitySymbol(symbol));
   }
   if (!token) throw new Error(`No Angel One token found for ${symbol}`);
 
@@ -1449,7 +1447,7 @@ async function fetchAngelDailyCandles(
 async function fetchMoneycontrolDailyCandles(symbol: string): Promise<Candle[] | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - SWING_FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600;
-  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=1D&from=${from}&to=${to}&countback=420&currencyCode=INR`;
+  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(normalizeEquitySymbol(symbol))}&resolution=1D&from=${from}&to=${to}&countback=420&currencyCode=INR`;
 
   const response = await fetch(url, { headers: MC_HEADERS });
   if (!response.ok) return null;
@@ -1495,6 +1493,10 @@ async function fetchDailyCandles(symbol: string): Promise<Candle[] | null> {
   }
 
   return null;
+}
+
+function normalizeEquitySymbol(symbol: string): string {
+  return symbol.toUpperCase().trim().replace(/-EQ$/i, "");
 }
 
 async function fetchNiftyDailyReturn(): Promise<number> {
@@ -1724,7 +1726,7 @@ function analyzeSwingCandidate(
   const rvol = last.v > 0 ? last.v / avgVolume : 0;
   const recentReturn = percentChange(currentPrice, closes.at(-6));
   const relativeStrength = recentReturn - niftyReturn;
-  const sectorRelativeStrength = (stock.changePct ?? 0) - niftyReturn;
+  const sectorRelativeStrength = stock.changePct ? stock.changePct - niftyReturn : 0;
   const latestMovePct = percentChange(currentPrice, previous.c);
   const ema20DistancePct = ((currentPrice - ema20) / ema20) * 100;
   const trendPersistence = (() => {
@@ -1868,71 +1870,41 @@ function analyzeSwingCandidate(
   };
 }
 
-async function fetchSwingUniverse(sectorLimit: number, stocksPerSector: number): Promise<SwingUniverseStock[]> {
-  const sectorResponse = await fetch(
-    "https://intradayscreener.com/api/indices/sectorData/1",
-    { headers: HEADERS },
-  );
-  if (!sectorResponse.ok) {
-    throw new Error(`Upstream sector API responded with ${sectorResponse.status}`);
-  }
+function parseRequestedSwingSectors(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value.join(",") : String(value ?? "");
+  const requested = raw
+    .split(",")
+    .map((sector) => sector.trim())
+    .filter(Boolean);
+  if (requested.length === 0) return [...SWING_SECTOR_NAMES];
 
-  const sectorData = (await sectorResponse.json()) as {
-    labels: string[];
-    keywords: string[];
-    datasets: number[];
-  };
+  const valid = new Map(SWING_SECTOR_NAMES.map((sector) => [sector.toLowerCase(), sector]));
+  const selected = requested
+    .map((sector) => valid.get(sector.toLowerCase()))
+    .filter((sector): sector is (typeof SWING_SECTOR_NAMES)[number] => Boolean(sector));
+  return selected.length > 0 ? Array.from(new Set(selected)) : [...SWING_SECTOR_NAMES];
+}
 
-  const sectors = sectorData.labels
-    .map((name, i) => ({
-      name,
-      keyword: sectorData.keywords[i],
-      changePct: sectorData.datasets[i] ?? 0,
-    }))
-    .filter((sector) => sector.keyword)
-    .sort((a, b) => b.changePct - a.changePct)
-    .slice(0, sectorLimit);
-
+function fetchSwingUniverse(selectedSectors: string[]): SwingUniverseStock[] {
   const seen = new Set<string>();
   const stocks: SwingUniverseStock[] = [];
 
-  await Promise.all(sectors.map(async (sector) => {
-    const url = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
-    const response = await fetch(url, { headers: HEADERS });
-    if (!response.ok) return;
-
-    const data = (await response.json()) as {
-      indexConstituents?: Array<{ symbol: string; ltp: number; changePct: number }>;
-      nonIndexConstituents?: Array<{ symbol: string; ltp: number; changePct: number }>;
-    };
-
-    const candidates = [
-      ...(data.indexConstituents ?? []),
-      ...(data.nonIndexConstituents ?? []),
-    ]
-      .filter((stock) =>
-        stock.symbol &&
-        stock.ltp >= SWING_MIN_PRICE &&
-        Number.isFinite(stock.changePct) &&
-        Math.abs(stock.changePct) < 12
-      )
-      .sort((a, b) => b.changePct - a.changePct)
-      .slice(0, stocksPerSector);
-
-    for (const stock of candidates) {
-      const symbol = stock.symbol.toUpperCase().trim();
+  for (const sector of selectedSectors) {
+    const symbols = SWING_SECTORS[sector as keyof typeof SWING_SECTORS] ?? [];
+    for (const rawSymbol of symbols) {
+      const symbol = normalizeEquitySymbol(rawSymbol);
       if (seen.has(symbol)) continue;
       seen.add(symbol);
       stocks.push({
         symbol,
-        sectorName: sector.name,
-        ltp: stock.ltp,
-        changePct: sector.changePct,
+        sectorName: sector,
+        ltp: 0,
+        changePct: 0,
       });
     }
-  }));
+  }
 
-  return stocks.slice(0, MAX_SWING_SCAN_SYMBOLS);
+  return stocks;
 }
 
 function limitSwingPicksBySector(candidates: SwingCandidate[], limit: number): SwingCandidate[] {
@@ -2137,19 +2109,17 @@ router.get("/swing-scanner", async (req, res) => {
     await ensureSwingTradesTable();
 
     const limit = Math.min(10, Math.max(1, parseInt(String(req.query.limit ?? DEFAULT_SWING_PICK_LIMIT), 10) || DEFAULT_SWING_PICK_LIMIT));
-    const sectorLimit = Math.min(14, Math.max(1, parseInt(String(req.query.sectorLimit ?? DEFAULT_SWING_SECTOR_LIMIT), 10) || DEFAULT_SWING_SECTOR_LIMIT));
-    const stocksPerSector = Math.min(12, Math.max(1, parseInt(String(req.query.stocksPerSector ?? DEFAULT_SWING_STOCKS_PER_SECTOR), 10) || DEFAULT_SWING_STOCKS_PER_SECTOR));
+    const selectedSectors = parseRequestedSwingSectors(req.query.sectors);
+    const universe = fetchSwingUniverse(selectedSectors);
 
-    const [universe, niftyReturn] = await Promise.all([
-      fetchSwingUniverse(sectorLimit, stocksPerSector),
-      fetchNiftyDailyReturn(),
-    ]);
+    const niftyReturn = await fetchNiftyDailyReturn();
+    const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
 
     const analyzed = await runWithConcurrency(
       universe.map((stock) => stock.symbol),
       2,
       async (symbol) => {
-        const stock = universe.find((item) => item.symbol === symbol);
+        const stock = stockBySymbol.get(symbol);
         if (!stock) return null;
         const candles = await fetchDailyCandles(symbol);
         return candles ? analyzeSwingCandidate(stock, candles, niftyReturn) : null;
@@ -2165,6 +2135,8 @@ router.get("/swing-scanner", async (req, res) => {
     return res.json({
       fetchedAt: new Date().toISOString(),
       date: getTodayISTDateStr(),
+      selectedSectors,
+      sectorCount: selectedSectors.length,
       universeCount: universe.length,
       candidateCount: candidates.length,
       savedCount,
@@ -2175,6 +2147,18 @@ router.get("/swing-scanner", async (req, res) => {
     req.log.error({ err }, "Failed to run swing scanner");
     return res.status(500).json({ error: "Failed to run swing scanner" });
   }
+});
+
+router.get("/swing-sectors", async (_req, res) => {
+  const sectors = SWING_SECTOR_NAMES.map((name) => ({
+    name,
+    count: SWING_SECTORS[name].length,
+  }));
+  return res.json({
+    totalSectors: sectors.length,
+    totalSymbols: sectors.reduce((sum, sector) => sum + sector.count, 0),
+    sectors,
+  });
 });
 
 router.get("/swing-trades", async (req, res) => {
