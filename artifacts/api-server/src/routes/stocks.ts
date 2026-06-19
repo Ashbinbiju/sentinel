@@ -196,10 +196,16 @@ function isCurrentStrategyEntrySignal(signalTime: string): boolean {
   return isCurrentStrategySignalTime(signalTime) && isSignalTimeInEntryWindowIST(signalTime);
 }
 
-function filterEntryWindowTrades<T extends { date: string; signalTime: string }>(trades: T[]): T[] {
+function filterEntryWindowTrades<T extends { date: string; signalTime: string }>(
+  trades: T[],
+  options: { includeLegacy?: boolean } = {},
+): T[] {
   const countsByDate = new Map<string, number>();
   return trades.filter((trade) => {
-    if (!isCurrentStrategyEntrySignal(trade.signalTime)) return false;
+    const isEntryWindow = options.includeLegacy
+      ? isSignalTimeInEntryWindowIST(trade.signalTime)
+      : isCurrentStrategyEntrySignal(trade.signalTime);
+    if (!isEntryWindow) return false;
 
     const count = countsByDate.get(trade.date) ?? 0;
     if (count >= MAX_DAILY_ENTRY_SIGNALS) return false;
@@ -1702,17 +1708,27 @@ router.get("/trades/today", async (req, res) => {
 router.get("/trades/history", async (req, res) => {
   try {
     const days = Math.min(90, Math.max(1, parseInt(String(req.query.days ?? "30"), 10) || 30));
+    const includeLegacy =
+      String(req.query.includeLegacy ?? "").toLowerCase() === "true" ||
+      String(req.query.includeLegacy ?? "") === "1";
 
     // Compute start date in IST
     const startDate = new Date(Date.now() + IST_OFFSET_MS - days * 24 * 3600 * 1000)
       .toISOString()
       .slice(0, 10);
 
-    const trades = filterEntryWindowTrades(await db
+    const rawTrades = await db
       .select()
       .from(tradesTable)
       .where(gte(tradesTable.date, startDate))
-      .orderBy(desc(tradesTable.date), tradesTable.signalTime));
+      .orderBy(desc(tradesTable.date), tradesTable.signalTime);
+    const allEntryWindowTrades = filterEntryWindowTrades(rawTrades, { includeLegacy: true });
+    const hiddenLegacyCount = includeLegacy
+      ? 0
+      : allEntryWindowTrades.filter((trade) => !isCurrentStrategySignalTime(trade.signalTime)).length;
+    const trades = includeLegacy
+      ? allEntryWindowTrades
+      : filterEntryWindowTrades(rawTrades);
 
     const candleDataCache = new Map<string, Promise<CandleData | null>>();
     function getCachedCandleData(symbol: string): Promise<CandleData | null> {
@@ -1863,6 +1879,7 @@ router.get("/trades/history", async (req, res) => {
           direction: outcome.direction,
           hitTime: outcome.hitTime,
           plPct: outcome.plPct,
+          legacy: !isCurrentStrategySignalTime(t.signalTime),
         };
       }));
       const terminal  = enriched.filter((t) => t.plPct !== null);
@@ -1877,7 +1894,7 @@ router.get("/trades/history", async (req, res) => {
       };
     }));
 
-    return res.json({ days: daysData });
+    return res.json({ days: daysData, hiddenLegacyCount, includeLegacy });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch trade history");
     return res.status(500).json({ error: "Failed to fetch trade history" });

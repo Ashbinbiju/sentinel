@@ -27,6 +27,7 @@ interface HistoryTrade {
   direction?: "LONG" | "SHORT";
   status: string;
   plPct: number | null;
+  legacy?: boolean;
 }
 
 interface DaySummary {
@@ -41,6 +42,12 @@ interface TradeHistoryDay {
   date: string;
   trades: HistoryTrade[];
   summary: DaySummary;
+}
+
+interface TradeHistoryResponse {
+  days: TradeHistoryDay[];
+  hiddenLegacyCount?: number;
+  includeLegacy?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -165,6 +172,11 @@ function TradeRow({ trade }: { trade: HistoryTrade }) {
               {status.icon}
               {status.label}
             </span>
+            {trade.legacy && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-slate-500/10 text-slate-400 border-slate-500/20">
+                LEGACY
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
             Signal @ {toISTTime(trade.signalTime)} IST
@@ -344,18 +356,22 @@ type DayOption = (typeof DAY_OPTIONS)[number];
 export default function History() {
   const [selectedDays, setSelectedDays] = useState<DayOption>(30);
   const [data, setData] = useState<TradeHistoryDay[]>([]);
+  const [hiddenLegacyCount, setHiddenLegacyCount] = useState(0);
+  const [includeLegacy, setIncludeLegacy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchHistory(days: DayOption) {
+  async function fetchHistory(days: DayOption, showLegacy = includeLegacy) {
     setLoading(true);
     setError(null);
     try {
       const base = import.meta.env.VITE_API_URL || "";
-      const res = await fetch(`${base}/api/stocks/trades/history?days=${days}`);
+      const legacyParam = showLegacy ? "&includeLegacy=1" : "";
+      const res = await fetch(`${base}/api/stocks/trades/history?days=${days}${legacyParam}`);
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
-      const json = await res.json();
+      const json = (await res.json()) as TradeHistoryResponse;
       setData(json.days ?? []);
+      setHiddenLegacyCount(json.hiddenLegacyCount ?? 0);
     } catch (e: any) {
       setError(e.message ?? "Failed to load history");
     } finally {
@@ -364,8 +380,8 @@ export default function History() {
   }
 
   useEffect(() => {
-    fetchHistory(selectedDays);
-  }, [selectedDays]);
+    fetchHistory(selectedDays, includeLegacy);
+  }, [selectedDays, includeLegacy]);
 
   return (
     <Layout>
@@ -399,7 +415,7 @@ export default function History() {
               </button>
             ))}
             <button
-              onClick={() => fetchHistory(selectedDays)}
+              onClick={() => fetchHistory(selectedDays, includeLegacy)}
               title="Refresh"
               className="ml-1 p-1.5 rounded border border-border/40 text-muted-foreground hover:text-foreground hover:bg-accent/30 transition-colors"
             >
@@ -407,6 +423,22 @@ export default function History() {
             </button>
           </div>
         </div>
+
+        {(hiddenLegacyCount > 0 || includeLegacy) && (
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+            <p className="text-xs text-amber-200/80">
+              {includeLegacy
+                ? "Showing legacy rows from before the current Power Channel filters."
+                : `${hiddenLegacyCount} legacy trade${hiddenLegacyCount === 1 ? "" : "s"} hidden by current strategy filters.`}
+            </p>
+            <button
+              onClick={() => setIncludeLegacy((v) => !v)}
+              className="self-start sm:self-auto px-2.5 py-1 rounded border border-amber-500/30 text-[11px] font-bold text-amber-200 hover:bg-amber-500/10 transition-colors"
+            >
+              {includeLegacy ? "Hide legacy" : "Show legacy"}
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         {loading ? (
@@ -431,8 +463,18 @@ export default function History() {
             <Calendar className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
             <h3 className="text-base font-medium text-foreground">No trades found</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              No signals were recorded in the last {selectedDays} days.
+              {hiddenLegacyCount > 0
+                ? `${hiddenLegacyCount} legacy trade${hiddenLegacyCount === 1 ? "" : "s"} exist, but none match the current strategy filters.`
+                : `No signals were recorded in the last ${selectedDays} days.`}
             </p>
+            {hiddenLegacyCount > 0 && (
+              <button
+                onClick={() => setIncludeLegacy(true)}
+                className="mt-4 px-3 py-1.5 rounded border border-amber-500/30 text-xs font-bold text-amber-200 hover:bg-amber-500/10 transition-colors"
+              >
+                Show legacy trades
+              </button>
+            )}
           </div>
         ) : (
           <>

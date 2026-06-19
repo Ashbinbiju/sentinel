@@ -89,7 +89,7 @@ paths:
       operationId: getTradeHistory
       tags: [stocks]
       summary: Get historical trade signals from the database
-      description: Returns current-strategy trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status. Legacy rows saved before the active Power Channel rules are filtered out.
+      description: Returns current-strategy trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status. Legacy rows saved before the active Power Channel rules are filtered out by default, but can be included for audit.
       parameters:
         - in: query
           name: days
@@ -99,6 +99,12 @@ paths:
             minimum: 1
             maximum: 90
           description: Number of past days to fetch
+        - in: query
+          name: includeLegacy
+          schema:
+            type: boolean
+            default: false
+          description: Include legacy rows saved before the active Power Channel rules
       responses:
         "200":
           description: Trade history grouped by date
@@ -367,6 +373,9 @@ components:
         plPct:
           type: ["number", "null"]
           description: Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+        legacy:
+          type: boolean
+          description: True when the row was saved before the active Power Channel rules
       required:
         - id
         - symbol
@@ -412,6 +421,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TradeHistoryDay"
+        hiddenLegacyCount:
+          type: integer
+          description: Number of legacy rows hidden because includeLegacy is false
+        includeLegacy:
+          type: boolean
       required: [days]
     ErrorResponse:
       type: object
