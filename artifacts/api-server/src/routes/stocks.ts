@@ -65,6 +65,7 @@ const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
 const ENTRY_SIGNAL_END_MIN_IST = 15 * 60 + 15;
 const MIN_ENTRY_SECTOR_CHANGE_PCT = 0;
 const MIN_ENTRY_STOCK_CHANGE_PCT = 0;
+const MIN_ENTRY_PRICE = 100;
 const MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR = 4;
 const MAX_DAILY_ENTRY_SIGNALS = 10;
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
@@ -1337,7 +1338,9 @@ router.get("/momentum-picks", async (req, res) => {
 
           const filtered = all.filter((stock) => {
             const change = stock.changePct ?? 0;
-            return Math.abs(change) >= MIN_ENTRY_STOCK_CHANGE_PCT && Math.abs(change) < 5.0;
+            return stock.ltp >= MIN_ENTRY_PRICE &&
+              Math.abs(change) >= MIN_ENTRY_STOCK_CHANGE_PCT &&
+              Math.abs(change) < 5.0;
           })
             .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
             .slice(0, MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR);

@@ -8,6 +8,7 @@ import { AngelOneBroker } from "./angelone";
 const MAX_DAILY_TRADES = 2;
 const LEVERAGE = 5; // Intraday leverage for NSE Equity
 const POLL_INTERVAL_MS = 10 * 1000; // 10 seconds
+const MIN_TRADE_PRICE = 100;
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
 // Keep track of broker-executed symbols today to prevent duplicate orders.
@@ -101,6 +102,12 @@ async function main() {
         if (symbol && !executedSymbols.has(symbol)) {
           const side = pick.direction === "SHORT" ? "SELL" : "BUY";
           console.log(`[BOT] NEW ${side} SIGNAL DETECTED: ${pick.symbol} at INR ${pick.entry}`);
+
+          if (pick.entry < MIN_TRADE_PRICE) {
+            console.log(`[BOT] Skipping ${pick.symbol}. Entry INR ${pick.entry} is below minimum INR ${MIN_TRADE_PRICE}.`);
+            executedSymbols.add(symbol);
+            continue;
+          }
 
           if (tradesToday >= MAX_DAILY_TRADES) {
             console.log("[BOT] Skipping signal. Daily trade limit reached.");
