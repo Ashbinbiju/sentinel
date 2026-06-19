@@ -1552,43 +1552,28 @@ router.get("/trades/today", async (req, res) => {
         return direction === "LONG" ? c.c < candleVwap : c.c > candleVwap;
       };
       
-      const isTerminal = trade.status === "TARGET 2 HIT" || trade.status === "SL HIT" || trade.status === "T1 HIT & TRAILING SL HIT" || trade.status === "ENTRY INVALID" || trade.status === "VWAP EXIT";
-
-      if (isTerminal) {
-        // Just find the hitTime for the existing terminal status without modifying the status
-        if (trade.status === "TARGET 2 HIT") {
-          const c = postSignalCandles.find(c => hitsTarget(c, target2));
-          if (c) hitTime = getISTTimeStr(c.t);
-        } else if (trade.status === "SL HIT") {
-          const c = postSignalCandles.find(c => hitsStop(c, originalSl));
-          if (c) hitTime = getISTTimeStr(c.t);
-        } else if (trade.status === "T1 HIT & TRAILING SL HIT") {
-          const t1CandleIdx = postSignalCandles.findIndex(c => hitsTarget(c, target1));
-          if (t1CandleIdx !== -1) {
-            const slCandle = postSignalCandles.slice(t1CandleIdx).find(c => hitsStop(c, entryPrice));
-            if (slCandle) hitTime = getISTTimeStr(slCandle.t);
-          }
-        } else if (trade.status === "ENTRY INVALID") {
-          const c = postSignalCandles.find(c => isEntryInvalidated(c, entryPrice, direction, invalidationHalfWidth));
-          if (c) hitTime = getISTTimeStr(c.t);
-        } else if (trade.status === "VWAP EXIT") {
-          const c = postSignalCandles.find(vwapExitHit);
-          if (c) hitTime = getISTTimeStr(c.t);
-        }
-        return { ...trade, direction, hitTime };
-      }
-      
-      let newStatus: TradeStatus = trade.status === "PENDING" ? "ACTIVE" : trade.status;
-      let maxTargetReached = trade.status === "TARGET 1 HIT" ? 1 : 0;
+      let newStatus: TradeStatus = "ACTIVE";
+      let maxTargetReached = 0;
       
       for (const c of postSignalCandles) {
-        const currentSl = maxTargetReached >= 1 ? entryPrice : originalSl;
-        if (hitsStop(c, currentSl)) {
-          if (maxTargetReached >= 1) {
-             newStatus = "T1 HIT & TRAILING SL HIT";
-          } else {
-             newStatus = "SL HIT";
+        if (maxTargetReached >= 1) {
+          if (hitsTarget(c, target2)) {
+            newStatus = "TARGET 2 HIT";
+            hitTime = getISTTimeStr(c.t);
+            break;
           }
+
+          if (hitsStop(c, entryPrice)) {
+            newStatus = "T1 HIT & TRAILING SL HIT";
+            hitTime = getISTTimeStr(c.t);
+            break;
+          }
+
+          continue;
+        }
+
+        if (hitsStop(c, originalSl)) {
+          newStatus = "SL HIT";
           hitTime = getISTTimeStr(c.t);
           break;
         }
