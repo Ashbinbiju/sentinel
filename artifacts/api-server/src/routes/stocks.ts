@@ -79,6 +79,7 @@ const POWER_CHANNEL_LENGTH = 130;
 const POWER_CHANNEL_ATR_PERIOD = 200;
 const POWER_CHANNEL_ATR_MULT = 0.5;
 const POWER_CHANNEL_SL_BUFFER_MULT = 0.05;
+const POWER_CHANNEL_MAX_ENTRY_EXTENSION_MULT = 0.25;
 const VOLUME_CONFIRMATION_MULTIPLIER = 1.15;
 const SKIP_OPENING_BARS = 2;
 const SIGNAL_COOLDOWN_BARS = 5;
@@ -778,6 +779,21 @@ function buildPowerChannelSignal(
 ): PriceActionSignal | null {
   const entry = candle.c;
   const dir = direction === "LONG" ? 1 : -1;
+  const entryExtension = direction === "LONG"
+    ? entry - channel.supportTop
+    : channel.resistanceBottom - entry;
+  const maxEntryExtension = Math.max(
+    channel.atrBand * POWER_CHANNEL_MAX_ENTRY_EXTENSION_MULT,
+    0.05,
+  );
+  if (
+    !Number.isFinite(entryExtension) ||
+    entryExtension < 0 ||
+    entryExtension > maxEntryExtension
+  ) {
+    return null;
+  }
+
   const buffer = Math.max(channel.atrBand * POWER_CHANNEL_SL_BUFFER_MULT, 0.05);
   const sl = direction === "LONG"
     ? channel.supportBottom - buffer
