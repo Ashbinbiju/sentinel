@@ -99,6 +99,14 @@ const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
 const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
 const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
+const INSIDER_TRADING_URL = "https://www.brkpoint.in/api/insider-trading";
+const INSIDER_TRADING_CACHE_TTL_MS = 30 * 60 * 1000;
+const INSIDER_ACTIVITY_LOOKBACK_DAYS = 30;
+const INSIDER_ACTIVITY_MIN_VALUE = 5_000_000; // Rs 50 lakh
+const INSIDER_ACTIVITY_SIGNIFICANT_VALUE = 10_000_000; // Rs 1 crore
+const INSIDER_ACTIVITY_MAJOR_VALUE = 50_000_000; // Rs 5 crore
+const INSIDER_BUY_SCORE_CAP = 0.50;
+const INSIDER_SELL_SCORE_CAP = -0.70;
 const MARKET_REGIME_BULL_BREADTH_THRESHOLD = 60.0;
 const MARKET_REGIME_WEAK_BREADTH_THRESHOLD = 50.0;
 const STRICT_WEAK_MARKET_SIGNAL_BREADTH_THRESHOLD = 30.0;
@@ -236,6 +244,7 @@ let swingTradesTableReady: Promise<void> | null = null;
 let activeSwingScanJobId: string | null = null;
 const swingScanJobs = new Map<string, SwingScanJob>();
 let marketStatsCache: { fetchedAt: number; payload: MarketStatsPayload | null } | null = null;
+let insiderTradingCache: { fetchedAt: number; rows: InsiderTradingRow[] } | null = null;
 
 interface SwingUniverseStock {
   symbol: string;
@@ -251,6 +260,8 @@ type DdSwingSetupType =
   | "high_rvol_explosive"
   | "slow_institutional_trend"
   | "trend_continuation";
+
+type InsiderActivityDirection = "Buy" | "Sell" | "Mixed" | "None";
 
 interface SwingCandidate {
   symbol: string;
@@ -293,6 +304,12 @@ interface SwingCandidate {
   industryAdvanceRatio: number | null;
   industryBreadthText: string | null;
   weakMarketSignalDowngrade: boolean;
+  insiderActivity: InsiderActivityDirection;
+  insiderScoreAdjustment: number;
+  insiderActivityText: string | null;
+  insiderTransactionValue: number | null;
+  insiderTransactionDate: string | null;
+  insiderCategory: string | null;
 }
 
 interface SwingScannerResult {
@@ -347,6 +364,33 @@ interface MarketStatsPayload {
   industry?: MarketStatsIndustryRow[];
 }
 
+interface InsiderTradingRow {
+  symbol?: string;
+  company_name?: string;
+  category?: string;
+  acquirer_name?: string;
+  transaction_type?: string;
+  transaction_value?: number | string;
+  shares_transacted?: number | string;
+  percentage_prior?: number | string;
+  percentage_post?: number | string;
+  BROADCASTE_date?: string;
+  BROADCASTE_date_raw?: string;
+  transaction_date_from?: string;
+  date_of_intimation?: string;
+  mode_of_acquisition?: string;
+  fetched_at?: string;
+}
+
+interface InsiderActivityImpact {
+  activity: InsiderActivityDirection;
+  scoreAdjustment: number;
+  text: string | null;
+  transactionValue: number | null;
+  transactionDate: string | null;
+  category: string | null;
+}
+
 interface MarketRegimeSnapshot {
   marketRegime: "Bull" | "Neutral" | "Weak" | "Unknown";
   marketBreadthAbove: number | null;
@@ -382,6 +426,12 @@ interface PersistedSwingTrade {
   exitDate: string | null;
   lastPrice: string | null;
   lastCheckedAt: string | null;
+  insiderActivity: InsiderActivityDirection | null;
+  insiderScoreAdjustment: string;
+  insiderActivityText: string | null;
+  insiderTransactionValue: string | null;
+  insiderTransactionDate: string | null;
+  insiderCategory: string | null;
 }
 
 interface SwingTrackerTrade extends PersistedSwingTrade {
@@ -1545,6 +1595,15 @@ function ensureSwingTradesTable(): Promise<void> {
         CREATE UNIQUE INDEX IF NOT EXISTS swing_symbol_date_unique
         ON swing_trades (symbol, date)
       `);
+      await pool.query(`
+        ALTER TABLE swing_trades
+        ADD COLUMN IF NOT EXISTS insider_activity TEXT,
+        ADD COLUMN IF NOT EXISTS insider_score_adjustment NUMERIC NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS insider_activity_text TEXT,
+        ADD COLUMN IF NOT EXISTS insider_transaction_value NUMERIC,
+        ADD COLUMN IF NOT EXISTS insider_transaction_date TEXT,
+        ADD COLUMN IF NOT EXISTS insider_category TEXT
+      `);
     })();
   }
 
@@ -1707,6 +1766,155 @@ async function fetchMarketStats(): Promise<MarketStatsPayload | null> {
 function numberOrNull(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+async function fetchInsiderTradingRows(): Promise<InsiderTradingRow[]> {
+  if (insiderTradingCache && Date.now() - insiderTradingCache.fetchedAt < INSIDER_TRADING_CACHE_TTL_MS) {
+    return insiderTradingCache.rows;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(INSIDER_TRADING_URL, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const rows = Array.isArray(payload) ? payload as InsiderTradingRow[] : [];
+    insiderTradingCache = { fetchedAt: Date.now(), rows };
+    return rows;
+  } catch (err) {
+    console.warn("[SWING] Failed to fetch insider trading activity.", err);
+    insiderTradingCache = { fetchedAt: Date.now(), rows: [] };
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function insiderTransactionDirection(row: InsiderTradingRow): Exclude<InsiderActivityDirection, "Mixed" | "None"> | null {
+  const text = `${row.transaction_type ?? ""} ${row.mode_of_acquisition ?? ""}`.toLowerCase();
+  if (/\b(sell|sale|sold|dispos|market sale)\b/.test(text)) return "Sell";
+  if (/\b(buy|bought|purchase|purchas|acquir|allot)\b/.test(text)) return "Buy";
+  return null;
+}
+
+function parseInsiderDateMs(row: InsiderTradingRow): number | null {
+  for (const value of [
+    row.transaction_date_from,
+    row.date_of_intimation,
+    row.BROADCASTE_date,
+    row.fetched_at,
+  ]) {
+    const ms = Date.parse(String(value ?? ""));
+    if (Number.isFinite(ms)) return ms;
+  }
+  return null;
+}
+
+function roleWeightForInsiderCategory(category: string | null): number {
+  const text = String(category ?? "").toLowerCase();
+  if (/(promoter|director|key managerial|kmp|whole time|managing director)/.test(text)) return 1.15;
+  if (/connected/.test(text)) return 1.0;
+  return 0.90;
+}
+
+function insiderValueScore(value: number, direction: "Buy" | "Sell", category: string | null): number {
+  if (!Number.isFinite(value) || value < INSIDER_ACTIVITY_MIN_VALUE) return 0;
+
+  let base = 0.15;
+  if (value >= INSIDER_ACTIVITY_MAJOR_VALUE) {
+    base = 0.50;
+  } else if (value >= INSIDER_ACTIVITY_SIGNIFICANT_VALUE) {
+    base = 0.30;
+  }
+
+  const weighted = base * roleWeightForInsiderCategory(category);
+  return direction === "Sell" ? -weighted : weighted;
+}
+
+function formatInsiderValue(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "N/A";
+  const crore = value / 10_000_000;
+  return crore >= 1 ? `Rs ${r2(crore)} Cr` : `Rs ${r2(value / 100_000)} L`;
+}
+
+function formatShortISTDateFromMs(ms: number | null): string | null {
+  if (ms === null || !Number.isFinite(ms)) return null;
+  const ist = new Date(ms + IST_OFFSET_MS);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${ist.getUTCDate()} ${months[ist.getUTCMonth()]}`;
+}
+
+function insiderDateStringFromMs(ms: number | null): string | null {
+  if (ms === null || !Number.isFinite(ms)) return null;
+  return getISTDateStr(Math.floor(ms / 1000));
+}
+
+function buildInsiderActivityMap(rows: InsiderTradingRow[]): Map<string, InsiderActivityImpact> {
+  const cutoffMs = Date.now() - INSIDER_ACTIVITY_LOOKBACK_DAYS * 24 * 3600 * 1000;
+  const grouped = new Map<string, Array<{
+    direction: "Buy" | "Sell";
+    score: number;
+    value: number;
+    dateMs: number | null;
+    category: string | null;
+  }>>();
+
+  for (const row of rows) {
+    const symbol = normalizeEquitySymbol(String(row.symbol ?? ""));
+    if (!symbol) continue;
+
+    const direction = insiderTransactionDirection(row);
+    if (!direction) continue;
+
+    const dateMs = parseInsiderDateMs(row);
+    if (dateMs !== null && dateMs < cutoffMs) continue;
+
+    const value = numberOrNull(row.transaction_value) ?? 0;
+    const category = row.category ? String(row.category) : null;
+    const score = insiderValueScore(value, direction, category);
+    if (score === 0) continue;
+
+    const bucket = grouped.get(symbol) ?? [];
+    bucket.push({ direction, score, value, dateMs, category });
+    grouped.set(symbol, bucket);
+  }
+
+  const output = new Map<string, InsiderActivityImpact>();
+  for (const [symbol, impacts] of grouped.entries()) {
+    const rawAdjustment = impacts.reduce((sum, impact) => sum + impact.score, 0);
+    const scoreAdjustment = r2(clamp(rawAdjustment, INSIDER_SELL_SCORE_CAP, INSIDER_BUY_SCORE_CAP));
+    const hasBuy = impacts.some((impact) => impact.direction === "Buy");
+    const hasSell = impacts.some((impact) => impact.direction === "Sell");
+    const activity: InsiderActivityDirection = hasBuy && hasSell ? "Mixed" : hasSell ? "Sell" : "Buy";
+    const primary = impacts
+      .slice()
+      .sort((a, b) => Math.abs(b.score) - Math.abs(a.score) || (b.dateMs ?? 0) - (a.dateMs ?? 0))[0];
+    const dateText = formatShortISTDateFromMs(primary?.dateMs ?? null);
+    const categoryText = primary?.category ? `, ${primary.category}` : "";
+    const text = primary
+      ? `Insider ${primary.direction} ${formatInsiderValue(primary.value)}${categoryText}${dateText ? `, ${dateText}` : ""}`
+      : null;
+
+    output.set(symbol, {
+      activity,
+      scoreAdjustment,
+      text,
+      transactionValue: primary?.value ?? null,
+      transactionDate: insiderDateStringFromMs(primary?.dateMs ?? null),
+      category: primary?.category ?? null,
+    });
+  }
+
+  return output;
+}
+
+async function fetchInsiderActivityMap(): Promise<Map<string, InsiderActivityImpact>> {
+  const rows = await fetchInsiderTradingRows();
+  return buildInsiderActivityMap(rows);
 }
 
 async function fetchNiftyRegimeSnapshot(): Promise<{ niftyAboveEma20: boolean | null; niftyAboveEma50: boolean | null }> {
@@ -3047,6 +3255,12 @@ function analyzeSwingCandidate(
     industryAdvanceRatio: null,
     industryBreadthText: null,
     weakMarketSignalDowngrade: false,
+    insiderActivity: "None",
+    insiderScoreAdjustment: 0,
+    insiderActivityText: null,
+    insiderTransactionValue: null,
+    insiderTransactionDate: null,
+    insiderCategory: null,
   };
 }
 
@@ -3064,6 +3278,7 @@ function finalizeSwingCandidates(
     niftyAboveEma50: null,
     marketStats: null,
   },
+  insiderActivityBySymbol: Map<string, InsiderActivityImpact> = new Map(),
 ): SwingCandidate[] {
   if (candidates.length === 0) return [];
 
@@ -3116,6 +3331,8 @@ function finalizeSwingCandidates(
       const leaderAdjustment = leaderAdjustments.get(candidate.symbol)?.adjustment ?? 0;
       const industryAdvanceRatio = marketStatsSectorAdvanceRatio(candidate.sector, marketRegime.marketStats);
       const industryPenalty = industryBreadthPenalty(industryAdvanceRatio);
+      const insiderActivity = insiderActivityBySymbol.get(candidate.symbol) ?? null;
+      const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
         (rvolScore * DD_RANKING_WEIGHTS.rvol) +
@@ -3127,6 +3344,7 @@ function finalizeSwingCandidates(
         leaderAdjustment +
         sectorExhaustionPenalty(sectorPerf) +
         industryPenalty +
+        insiderAdjustment +
         momentumExhaustionPenalty(candidate);
       const score = r2(normalizeOpportunityScore(rawScore) * marketRegimeScoreMultiplier(marketRegime.marketRegime));
       const grade = confidenceGrade(score);
@@ -3174,7 +3392,15 @@ function finalizeSwingCandidates(
         industryAdvanceRatio: industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : null,
         industryBreadthText: marketStatsSectorText(candidate.sector, marketRegime.marketStats),
         weakMarketSignalDowngrade,
-        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        insiderActivity: insiderActivity?.activity ?? "None",
+        insiderScoreAdjustment: r2(insiderAdjustment),
+        insiderActivityText: insiderActivity?.text ?? null,
+        insiderTransactionValue: insiderActivity?.transactionValue !== null && insiderActivity?.transactionValue !== undefined
+          ? Math.round(insiderActivity.transactionValue)
+          : null,
+        insiderTransactionDate: insiderActivity?.transactionDate ?? null,
+        insiderCategory: insiderActivity?.category ?? null,
+        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
@@ -3265,9 +3491,10 @@ async function runSwingScanner(
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
   const scanTime = new Date().toISOString();
-  const [niftyReturn, marketRegime] = await Promise.all([
+  const [niftyReturn, marketRegime, insiderActivityBySymbol] = await Promise.all([
     fetchNiftyDailyReturn(),
     fetchMarketRegimeSnapshot(),
+    fetchInsiderActivityMap(),
   ]);
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
   const sectorReturnTotals = new Map<string, { sum: number; count: number }>();
@@ -3314,6 +3541,7 @@ async function runSwingScanner(
       ]),
     ),
     marketRegime,
+    insiderActivityBySymbol,
   );
   const picks = limitSwingPicksBySector(candidates, limit);
   const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr(), scanTime);
@@ -3449,6 +3677,22 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
     exitDate: row.exit_date === null || row.exit_date === undefined ? null : String(row.exit_date),
     lastPrice: row.last_price === null || row.last_price === undefined ? null : String(row.last_price),
     lastCheckedAt: row.last_checked_at === null || row.last_checked_at === undefined ? null : dbTimeToIso(row.last_checked_at),
+    insiderActivity: row.insider_activity === null || row.insider_activity === undefined
+      ? null
+      : String(row.insider_activity) as InsiderActivityDirection,
+    insiderScoreAdjustment: String(row.insider_score_adjustment ?? "0"),
+    insiderActivityText: row.insider_activity_text === null || row.insider_activity_text === undefined
+      ? null
+      : String(row.insider_activity_text),
+    insiderTransactionValue: row.insider_transaction_value === null || row.insider_transaction_value === undefined
+      ? null
+      : String(row.insider_transaction_value),
+    insiderTransactionDate: row.insider_transaction_date === null || row.insider_transaction_date === undefined
+      ? null
+      : String(row.insider_transaction_date),
+    insiderCategory: row.insider_category === null || row.insider_category === undefined
+      ? null
+      : String(row.insider_category),
   };
 }
 
@@ -3472,15 +3716,27 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
         INSERT INTO swing_trades (
           symbol, date, signal_time, sector, direction, entry_type,
           current_price, entry_price, sl, target, score, grade, setup, reason,
-          expected_hold_days, status, last_price, last_checked_at
+          expected_hold_days, status, last_price, last_checked_at,
+          insider_activity, insider_score_adjustment, insider_activity_text,
+          insider_transaction_value, insider_transaction_date, insider_category
         )
         VALUES (
           $1, $2, $3, $4, 'LONG', $5,
           $6, $7, $8, $9, $10, $11, $12, $13,
-          $14, 'WATCHLIST', $15, $16
+          $14, 'WATCHLIST', $15, $16,
+          $17, $18, $19, $20, $21, $22
         )
         ON CONFLICT (symbol, date) DO UPDATE
-        SET signal_time = EXCLUDED.signal_time
+        SET signal_time = EXCLUDED.signal_time,
+            score = EXCLUDED.score,
+            grade = EXCLUDED.grade,
+            reason = EXCLUDED.reason,
+            insider_activity = EXCLUDED.insider_activity,
+            insider_score_adjustment = EXCLUDED.insider_score_adjustment,
+            insider_activity_text = EXCLUDED.insider_activity_text,
+            insider_transaction_value = EXCLUDED.insider_transaction_value,
+            insider_transaction_date = EXCLUDED.insider_transaction_date,
+            insider_category = EXCLUDED.insider_category
         WHERE to_char(swing_trades.signal_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') = '00:00'
         RETURNING id
       `,
@@ -3501,6 +3757,12 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
         String(candidate.expectedHoldDays),
         String(candidate.currentPrice),
         new Date().toISOString(),
+        candidate.insiderActivity,
+        String(candidate.insiderScoreAdjustment),
+        candidate.insiderActivityText,
+        candidate.insiderTransactionValue === null ? null : String(candidate.insiderTransactionValue),
+        candidate.insiderTransactionDate,
+        candidate.insiderCategory,
       ],
     );
 
@@ -3662,7 +3924,9 @@ router.get("/swing-trades", async (req, res) => {
       `
         SELECT id, symbol, date, signal_time, sector, direction, entry_type,
                current_price, entry_price, sl, target, score, grade, setup, reason,
-               expected_hold_days, status, entry_hit_date, exit_date, last_price, last_checked_at
+               expected_hold_days, status, entry_hit_date, exit_date, last_price, last_checked_at,
+               insider_activity, insider_score_adjustment, insider_activity_text,
+               insider_transaction_value, insider_transaction_date, insider_category
         FROM swing_trades
         WHERE date >= $1
         ORDER BY date DESC, signal_time ASC

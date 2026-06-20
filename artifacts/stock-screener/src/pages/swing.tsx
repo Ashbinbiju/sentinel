@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout";
 import { formatCurrency, formatPercent, toISTTime } from "@/lib/format";
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   CalendarClock,
   CheckCircle2,
@@ -48,6 +49,12 @@ interface SwingPick {
   trendPersistence: number;
   freshBreakoutAge: number | null;
   consolidationCandles: number;
+  insiderActivity?: string | null;
+  insiderScoreAdjustment?: number;
+  insiderActivityText?: string | null;
+  insiderTransactionValue?: number | null;
+  insiderTransactionDate?: string | null;
+  insiderCategory?: string | null;
 }
 
 interface SwingScannerResponse {
@@ -115,6 +122,12 @@ interface SwingTrackerTrade {
   exitDate: string | null;
   lastPrice: string | null;
   lastCheckedAt: string | null;
+  insiderActivity: string | null;
+  insiderScoreAdjustment: string;
+  insiderActivityText: string | null;
+  insiderTransactionValue: string | null;
+  insiderTransactionDate: string | null;
+  insiderCategory: string | null;
   plPct: number | null;
   daysOpen: number | null;
 }
@@ -229,6 +242,29 @@ function Metric({ label, value, tone }: { label: string; value: ReactNode; tone?
   );
 }
 
+function InsiderActivityBadge({
+  text,
+  adjustment,
+}: {
+  text?: string | null;
+  adjustment?: string | number | null;
+}) {
+  if (!text) return null;
+
+  const score = Number(adjustment ?? 0);
+  const isSupportive = score > 0;
+  const className = isSupportive
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+    : "border-amber-500/35 bg-amber-500/10 text-amber-200";
+
+  return (
+    <span className={`inline-flex min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-bold ${className}`} title={text}>
+      {isSupportive ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
 function PickCard({ pick }: { pick: SwingPick }) {
   const targetPct = ((pick.target - pick.entryPrice) / pick.entryPrice) * 100;
   const riskPct = ((pick.entryPrice - pick.sl) / pick.entryPrice) * 100;
@@ -245,6 +281,7 @@ function PickCard({ pick }: { pick: SwingPick }) {
             <span className="rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">
               {pick.entryType}
             </span>
+            <InsiderActivityBadge text={pick.insiderActivityText} adjustment={pick.insiderScoreAdjustment} />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{pick.sector} - {pick.setup}</p>
         </div>
@@ -317,6 +354,7 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
               BUY
             </span>
             <StatusBadge status={trade.status} />
+            <InsiderActivityBadge text={trade.insiderActivityText} adjustment={trade.insiderScoreAdjustment} />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {trade.sector ?? "Sector"} - {trade.setup} - Scan {toISTTime(trade.signalTime)} IST
