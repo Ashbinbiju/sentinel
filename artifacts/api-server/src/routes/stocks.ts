@@ -101,6 +101,8 @@ const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
 const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
 const INDEX_TREND_URL = "https://www.brkpoint.in/api/indextrend";
 const INDEX_TREND_CACHE_TTL_MS = 5 * 60 * 1000;
+const TECHNICAL_INDICATORS_URL = "https://www.brkpoint.in/api/technical-indicators";
+const TECHNICAL_INDICATORS_CACHE_TTL_MS = 5 * 60 * 1000;
 const INSIDER_TRADING_URL = "https://www.brkpoint.in/api/insider-trading";
 const INSIDER_TRADING_CACHE_TTL_MS = 30 * 60 * 1000;
 const INSIDER_ACTIVITY_LOOKBACK_DAYS = 30;
@@ -121,6 +123,8 @@ const SWING_INDEX_TREND_NEUTRAL_PENALTY = -0.10;
 const SWING_INDEX_TREND_BEARISH_PENALTY = -0.55;
 const INTRADAY_INDEX_ALIGNED_SCORE_BONUS = 0.70;
 const INTRADAY_INDEX_CAUTION_SCORE_PENALTY = -0.75;
+const TECHNICAL_SCORE_BONUS_CAP = 0.85;
+const TECHNICAL_SCORE_PENALTY_CAP = -1.10;
 const DD_RANKING_WEIGHTS = {
   relativeStrength: 0.35,
   rvol: 0.25,
@@ -252,6 +256,7 @@ let activeSwingScanJobId: string | null = null;
 const swingScanJobs = new Map<string, SwingScanJob>();
 let marketStatsCache: { fetchedAt: number; payload: MarketStatsPayload | null } | null = null;
 let indexTrendCache: { fetchedAt: number; payload: IndexTrendPayload | null } | null = null;
+let technicalIndicatorsCache: { fetchedAt: number; rows: TechnicalIndicatorRow[] } | null = null;
 let insiderTradingCache: { fetchedAt: number; rows: InsiderTradingRow[] } | null = null;
 
 interface SwingUniverseStock {
@@ -272,6 +277,7 @@ type DdSwingSetupType =
 type InsiderActivityDirection = "Buy" | "Sell" | "Mixed" | "None";
 type IndexTrendDirection = "Bullish" | "Bearish" | "Neutral" | "Unknown";
 type MarketAlignmentStatus = "ALIGNED" | "CAUTION" | "BLOCKED" | "UNKNOWN";
+type TechnicalTrendDirection = "Bullish" | "Bearish" | "Neutral" | "Unknown";
 
 interface SwingCandidate {
   symbol: string;
@@ -318,6 +324,14 @@ interface SwingCandidate {
   indexTrendDirection: IndexTrendDirection;
   indexTrendText: string | null;
   indexTrendScoreAdjustment: number;
+  technicalStage: string | null;
+  technicalScoreAdjustment: number;
+  technicalIndicatorText: string | null;
+  technicalRs55: number | null;
+  technicalVolumeRatio: number | null;
+  technicalAboveEma200: boolean | null;
+  technicalMacdTrend: TechnicalTrendDirection;
+  technicalAdxTrend: TechnicalTrendDirection;
   insiderActivity: InsiderActivityDirection;
   insiderScoreAdjustment: number;
   insiderActivityText: string | null;
@@ -443,6 +457,54 @@ interface SwingIndexTrendImpact {
   text: string | null;
 }
 
+interface TechnicalIndicatorRow {
+  tradingsymbol?: string;
+  live_price?: number | string;
+  high_52w?: number | string;
+  low_52w?: number | string;
+  stage?: string | null;
+  rsi?: number | string | null;
+  rs_55?: number | string | null;
+  ema20?: number | string | null;
+  ema50?: number | string | null;
+  ema200?: number | string | null;
+  adx?: number | string | null;
+  plusdi?: number | string | null;
+  minusdi?: number | string | null;
+  consolidation_range?: string | null;
+  volume_ratio?: number | string | null;
+  adx_trend?: string | null;
+  volume_trend?: string | null;
+  macd_trend?: string | null;
+  above_ema20?: boolean | null;
+  above_ema50?: boolean | null;
+  above_ema200?: boolean | null;
+  next_target?: number | string | null;
+  stop_loss?: number | string | null;
+  MTF?: string | null;
+  FNO?: string | null;
+  price_source?: string | null;
+}
+
+interface TechnicalIndicatorsPayload {
+  success?: boolean;
+  data?: TechnicalIndicatorRow[];
+  totalCount?: number;
+  lastUpdated?: string;
+  redis_available?: boolean;
+}
+
+interface TechnicalIndicatorImpact {
+  stage: string | null;
+  scoreAdjustment: number;
+  text: string | null;
+  rs55: number | null;
+  volumeRatio: number | null;
+  aboveEma200: boolean | null;
+  macdTrend: TechnicalTrendDirection;
+  adxTrend: TechnicalTrendDirection;
+}
+
 interface InsiderTradingRow {
   symbol?: string;
   company_name?: string;
@@ -509,6 +571,14 @@ interface PersistedSwingTrade {
   indexTrendDirection: IndexTrendDirection | null;
   indexTrendText: string | null;
   indexTrendScoreAdjustment: string;
+  technicalStage: string | null;
+  technicalScoreAdjustment: string;
+  technicalIndicatorText: string | null;
+  technicalRs55: string | null;
+  technicalVolumeRatio: string | null;
+  technicalAboveEma200: boolean | null;
+  technicalMacdTrend: TechnicalTrendDirection | null;
+  technicalAdxTrend: TechnicalTrendDirection | null;
   insiderActivity: InsiderActivityDirection | null;
   insiderScoreAdjustment: string;
   insiderActivityText: string | null;
@@ -1714,6 +1784,14 @@ function ensureSwingTradesTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS index_trend_direction TEXT,
         ADD COLUMN IF NOT EXISTS index_trend_text TEXT,
         ADD COLUMN IF NOT EXISTS index_trend_score_adjustment NUMERIC NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS technical_stage TEXT,
+        ADD COLUMN IF NOT EXISTS technical_score_adjustment NUMERIC NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS technical_indicator_text TEXT,
+        ADD COLUMN IF NOT EXISTS technical_rs55 NUMERIC,
+        ADD COLUMN IF NOT EXISTS technical_volume_ratio NUMERIC,
+        ADD COLUMN IF NOT EXISTS technical_above_ema200 BOOLEAN,
+        ADD COLUMN IF NOT EXISTS technical_macd_trend TEXT,
+        ADD COLUMN IF NOT EXISTS technical_adx_trend TEXT,
         ADD COLUMN IF NOT EXISTS insider_activity TEXT,
         ADD COLUMN IF NOT EXISTS insider_score_adjustment NUMERIC NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS insider_activity_text TEXT,
@@ -1883,6 +1961,181 @@ async function fetchMarketStats(): Promise<MarketStatsPayload | null> {
 function numberOrNull(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function booleanOrNull(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  const text = String(value ?? "").trim().toLowerCase();
+  if (["true", "yes", "1"].includes(text)) return true;
+  if (["false", "no", "0"].includes(text)) return false;
+  return null;
+}
+
+async function fetchTechnicalIndicatorRows(): Promise<TechnicalIndicatorRow[]> {
+  if (
+    technicalIndicatorsCache &&
+    Date.now() - technicalIndicatorsCache.fetchedAt < TECHNICAL_INDICATORS_CACHE_TTL_MS
+  ) {
+    return technicalIndicatorsCache.rows;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`${TECHNICAL_INDICATORS_URL}?nocache=${Date.now()}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json() as TechnicalIndicatorsPayload;
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    technicalIndicatorsCache = { fetchedAt: Date.now(), rows };
+    return rows;
+  } catch (err) {
+    console.warn("[SWING] Failed to fetch technical indicator context.", err);
+    technicalIndicatorsCache = { fetchedAt: Date.now(), rows: [] };
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeTechnicalTrend(value: unknown): TechnicalTrendDirection {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (/bull|positive|up/.test(text)) return "Bullish";
+  if (/bear|negative|down/.test(text)) return "Bearish";
+  if (/neutral|flat|range|consolidation/.test(text)) return "Neutral";
+  return "Unknown";
+}
+
+function technicalStageAdjustment(stage: string | null): number {
+  const normalized = String(stage ?? "").toLowerCase().replace(/\s+/g, "");
+  if (normalized === "stage2") return 0.45;
+  if (normalized === "stage1") return -0.15;
+  if (normalized === "stage3") return -0.30;
+  if (normalized === "stage4") return -0.85;
+  return 0;
+}
+
+function technicalRsAdjustment(rs55: number | null): number {
+  if (rs55 === null) return 0;
+  if (rs55 >= 70) return 0.25;
+  if (rs55 >= 55) return 0.15;
+  if (rs55 < 25) return -0.25;
+  if (rs55 < 40) return -0.10;
+  return 0;
+}
+
+function technicalEmaAdjustment(row: TechnicalIndicatorRow): number {
+  const above20 = booleanOrNull(row.above_ema20);
+  const above50 = booleanOrNull(row.above_ema50);
+  const above200 = booleanOrNull(row.above_ema200);
+  let score = 0;
+  if (above20 === true) score += 0.07;
+  if (above20 === false) score -= 0.12;
+  if (above50 === true) score += 0.10;
+  if (above50 === false) score -= 0.18;
+  if (above200 === true) score += 0.20;
+  if (above200 === false) score -= 0.35;
+  return score;
+}
+
+function technicalAdxAdjustment(row: TechnicalIndicatorRow, adxTrend: TechnicalTrendDirection): number {
+  const adx = numberOrNull(row.adx);
+  const plusDi = numberOrNull(row.plusdi);
+  const minusDi = numberOrNull(row.minusdi);
+  const diBullish = plusDi !== null && minusDi !== null ? plusDi > minusDi : adxTrend === "Bullish";
+  const diBearish = plusDi !== null && minusDi !== null ? minusDi > plusDi : adxTrend === "Bearish";
+
+  if (adx === null) return 0;
+  if (adx >= 25 && diBullish) return 0.22;
+  if (adx >= 20 && diBullish) return 0.10;
+  if (adx >= 20 && diBearish) return -0.25;
+  if (adx < 15) return -0.10;
+  return 0;
+}
+
+function technicalVolumeAdjustment(volumeRatio: number | null): number {
+  if (volumeRatio === null) return 0;
+  if (volumeRatio >= 2) return 0.25;
+  if (volumeRatio >= 1) return 0.10;
+  if (volumeRatio < 0.30) return -0.35;
+  if (volumeRatio < 0.50) return -0.25;
+  if (volumeRatio < 0.80) return -0.10;
+  return 0;
+}
+
+function technicalMacdAdjustment(macdTrend: TechnicalTrendDirection): number {
+  if (macdTrend === "Bullish") return 0.15;
+  if (macdTrend === "Bearish") return -0.20;
+  return 0;
+}
+
+function technicalVolumeTrendAdjustment(volumeTrend: string | null | undefined): number {
+  const text = String(volumeTrend ?? "").toLowerCase();
+  if (/range|consolidation/.test(text)) return -0.15;
+  if (/accumulation|breakout|expansion/.test(text)) return 0.10;
+  return 0;
+}
+
+function technicalIndicatorText(row: TechnicalIndicatorRow, macdTrend: TechnicalTrendDirection, adxTrend: TechnicalTrendDirection): string {
+  const stage = row.stage ? String(row.stage) : "stage ?";
+  const rs55 = numberOrNull(row.rs_55);
+  const volumeRatio = numberOrNull(row.volume_ratio);
+  const above20 = booleanOrNull(row.above_ema20);
+  const above50 = booleanOrNull(row.above_ema50);
+  const above200 = booleanOrNull(row.above_ema200);
+  const yesNo = (value: boolean | null) => value === null ? "?" : value ? "Y" : "N";
+  const parts = [
+    `Tech ${stage}`,
+    rs55 !== null ? `RS55 ${r2(rs55)}` : null,
+    `EMA20/50/200 ${yesNo(above20)}/${yesNo(above50)}/${yesNo(above200)}`,
+    volumeRatio !== null ? `RVOL ${r2(volumeRatio)}x` : null,
+    macdTrend !== "Unknown" ? `MACD ${macdTrend}` : null,
+    adxTrend !== "Unknown" ? `ADX ${adxTrend}` : null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.join("; ");
+}
+
+function technicalIndicatorImpact(row: TechnicalIndicatorRow): TechnicalIndicatorImpact {
+  const rs55 = numberOrNull(row.rs_55);
+  const volumeRatio = numberOrNull(row.volume_ratio);
+  const macdTrend = normalizeTechnicalTrend(row.macd_trend);
+  const adxTrend = normalizeTechnicalTrend(row.adx_trend);
+  const rawAdjustment =
+    technicalStageAdjustment(row.stage ?? null) +
+    technicalRsAdjustment(rs55) +
+    technicalEmaAdjustment(row) +
+    technicalAdxAdjustment(row, adxTrend) +
+    technicalVolumeAdjustment(volumeRatio) +
+    technicalMacdAdjustment(macdTrend) +
+    technicalVolumeTrendAdjustment(row.volume_trend);
+
+  return {
+    stage: row.stage ? String(row.stage) : null,
+    scoreAdjustment: r2(clamp(rawAdjustment, TECHNICAL_SCORE_PENALTY_CAP, TECHNICAL_SCORE_BONUS_CAP)),
+    text: technicalIndicatorText(row, macdTrend, adxTrend),
+    rs55,
+    volumeRatio,
+    aboveEma200: booleanOrNull(row.above_ema200),
+    macdTrend,
+    adxTrend,
+  };
+}
+
+function buildTechnicalIndicatorMap(rows: TechnicalIndicatorRow[]): Map<string, TechnicalIndicatorImpact> {
+  const output = new Map<string, TechnicalIndicatorImpact>();
+  for (const row of rows) {
+    const symbol = normalizeEquitySymbol(String(row.tradingsymbol ?? ""));
+    if (!symbol) continue;
+    output.set(symbol, technicalIndicatorImpact(row));
+  }
+  return output;
+}
+
+async function fetchTechnicalIndicatorMap(): Promise<Map<string, TechnicalIndicatorImpact>> {
+  const rows = await fetchTechnicalIndicatorRows();
+  return buildTechnicalIndicatorMap(rows);
 }
 
 async function fetchIndexTrendPayload(): Promise<IndexTrendPayload | null> {
@@ -3527,6 +3780,14 @@ function analyzeSwingCandidate(
     indexTrendDirection: "Unknown",
     indexTrendText: null,
     indexTrendScoreAdjustment: 0,
+    technicalStage: null,
+    technicalScoreAdjustment: 0,
+    technicalIndicatorText: null,
+    technicalRs55: null,
+    technicalVolumeRatio: null,
+    technicalAboveEma200: null,
+    technicalMacdTrend: "Unknown",
+    technicalAdxTrend: "Unknown",
     insiderActivity: "None",
     insiderScoreAdjustment: 0,
     insiderActivityText: null,
@@ -3551,6 +3812,7 @@ function finalizeSwingCandidates(
     marketStats: null,
   },
   indexTrend: IndexTrendPayload | null = null,
+  technicalIndicatorsBySymbol: Map<string, TechnicalIndicatorImpact> = new Map(),
   insiderActivityBySymbol: Map<string, InsiderActivityImpact> = new Map(),
 ): SwingCandidate[] {
   if (candidates.length === 0) return [];
@@ -3607,6 +3869,8 @@ function finalizeSwingCandidates(
       const insiderActivity = insiderActivityBySymbol.get(candidate.symbol) ?? null;
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
+      const technicalImpact = technicalIndicatorsBySymbol.get(candidate.symbol) ?? null;
+      const technicalAdjustment = technicalImpact?.scoreAdjustment ?? 0;
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
         (rvolScore * DD_RANKING_WEIGHTS.rvol) +
@@ -3619,6 +3883,7 @@ function finalizeSwingCandidates(
         sectorExhaustionPenalty(sectorPerf) +
         industryPenalty +
         indexTrendImpact.scoreAdjustment +
+        technicalAdjustment +
         insiderAdjustment +
         momentumExhaustionPenalty(candidate);
       const score = r2(normalizeOpportunityScore(rawScore) * marketRegimeScoreMultiplier(marketRegime.marketRegime));
@@ -3671,6 +3936,14 @@ function finalizeSwingCandidates(
         indexTrendDirection: indexTrendImpact.direction,
         indexTrendText: indexTrendImpact.text,
         indexTrendScoreAdjustment: r2(indexTrendImpact.scoreAdjustment),
+        technicalStage: technicalImpact?.stage ?? null,
+        technicalScoreAdjustment: r2(technicalAdjustment),
+        technicalIndicatorText: technicalImpact?.text ?? null,
+        technicalRs55: technicalImpact?.rs55 !== null && technicalImpact?.rs55 !== undefined ? r2(technicalImpact.rs55) : null,
+        technicalVolumeRatio: technicalImpact?.volumeRatio !== null && technicalImpact?.volumeRatio !== undefined ? r2(technicalImpact.volumeRatio) : null,
+        technicalAboveEma200: technicalImpact?.aboveEma200 ?? null,
+        technicalMacdTrend: technicalImpact?.macdTrend ?? "Unknown",
+        technicalAdxTrend: technicalImpact?.adxTrend ?? "Unknown",
         insiderActivity: insiderActivity?.activity ?? "None",
         insiderScoreAdjustment: r2(insiderAdjustment),
         insiderActivityText: insiderActivity?.text ?? null,
@@ -3679,7 +3952,7 @@ function finalizeSwingCandidates(
           : null,
         insiderTransactionDate: insiderActivity?.transactionDate ?? null,
         insiderCategory: insiderActivity?.category ?? null,
-        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
@@ -3770,10 +4043,11 @@ async function runSwingScanner(
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
   const scanTime = new Date().toISOString();
-  const [niftyReturn, marketRegime, indexTrend, insiderActivityBySymbol] = await Promise.all([
+  const [niftyReturn, marketRegime, indexTrend, technicalIndicatorsBySymbol, insiderActivityBySymbol] = await Promise.all([
     fetchNiftyDailyReturn(),
     fetchMarketRegimeSnapshot(),
     fetchIndexTrendPayload(),
+    fetchTechnicalIndicatorMap(),
     fetchInsiderActivityMap(),
   ]);
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
@@ -3822,6 +4096,7 @@ async function runSwingScanner(
     ),
     marketRegime,
     indexTrend,
+    technicalIndicatorsBySymbol,
     insiderActivityBySymbol,
   );
   const picks = limitSwingPicksBySector(candidates, limit);
@@ -3968,6 +4243,28 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
       ? null
       : String(row.index_trend_text),
     indexTrendScoreAdjustment: String(row.index_trend_score_adjustment ?? "0"),
+    technicalStage: row.technical_stage === null || row.technical_stage === undefined
+      ? null
+      : String(row.technical_stage),
+    technicalScoreAdjustment: String(row.technical_score_adjustment ?? "0"),
+    technicalIndicatorText: row.technical_indicator_text === null || row.technical_indicator_text === undefined
+      ? null
+      : String(row.technical_indicator_text),
+    technicalRs55: row.technical_rs55 === null || row.technical_rs55 === undefined
+      ? null
+      : String(row.technical_rs55),
+    technicalVolumeRatio: row.technical_volume_ratio === null || row.technical_volume_ratio === undefined
+      ? null
+      : String(row.technical_volume_ratio),
+    technicalAboveEma200: row.technical_above_ema200 === null || row.technical_above_ema200 === undefined
+      ? null
+      : Boolean(row.technical_above_ema200),
+    technicalMacdTrend: row.technical_macd_trend === null || row.technical_macd_trend === undefined
+      ? null
+      : String(row.technical_macd_trend) as TechnicalTrendDirection,
+    technicalAdxTrend: row.technical_adx_trend === null || row.technical_adx_trend === undefined
+      ? null
+      : String(row.technical_adx_trend) as TechnicalTrendDirection,
     insiderActivity: row.insider_activity === null || row.insider_activity === undefined
       ? null
       : String(row.insider_activity) as InsiderActivityDirection,
@@ -4010,6 +4307,9 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
           expected_hold_days, status, last_price, last_checked_at,
           index_trend_index, index_trend_direction, index_trend_text,
           index_trend_score_adjustment,
+          technical_stage, technical_score_adjustment, technical_indicator_text,
+          technical_rs55, technical_volume_ratio, technical_above_ema200,
+          technical_macd_trend, technical_adx_trend,
           insider_activity, insider_score_adjustment, insider_activity_text,
           insider_transaction_value, insider_transaction_date, insider_category
         )
@@ -4018,7 +4318,8 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
           $6, $7, $8, $9, $10, $11, $12, $13,
           $14, 'WATCHLIST', $15, $16,
           $17, $18, $19, $20,
-          $21, $22, $23, $24, $25, $26
+          $21, $22, $23, $24, $25, $26, $27, $28,
+          $29, $30, $31, $32, $33, $34
         )
         ON CONFLICT (symbol, date) DO UPDATE
         SET signal_time = EXCLUDED.signal_time,
@@ -4029,6 +4330,14 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
             index_trend_direction = EXCLUDED.index_trend_direction,
             index_trend_text = EXCLUDED.index_trend_text,
             index_trend_score_adjustment = EXCLUDED.index_trend_score_adjustment,
+            technical_stage = EXCLUDED.technical_stage,
+            technical_score_adjustment = EXCLUDED.technical_score_adjustment,
+            technical_indicator_text = EXCLUDED.technical_indicator_text,
+            technical_rs55 = EXCLUDED.technical_rs55,
+            technical_volume_ratio = EXCLUDED.technical_volume_ratio,
+            technical_above_ema200 = EXCLUDED.technical_above_ema200,
+            technical_macd_trend = EXCLUDED.technical_macd_trend,
+            technical_adx_trend = EXCLUDED.technical_adx_trend,
             insider_activity = EXCLUDED.insider_activity,
             insider_score_adjustment = EXCLUDED.insider_score_adjustment,
             insider_activity_text = EXCLUDED.insider_activity_text,
@@ -4059,6 +4368,14 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
         candidate.indexTrendDirection,
         candidate.indexTrendText,
         String(candidate.indexTrendScoreAdjustment),
+        candidate.technicalStage,
+        String(candidate.technicalScoreAdjustment),
+        candidate.technicalIndicatorText,
+        candidate.technicalRs55 === null ? null : String(candidate.technicalRs55),
+        candidate.technicalVolumeRatio === null ? null : String(candidate.technicalVolumeRatio),
+        candidate.technicalAboveEma200,
+        candidate.technicalMacdTrend,
+        candidate.technicalAdxTrend,
         candidate.insiderActivity,
         String(candidate.insiderScoreAdjustment),
         candidate.insiderActivityText,
@@ -4229,6 +4546,9 @@ router.get("/swing-trades", async (req, res) => {
                expected_hold_days, status, entry_hit_date, exit_date, last_price, last_checked_at,
                index_trend_index, index_trend_direction, index_trend_text,
                index_trend_score_adjustment,
+               technical_stage, technical_score_adjustment, technical_indicator_text,
+               technical_rs55, technical_volume_ratio, technical_above_ema200,
+               technical_macd_trend, technical_adx_trend,
                insider_activity, insider_score_adjustment, insider_activity_text,
                insider_transaction_value, insider_transaction_date, insider_category
         FROM swing_trades

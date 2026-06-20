@@ -53,6 +53,14 @@ interface SwingPick {
   indexTrendDirection?: string | null;
   indexTrendText?: string | null;
   indexTrendScoreAdjustment?: number;
+  technicalStage?: string | null;
+  technicalScoreAdjustment?: number;
+  technicalIndicatorText?: string | null;
+  technicalRs55?: number | null;
+  technicalVolumeRatio?: number | null;
+  technicalAboveEma200?: boolean | null;
+  technicalMacdTrend?: string | null;
+  technicalAdxTrend?: string | null;
   insiderActivity?: string | null;
   insiderScoreAdjustment?: number;
   insiderActivityText?: string | null;
@@ -130,6 +138,14 @@ interface SwingTrackerTrade {
   indexTrendDirection: string | null;
   indexTrendText: string | null;
   indexTrendScoreAdjustment: string;
+  technicalStage: string | null;
+  technicalScoreAdjustment: string;
+  technicalIndicatorText: string | null;
+  technicalRs55: string | null;
+  technicalVolumeRatio: string | null;
+  technicalAboveEma200: boolean | null;
+  technicalMacdTrend: string | null;
+  technicalAdxTrend: string | null;
   insiderActivity: string | null;
   insiderScoreAdjustment: string;
   insiderActivityText: string | null;
@@ -296,6 +312,29 @@ function IndexTrendBadge({
   );
 }
 
+function TechnicalIndicatorBadge({
+  text,
+  adjustment,
+}: {
+  text?: string | null;
+  adjustment?: string | number | null;
+}) {
+  if (!text) return null;
+
+  const score = Number(adjustment ?? 0);
+  const className =
+    score > 0 ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
+      : score < 0 ? "border-amber-500/35 bg-amber-500/10 text-amber-200"
+        : "border-slate-500/30 bg-slate-500/10 text-slate-300";
+
+  return (
+    <span className={`inline-flex min-w-0 items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-bold ${className}`} title={text}>
+      <BarChart3 className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{text}</span>
+    </span>
+  );
+}
+
 function PickCard({ pick }: { pick: SwingPick }) {
   const targetPct = ((pick.target - pick.entryPrice) / pick.entryPrice) * 100;
   const riskPct = ((pick.entryPrice - pick.sl) / pick.entryPrice) * 100;
@@ -313,6 +352,7 @@ function PickCard({ pick }: { pick: SwingPick }) {
               {pick.entryType}
             </span>
             <IndexTrendBadge text={pick.indexTrendText} adjustment={pick.indexTrendScoreAdjustment} />
+            <TechnicalIndicatorBadge text={pick.technicalIndicatorText} adjustment={pick.technicalScoreAdjustment} />
             <InsiderActivityBadge text={pick.insiderActivityText} adjustment={pick.insiderScoreAdjustment} />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{pick.sector} - {pick.setup}</p>
@@ -387,6 +427,7 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
             </span>
             <StatusBadge status={trade.status} />
             <IndexTrendBadge text={trade.indexTrendText} adjustment={trade.indexTrendScoreAdjustment} />
+            <TechnicalIndicatorBadge text={trade.technicalIndicatorText} adjustment={trade.technicalScoreAdjustment} />
             <InsiderActivityBadge text={trade.insiderActivityText} adjustment={trade.insiderScoreAdjustment} />
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
