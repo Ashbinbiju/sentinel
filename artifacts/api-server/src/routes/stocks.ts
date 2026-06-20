@@ -99,6 +99,8 @@ const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
 const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
 const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
+const INDEX_TREND_URL = "https://www.brkpoint.in/api/indextrend";
+const INDEX_TREND_CACHE_TTL_MS = 5 * 60 * 1000;
 const INSIDER_TRADING_URL = "https://www.brkpoint.in/api/insider-trading";
 const INSIDER_TRADING_CACHE_TTL_MS = 30 * 60 * 1000;
 const INSIDER_ACTIVITY_LOOKBACK_DAYS = 30;
@@ -114,6 +116,11 @@ const WEAK_MARKET_REGIME_SCORE_MULTIPLIER = 0.90;
 const WEAK_INDUSTRY_ADVANCE_RATIO_THRESHOLD = 0.20;
 const WEAK_INDUSTRY_BREADTH_PENALTY = -0.30;
 const BANK_WEAK_MARKET_SECTOR_SCORE_PENALTY = -0.40;
+const SWING_INDEX_TREND_BULLISH_BONUS = 0.25;
+const SWING_INDEX_TREND_NEUTRAL_PENALTY = -0.10;
+const SWING_INDEX_TREND_BEARISH_PENALTY = -0.55;
+const INTRADAY_INDEX_ALIGNED_SCORE_BONUS = 0.70;
+const INTRADAY_INDEX_CAUTION_SCORE_PENALTY = -0.75;
 const DD_RANKING_WEIGHTS = {
   relativeStrength: 0.35,
   rvol: 0.25,
@@ -244,6 +251,7 @@ let swingTradesTableReady: Promise<void> | null = null;
 let activeSwingScanJobId: string | null = null;
 const swingScanJobs = new Map<string, SwingScanJob>();
 let marketStatsCache: { fetchedAt: number; payload: MarketStatsPayload | null } | null = null;
+let indexTrendCache: { fetchedAt: number; payload: IndexTrendPayload | null } | null = null;
 let insiderTradingCache: { fetchedAt: number; rows: InsiderTradingRow[] } | null = null;
 
 interface SwingUniverseStock {
@@ -262,6 +270,8 @@ type DdSwingSetupType =
   | "trend_continuation";
 
 type InsiderActivityDirection = "Buy" | "Sell" | "Mixed" | "None";
+type IndexTrendDirection = "Bullish" | "Bearish" | "Neutral" | "Unknown";
+type MarketAlignmentStatus = "ALIGNED" | "CAUTION" | "BLOCKED" | "UNKNOWN";
 
 interface SwingCandidate {
   symbol: string;
@@ -304,6 +314,10 @@ interface SwingCandidate {
   industryAdvanceRatio: number | null;
   industryBreadthText: string | null;
   weakMarketSignalDowngrade: boolean;
+  indexTrendIndex: string | null;
+  indexTrendDirection: IndexTrendDirection;
+  indexTrendText: string | null;
+  indexTrendScoreAdjustment: number;
   insiderActivity: InsiderActivityDirection;
   insiderScoreAdjustment: number;
   insiderActivityText: string | null;
@@ -362,6 +376,71 @@ interface MarketStatsPayload {
     declining?: number;
   };
   industry?: MarketStatsIndustryRow[];
+}
+
+interface IndexTrendBlock {
+  timestamp?: string;
+  interval?: string;
+  symbol?: string;
+  close_price?: number;
+  indicators?: Record<string, number | string | null | undefined>;
+  analysis?: {
+    "15m_trend"?: string;
+    "1h_trend"?: string;
+    "1d_trend"?: string;
+    ADX_analysis?: {
+      value?: number;
+      direction?: string;
+      trend_strength_classification?: string;
+      di_spread?: number;
+    };
+    MACD_analysis?: {
+      crossover?: string;
+      momentum?: string;
+      histogram?: number;
+    };
+    EMA_analysis?: {
+      price_vs_21ema?: string;
+      price_vs_50ema?: string;
+      ema_crossovers?: {
+        golden_cross?: boolean;
+        death_cross?: boolean;
+      };
+    };
+    Supertrend_analysis?: {
+      signal?: string;
+    };
+    trend_strength?: string;
+  };
+  validation?: {
+    uptrend_conditions_met?: boolean;
+    downtrend_conditions_met?: boolean;
+    strong_uptrend_conditions_met?: boolean;
+    strong_downtrend_conditions_met?: boolean;
+  };
+}
+
+interface IndexTrendPayload {
+  nif_min15trend?: IndexTrendBlock;
+  bnf_min15trend?: IndexTrendBlock;
+  nif_hr1trend?: IndexTrendBlock;
+  bnf_hr1trend?: IndexTrendBlock;
+  nif_day1trend?: IndexTrendBlock;
+  bnf_day1trend?: IndexTrendBlock;
+}
+
+interface IntradayMarketAlignment {
+  status: MarketAlignmentStatus;
+  scoreAdjustment: number;
+  text: string | null;
+  indexName: "NIFTY" | "BANKNIFTY" | null;
+}
+
+interface SwingIndexTrendImpact {
+  indexName: "NIFTY" | "BANKNIFTY" | null;
+  direction: IndexTrendDirection;
+  scoreAdjustment: number;
+  text: string | null;
 }
 
 interface InsiderTradingRow {
@@ -426,6 +505,10 @@ interface PersistedSwingTrade {
   exitDate: string | null;
   lastPrice: string | null;
   lastCheckedAt: string | null;
+  indexTrendIndex: string | null;
+  indexTrendDirection: IndexTrendDirection | null;
+  indexTrendText: string | null;
+  indexTrendScoreAdjustment: string;
   insiderActivity: InsiderActivityDirection | null;
   insiderScoreAdjustment: string;
   insiderActivityText: string | null;
@@ -1210,6 +1293,10 @@ interface IndicatorResult {
   volumeOk: boolean | null;
   signalTime: string | null;
   alertEligible: boolean;
+  marketAlignment: MarketAlignmentStatus;
+  marketAlignmentText: string | null;
+  marketTrendScoreAdjustment: number;
+  marketTrendIndex: "NIFTY" | "BANKNIFTY" | null;
 }
 
 function findEntrySignalMatch(
@@ -1281,7 +1368,11 @@ function findEntrySignalMatch(
   return null;
 }
 
-async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
+async function enrichWithIndicators(
+  symbol: string,
+  sectorName?: string,
+  indexTrend?: IndexTrendPayload | null,
+): Promise<IndicatorResult> {
   const empty: IndicatorResult = {
     vwap: null,
     ema20: null,
@@ -1303,6 +1394,10 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     volumeOk: null,
     signalTime: null,
     alertEligible: false,
+    marketAlignment: "UNKNOWN",
+    marketAlignmentText: null,
+    marketTrendScoreAdjustment: 0,
+    marketTrendIndex: null,
   };
 
   try {
@@ -1358,6 +1453,12 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
     let direction: SignalDirection | null = null;
     let setup: string | null = null;
     let alertEligible = false;
+    let marketAlignment: IntradayMarketAlignment = {
+      status: "UNKNOWN",
+      scoreAdjustment: 0,
+      text: null,
+      indexName: null,
+    };
 
     const vwapR = vwap !== null ? r2(vwap) : null;
     const ema20R = ema20 !== null ? r2(ema20) : null;
@@ -1381,6 +1482,11 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       rewardRisk = risk > 0 ? r2(reward / risk) : null;
       signalTime = existingTrade.signalTime;
       smartExit = `[SAVED] ${direction} Power Channel setup entered at Rs ${entryPrice}. SL Rs ${sl}; target Rs ${target2}; square off by 15:15 IST.`;
+      marketAlignment = intradayIndexTrendAlignment(sectorName ?? "", direction, indexTrend ?? null);
+      if (marketAlignment.status === "BLOCKED") {
+        entrySignal = false;
+        alertEligible = false;
+      }
 
       // Override confirmedClose so the UI shows the saved entry price
       confirmedClose = entryPrice;
@@ -1403,8 +1509,11 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
         setup = entryMatch.setup;
         signalTime = new Date((entryMatch.candle.t + CANDLE_INTERVAL_SECS) * 1000).toISOString();
         confirmedClose = entryMatch.confirmedClose;
+        marketAlignment = intradayIndexTrendAlignment(sectorName ?? "", entryMatch.direction, indexTrend ?? null);
 
-        try {
+        if (marketAlignment.status === "BLOCKED") {
+          entrySignal = false;
+        } else try {
           const entryWindowTrades = filterEntryWindowTrades(
             await db
               .select()
@@ -1485,6 +1594,10 @@ async function enrichWithIndicators(symbol: string): Promise<IndicatorResult> {
       volumeOk,
       signalTime,
       alertEligible,
+      marketAlignment: marketAlignment.status,
+      marketAlignmentText: marketAlignment.text,
+      marketTrendScoreAdjustment: r2(marketAlignment.scoreAdjustment),
+      marketTrendIndex: marketAlignment.indexName,
     };
   } catch {
     return empty;
@@ -1597,6 +1710,10 @@ function ensureSwingTradesTable(): Promise<void> {
       `);
       await pool.query(`
         ALTER TABLE swing_trades
+        ADD COLUMN IF NOT EXISTS index_trend_index TEXT,
+        ADD COLUMN IF NOT EXISTS index_trend_direction TEXT,
+        ADD COLUMN IF NOT EXISTS index_trend_text TEXT,
+        ADD COLUMN IF NOT EXISTS index_trend_score_adjustment NUMERIC NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS insider_activity TEXT,
         ADD COLUMN IF NOT EXISTS insider_score_adjustment NUMERIC NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS insider_activity_text TEXT,
@@ -1766,6 +1883,157 @@ async function fetchMarketStats(): Promise<MarketStatsPayload | null> {
 function numberOrNull(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+async function fetchIndexTrendPayload(): Promise<IndexTrendPayload | null> {
+  if (indexTrendCache && Date.now() - indexTrendCache.fetchedAt < INDEX_TREND_CACHE_TTL_MS) {
+    return indexTrendCache.payload;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(INDEX_TREND_URL, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const parsed = payload && typeof payload === "object" ? payload as IndexTrendPayload : null;
+    indexTrendCache = { fetchedAt: Date.now(), payload: parsed };
+    return parsed;
+  } catch (err) {
+    console.warn("[SWING] Failed to fetch index trend context.", err);
+    indexTrendCache = { fetchedAt: Date.now(), payload: null };
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function sectorUsesBankNifty(sector: string | null | undefined): boolean {
+  const text = String(sector ?? "").replace(/[_-]+/g, " ").toLowerCase();
+  return /(bank|financial|finance|fin service|finservice|fin nifty|finnifty|insurance|nbfc)/.test(text);
+}
+
+function indexTrendBlockFor(
+  payload: IndexTrendPayload | null,
+  sector: string,
+  timeframe: "15m" | "1h" | "1d",
+): IndexTrendBlock | null {
+  if (!payload) return null;
+  const bank = sectorUsesBankNifty(sector);
+  if (timeframe === "15m") return bank ? payload.bnf_min15trend ?? null : payload.nif_min15trend ?? null;
+  if (timeframe === "1h") return bank ? payload.bnf_hr1trend ?? null : payload.nif_hr1trend ?? null;
+  return bank ? payload.bnf_day1trend ?? null : payload.nif_day1trend ?? null;
+}
+
+function indexNameForSector(sector: string | null | undefined): "NIFTY" | "BANKNIFTY" {
+  return sectorUsesBankNifty(sector) ? "BANKNIFTY" : "NIFTY";
+}
+
+function trendLabelFromBlock(block: IndexTrendBlock | null): string | null {
+  if (!block?.analysis) return null;
+  return block.analysis["15m_trend"] ??
+    block.analysis["1h_trend"] ??
+    block.analysis["1d_trend"] ??
+    null;
+}
+
+function indexTrendDirection(block: IndexTrendBlock | null): IndexTrendDirection {
+  if (!block) return "Unknown";
+  const label = String(trendLabelFromBlock(block) ?? "").toLowerCase();
+  if (label.includes("strong uptrend") || label.includes("potential uptrend") || /\buptrend\b/.test(label)) {
+    return "Bullish";
+  }
+  if (label.includes("strong downtrend") || label.includes("potential downtrend") || /\bdowntrend\b/.test(label)) {
+    return "Bearish";
+  }
+  if (label.includes("neutral") || label.includes("consolidation")) return "Neutral";
+
+  const validation = block.validation;
+  if (validation?.strong_uptrend_conditions_met || validation?.uptrend_conditions_met) return "Bullish";
+  if (validation?.strong_downtrend_conditions_met || validation?.downtrend_conditions_met) return "Bearish";
+
+  const supertrend = Number(block.indicators?.Supertrend);
+  if (Number.isFinite(supertrend) && supertrend > 0) return "Bullish";
+  if (Number.isFinite(supertrend) && supertrend < 0) return "Bearish";
+  return "Unknown";
+}
+
+function indexTrendAdxText(block: IndexTrendBlock | null): string {
+  const adx = numberOrNull(block?.analysis?.ADX_analysis?.value);
+  return adx !== null ? `, ADX ${r2(adx)}` : "";
+}
+
+function indexTrendSummary(indexName: string, timeframe: string, block: IndexTrendBlock | null): string | null {
+  if (!block) return null;
+  const label = trendLabelFromBlock(block) ?? indexTrendDirection(block);
+  return `${indexName} ${timeframe} ${label}${indexTrendAdxText(block)}`;
+}
+
+function intradayIndexTrendAlignment(
+  sector: string,
+  direction: SignalDirection,
+  payload: IndexTrendPayload | null,
+): IntradayMarketAlignment {
+  const indexName = indexNameForSector(sector);
+  const min15 = indexTrendBlockFor(payload, sector, "15m");
+  const hr1 = indexTrendBlockFor(payload, sector, "1h");
+  const min15Direction = indexTrendDirection(min15);
+  const hr1Direction = indexTrendDirection(hr1);
+  const expected: IndexTrendDirection = direction === "LONG" ? "Bullish" : "Bearish";
+  const opposite: IndexTrendDirection = direction === "LONG" ? "Bearish" : "Bullish";
+  const directions = [min15Direction, hr1Direction].filter((value) => value !== "Unknown");
+  const expectedCount = directions.filter((value) => value === expected).length;
+  const oppositeCount = directions.filter((value) => value === opposite).length;
+  const neutralCount = directions.filter((value) => value === "Neutral").length;
+  const summaries = [
+    indexTrendSummary(indexName, "15m", min15),
+    indexTrendSummary(indexName, "1h", hr1),
+  ].filter((item): item is string => Boolean(item));
+  const text = summaries.length ? summaries.join("; ") : null;
+
+  if (directions.length === 0) {
+    return { status: "UNKNOWN", scoreAdjustment: 0, text, indexName };
+  }
+  if (oppositeCount >= 2) {
+    return {
+      status: "BLOCKED",
+      scoreAdjustment: INTRADAY_INDEX_CAUTION_SCORE_PENALTY * 2,
+      text: `${text ?? indexName} - blocked: index trend is opposite`,
+      indexName,
+    };
+  }
+  if (expectedCount >= 2) {
+    return { status: "ALIGNED", scoreAdjustment: INTRADAY_INDEX_ALIGNED_SCORE_BONUS, text, indexName };
+  }
+  if (expectedCount === 1 && oppositeCount === 0) {
+    return { status: "ALIGNED", scoreAdjustment: INTRADAY_INDEX_ALIGNED_SCORE_BONUS * 0.5, text, indexName };
+  }
+  if (neutralCount > 0 || oppositeCount > 0) {
+    return { status: "CAUTION", scoreAdjustment: INTRADAY_INDEX_CAUTION_SCORE_PENALTY, text, indexName };
+  }
+  return { status: "UNKNOWN", scoreAdjustment: 0, text, indexName };
+}
+
+function swingIndexTrendImpact(sector: string, payload: IndexTrendPayload | null): SwingIndexTrendImpact {
+  const indexName = indexNameForSector(sector);
+  const day = indexTrendBlockFor(payload, sector, "1d");
+  const direction = indexTrendDirection(day);
+  const text = indexTrendSummary(indexName, "daily", day);
+  const scoreAdjustment =
+    direction === "Bullish" ? SWING_INDEX_TREND_BULLISH_BONUS
+      : direction === "Bearish" ? SWING_INDEX_TREND_BEARISH_PENALTY
+        : direction === "Neutral" ? SWING_INDEX_TREND_NEUTRAL_PENALTY
+          : 0;
+
+  return {
+    indexName,
+    direction,
+    scoreAdjustment,
+    text,
+  };
 }
 
 async function fetchInsiderTradingRows(): Promise<InsiderTradingRow[]> {
@@ -3255,6 +3523,10 @@ function analyzeSwingCandidate(
     industryAdvanceRatio: null,
     industryBreadthText: null,
     weakMarketSignalDowngrade: false,
+    indexTrendIndex: null,
+    indexTrendDirection: "Unknown",
+    indexTrendText: null,
+    indexTrendScoreAdjustment: 0,
     insiderActivity: "None",
     insiderScoreAdjustment: 0,
     insiderActivityText: null,
@@ -3278,6 +3550,7 @@ function finalizeSwingCandidates(
     niftyAboveEma50: null,
     marketStats: null,
   },
+  indexTrend: IndexTrendPayload | null = null,
   insiderActivityBySymbol: Map<string, InsiderActivityImpact> = new Map(),
 ): SwingCandidate[] {
   if (candidates.length === 0) return [];
@@ -3333,6 +3606,7 @@ function finalizeSwingCandidates(
       const industryPenalty = industryBreadthPenalty(industryAdvanceRatio);
       const insiderActivity = insiderActivityBySymbol.get(candidate.symbol) ?? null;
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
+      const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
         (rvolScore * DD_RANKING_WEIGHTS.rvol) +
@@ -3344,6 +3618,7 @@ function finalizeSwingCandidates(
         leaderAdjustment +
         sectorExhaustionPenalty(sectorPerf) +
         industryPenalty +
+        indexTrendImpact.scoreAdjustment +
         insiderAdjustment +
         momentumExhaustionPenalty(candidate);
       const score = r2(normalizeOpportunityScore(rawScore) * marketRegimeScoreMultiplier(marketRegime.marketRegime));
@@ -3392,6 +3667,10 @@ function finalizeSwingCandidates(
         industryAdvanceRatio: industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : null,
         industryBreadthText: marketStatsSectorText(candidate.sector, marketRegime.marketStats),
         weakMarketSignalDowngrade,
+        indexTrendIndex: indexTrendImpact.indexName,
+        indexTrendDirection: indexTrendImpact.direction,
+        indexTrendText: indexTrendImpact.text,
+        indexTrendScoreAdjustment: r2(indexTrendImpact.scoreAdjustment),
         insiderActivity: insiderActivity?.activity ?? "None",
         insiderScoreAdjustment: r2(insiderAdjustment),
         insiderActivityText: insiderActivity?.text ?? null,
@@ -3400,7 +3679,7 @@ function finalizeSwingCandidates(
           : null,
         insiderTransactionDate: insiderActivity?.transactionDate ?? null,
         insiderCategory: insiderActivity?.category ?? null,
-        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
@@ -3491,9 +3770,10 @@ async function runSwingScanner(
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
   const scanTime = new Date().toISOString();
-  const [niftyReturn, marketRegime, insiderActivityBySymbol] = await Promise.all([
+  const [niftyReturn, marketRegime, indexTrend, insiderActivityBySymbol] = await Promise.all([
     fetchNiftyDailyReturn(),
     fetchMarketRegimeSnapshot(),
+    fetchIndexTrendPayload(),
     fetchInsiderActivityMap(),
   ]);
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
@@ -3541,6 +3821,7 @@ async function runSwingScanner(
       ]),
     ),
     marketRegime,
+    indexTrend,
     insiderActivityBySymbol,
   );
   const picks = limitSwingPicksBySector(candidates, limit);
@@ -3677,6 +3958,16 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
     exitDate: row.exit_date === null || row.exit_date === undefined ? null : String(row.exit_date),
     lastPrice: row.last_price === null || row.last_price === undefined ? null : String(row.last_price),
     lastCheckedAt: row.last_checked_at === null || row.last_checked_at === undefined ? null : dbTimeToIso(row.last_checked_at),
+    indexTrendIndex: row.index_trend_index === null || row.index_trend_index === undefined
+      ? null
+      : String(row.index_trend_index),
+    indexTrendDirection: row.index_trend_direction === null || row.index_trend_direction === undefined
+      ? null
+      : String(row.index_trend_direction) as IndexTrendDirection,
+    indexTrendText: row.index_trend_text === null || row.index_trend_text === undefined
+      ? null
+      : String(row.index_trend_text),
+    indexTrendScoreAdjustment: String(row.index_trend_score_adjustment ?? "0"),
     insiderActivity: row.insider_activity === null || row.insider_activity === undefined
       ? null
       : String(row.insider_activity) as InsiderActivityDirection,
@@ -3717,6 +4008,8 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
           symbol, date, signal_time, sector, direction, entry_type,
           current_price, entry_price, sl, target, score, grade, setup, reason,
           expected_hold_days, status, last_price, last_checked_at,
+          index_trend_index, index_trend_direction, index_trend_text,
+          index_trend_score_adjustment,
           insider_activity, insider_score_adjustment, insider_activity_text,
           insider_transaction_value, insider_transaction_date, insider_category
         )
@@ -3724,13 +4017,18 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
           $1, $2, $3, $4, 'LONG', $5,
           $6, $7, $8, $9, $10, $11, $12, $13,
           $14, 'WATCHLIST', $15, $16,
-          $17, $18, $19, $20, $21, $22
+          $17, $18, $19, $20,
+          $21, $22, $23, $24, $25, $26
         )
         ON CONFLICT (symbol, date) DO UPDATE
         SET signal_time = EXCLUDED.signal_time,
             score = EXCLUDED.score,
             grade = EXCLUDED.grade,
             reason = EXCLUDED.reason,
+            index_trend_index = EXCLUDED.index_trend_index,
+            index_trend_direction = EXCLUDED.index_trend_direction,
+            index_trend_text = EXCLUDED.index_trend_text,
+            index_trend_score_adjustment = EXCLUDED.index_trend_score_adjustment,
             insider_activity = EXCLUDED.insider_activity,
             insider_score_adjustment = EXCLUDED.insider_score_adjustment,
             insider_activity_text = EXCLUDED.insider_activity_text,
@@ -3757,6 +4055,10 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
         String(candidate.expectedHoldDays),
         String(candidate.currentPrice),
         new Date().toISOString(),
+        candidate.indexTrendIndex,
+        candidate.indexTrendDirection,
+        candidate.indexTrendText,
+        String(candidate.indexTrendScoreAdjustment),
         candidate.insiderActivity,
         String(candidate.insiderScoreAdjustment),
         candidate.insiderActivityText,
@@ -3925,6 +4227,8 @@ router.get("/swing-trades", async (req, res) => {
         SELECT id, symbol, date, signal_time, sector, direction, entry_type,
                current_price, entry_price, sl, target, score, grade, setup, reason,
                expected_hold_days, status, entry_hit_date, exit_date, last_price, last_checked_at,
+               index_trend_index, index_trend_direction, index_trend_text,
+               index_trend_score_adjustment,
                insider_activity, insider_score_adjustment, insider_activity_text,
                insider_transaction_value, insider_transaction_date, insider_category
         FROM swing_trades
@@ -4086,8 +4390,13 @@ router.get("/momentum-picks", async (req, res) => {
       volumeOk: boolean | null;
       signalTime: string | null;
       alertEligible: boolean;
+      marketAlignment: MarketAlignmentStatus;
+      marketAlignmentText: string | null;
+      marketTrendScoreAdjustment: number;
+      marketTrendIndex: "NIFTY" | "BANKNIFTY" | null;
       score: number;
     }> = [];
+    const indexTrend = await fetchIndexTrendPayload();
 
     const sectorResults = await Promise.all(
       top4.map(async (sector) => {
@@ -4141,7 +4450,7 @@ router.get("/momentum-picks", async (req, res) => {
           const indicators = await runWithConcurrency(
             symbols,
             5,
-            enrichWithIndicators,
+            (symbol) => enrichWithIndicators(symbol, sector.name, indexTrend),
           );
 
           for (const ind of indicators) {
@@ -4186,7 +4495,8 @@ router.get("/momentum-picks", async (req, res) => {
               const priceActionScore =
                 ind.rewardRisk * 2
                 + Math.max(0, directionalMove) * 0.8
-                + priceActionVolumeBonus;
+                + priceActionVolumeBonus
+                + ind.marketTrendScoreAdjustment;
 
               topPickCandidates.push({
                 symbol: stock.symbol,
@@ -4210,6 +4520,10 @@ router.get("/momentum-picks", async (req, res) => {
                 volumeOk: ind.volumeOk,
                 signalTime: ind.signalTime,
                 alertEligible: ind.alertEligible,
+                marketAlignment: ind.marketAlignment,
+                marketAlignmentText: ind.marketAlignmentText,
+                marketTrendScoreAdjustment: ind.marketTrendScoreAdjustment,
+                marketTrendIndex: ind.marketTrendIndex,
                 score: priceActionScore,
               });
             }
@@ -4235,6 +4549,10 @@ router.get("/momentum-picks", async (req, res) => {
               volumeRatio: ind.volumeRatio,
               volumeOk: ind.volumeOk,
               signalTime: ind.signalTime,
+              marketAlignment: ind.marketAlignment,
+              marketAlignmentText: ind.marketAlignmentText,
+              marketTrendScoreAdjustment: ind.marketTrendScoreAdjustment,
+              marketTrendIndex: ind.marketTrendIndex,
             };
           });
 

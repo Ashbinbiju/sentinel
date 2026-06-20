@@ -22,6 +22,12 @@ export interface SectorPerformance {
 }
 
 export type SignalDirection = "LONG" | "SHORT";
+export type MarketAlignmentStatus =
+  | "ALIGNED"
+  | "CAUTION"
+  | "BLOCKED"
+  | "UNKNOWN";
+export type MarketTrendIndex = "NIFTY" | "BANKNIFTY";
 
 /**
  * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
@@ -101,6 +107,14 @@ export interface StockItem {
   volumeOk?: boolean | null;
   /** Exact time the signal was generated */
   signalTime?: string | null;
+  /** Index trend alignment for the signal direction */
+  marketAlignment?: MarketAlignmentStatus;
+  /** NIFTY/BANKNIFTY 15m and 1h trend context */
+  marketAlignmentText?: string | null;
+  /** Score adjustment from index trend alignment */
+  marketTrendScoreAdjustment?: number;
+  /** Index used for market alignment */
+  marketTrendIndex?: MarketTrendIndex | null;
 }
 
 /**
@@ -163,6 +177,14 @@ export interface TopPick {
   volumeOk?: boolean | null;
   /** Exact time the signal was generated */
   signalTime?: string | null;
+  /** Index trend alignment for the signal direction */
+  marketAlignment?: MarketAlignmentStatus;
+  /** NIFTY/BANKNIFTY 15m and 1h trend context */
+  marketAlignmentText?: string | null;
+  /** Score adjustment from index trend alignment */
+  marketTrendScoreAdjustment?: number;
+  /** Index used for market alignment */
+  marketTrendIndex?: MarketTrendIndex | null;
 }
 
 export interface SectorWithStocks {

@@ -207,6 +207,20 @@ components:
         signalTime:
           type: ["string", "null"]
           description: UTC ISO timestamp of when the signal fired
+        marketAlignment:
+          type: string
+          enum: ["ALIGNED", "CAUTION", "BLOCKED", "UNKNOWN"]
+          description: Index trend alignment for the signal direction
+        marketAlignmentText:
+          type: ["string", "null"]
+          description: NIFTY/BANKNIFTY 15m and 1h trend context
+        marketTrendScoreAdjustment:
+          type: number
+          description: Score adjustment from index trend alignment
+        marketTrendIndex:
+          type: ["string", "null"]
+          enum: ["NIFTY", "BANKNIFTY", null]
+          description: Index used for market alignment
       required:
         - symbol
         - ltp
@@ -273,6 +287,20 @@ components:
         signalTime:
           type: ["string", "null"]
           description: UTC ISO timestamp of when the signal fired
+        marketAlignment:
+          type: string
+          enum: ["ALIGNED", "CAUTION", "BLOCKED", "UNKNOWN"]
+          description: Index trend alignment for the signal direction
+        marketAlignmentText:
+          type: ["string", "null"]
+          description: NIFTY/BANKNIFTY 15m and 1h trend context
+        marketTrendScoreAdjustment:
+          type: number
+          description: Score adjustment from index trend alignment
+        marketTrendIndex:
+          type: ["string", "null"]
+          enum: ["NIFTY", "BANKNIFTY", null]
+          description: Index used for market alignment
       required:
         - symbol
         - sectorName

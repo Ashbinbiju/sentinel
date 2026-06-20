@@ -293,6 +293,19 @@ function PreMarketBanner() {
 
 // ── Top 5 Pick Card ──────────────────────────────────────────────────────────
 
+function marketAlignmentClass(status: string | null | undefined): string {
+  switch (status) {
+    case "ALIGNED":
+      return "bg-emerald-500/10 text-emerald-300 border-emerald-500/25";
+    case "CAUTION":
+      return "bg-amber-500/10 text-amber-300 border-amber-500/25";
+    case "BLOCKED":
+      return "bg-rose-500/10 text-rose-300 border-rose-500/25";
+    default:
+      return "bg-muted/20 text-muted-foreground/60 border-border/25";
+  }
+}
+
 function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: number; fullWidth?: boolean }) {
   const href = `https://www.tradingview.com/chart/?symbol=NSE%3A${pick.symbol}`;
   const isShort = pick.direction === "SHORT";
@@ -408,6 +421,17 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
               </span>
               <span className="text-[10px] text-muted-foreground/50">
                 {pick.volumeOk ? "Volume confirmed" : pick.volumeRatio >= 0.8 ? "Average volume" : "Low volume — trade with caution"}
+              </span>
+            </div>
+          )}
+
+          {pick.marketAlignmentText && (
+            <div className="mb-3 flex min-w-0">
+              <span
+                className={`truncate text-[9px] font-mono px-2 py-0.5 rounded border font-medium ${marketAlignmentClass(pick.marketAlignment)}`}
+                title={pick.marketAlignmentText}
+              >
+                {pick.marketTrendIndex ?? "INDEX"} {pick.marketAlignment ?? "UNKNOWN"} {pick.marketTrendScoreAdjustment ? `(${pick.marketTrendScoreAdjustment > 0 ? "+" : ""}${pick.marketTrendScoreAdjustment.toFixed(2)})` : ""}
               </span>
             </div>
           )}
