@@ -99,6 +99,8 @@ const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
 const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
 const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
+const INDUSTRY_STRENGTH_URL = "https://www.brkpoint.in/api/brkview/industry-strength-analysis";
+const INDUSTRY_STRENGTH_CACHE_TTL_MS = 15 * 60 * 1000;
 const INDEX_TREND_URL = "https://www.brkpoint.in/api/indextrend";
 const INDEX_TREND_CACHE_TTL_MS = 5 * 60 * 1000;
 const TECHNICAL_INDICATORS_URL = "https://www.brkpoint.in/api/technical-indicators";
@@ -125,6 +127,10 @@ const POSITIVE_INDUSTRY_AVG_CHANGE_BONUS = 0.12;
 const STRONG_INDUSTRY_AVG_CHANGE_BONUS = 0.25;
 const WEAK_INDUSTRY_AVG_CHANGE_PENALTY = -0.15;
 const VERY_WEAK_INDUSTRY_AVG_CHANGE_PENALTY = -0.30;
+const INDUSTRY_STRENGTH_BONUS_CAP = 0.45;
+const INDUSTRY_STRENGTH_PENALTY_CAP = -0.55;
+const INDUSTRY_STRENGTH_MIN_FULL_WEIGHT_STOCKS = 8;
+const INDUSTRY_STRENGTH_MIN_PARTIAL_WEIGHT_STOCKS = 5;
 const BANK_WEAK_MARKET_SECTOR_SCORE_PENALTY = -0.40;
 const SWING_INDEX_TREND_BULLISH_BONUS = 0.25;
 const SWING_INDEX_TREND_NEUTRAL_PENALTY = -0.10;
@@ -179,6 +185,15 @@ const MARKET_STATS_INDUSTRY_ALIASES: Record<string, string> = {
   Power: "Power",
   RealEstate: "Realty",
   Telecom: "Telecommunication",
+};
+const INDUSTRY_STRENGTH_EXTRA_ALIASES: Record<string, string[]> = {
+  Power: ["Utilities"],
+  OilGas: ["Energy", "Oil Gas & Consumable Fuels"],
+  Media: ["Media Entertainment & Publication"],
+  ConstructionMaterials: ["Construction Materials"],
+  RealEstate: ["Realty"],
+  IT: ["Information Technology"],
+  Auto: ["Automobile and Auto Components"],
 };
 const INDICATOR_LOOKBACK_TRADING_DAYS = 7;
 const FETCH_LOOKBACK_CALENDAR_DAYS = 14;
@@ -263,6 +278,7 @@ let swingTradesTableReady: Promise<void> | null = null;
 let activeSwingScanJobId: string | null = null;
 const swingScanJobs = new Map<string, SwingScanJob>();
 let marketStatsCache: { fetchedAt: number; payload: MarketStatsPayload | null } | null = null;
+let industryStrengthCache: { fetchedAt: number; payload: IndustryStrengthPayload | null } | null = null;
 let indexTrendCache: { fetchedAt: number; payload: IndexTrendPayload | null } | null = null;
 let technicalIndicatorsCache: { fetchedAt: number; rows: TechnicalIndicatorRow[] } | null = null;
 let insiderTradingCache: { fetchedAt: number; rows: InsiderTradingRow[] } | null = null;
@@ -400,6 +416,44 @@ interface MarketStatsPayload {
     declining?: number;
   };
   industry?: MarketStatsIndustryRow[];
+}
+
+interface IndustryStrengthRotationPattern {
+  pattern?: string;
+  description?: string;
+  signal?: string;
+  confidence?: string;
+}
+
+interface IndustryStrengthRow {
+  industry?: string;
+  total_stocks?: number | string;
+  advance_percentage?: number | string;
+  overall_trend?: string;
+  day_performance_change?: number | string;
+  week_performance_change?: number | string;
+  month_performance_change?: number | string;
+  day_strength?: string;
+  week_strength?: string;
+  month_strength?: string;
+  current_avg_change?: number | string;
+  advance_decline_ratio?: number | string;
+  top_gainer?: string;
+  top_gainer_change?: number | string;
+  top_loser?: string;
+  top_loser_change?: number | string;
+  rotation_pattern?: IndustryStrengthRotationPattern;
+  momentum_score?: number | string;
+}
+
+interface IndustryStrengthPayload {
+  industries?: IndustryStrengthRow[];
+}
+
+interface IndustryStrengthImpact {
+  adjustment: number;
+  text: string | null;
+  source: "brkview" | "market_stats" | "none";
 }
 
 interface IndexTrendBlock {
@@ -1968,6 +2022,35 @@ async function fetchMarketStats(): Promise<MarketStatsPayload | null> {
   }
 }
 
+async function fetchIndustryStrengthAnalysis(): Promise<IndustryStrengthPayload | null> {
+  if (
+    industryStrengthCache &&
+    Date.now() - industryStrengthCache.fetchedAt < INDUSTRY_STRENGTH_CACHE_TTL_MS
+  ) {
+    return industryStrengthCache.payload;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(INDUSTRY_STRENGTH_URL, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const parsed = payload && typeof payload === "object" ? payload as IndustryStrengthPayload : null;
+    industryStrengthCache = { fetchedAt: Date.now(), payload: parsed };
+    return parsed;
+  } catch (err) {
+    console.warn("[SWING] Failed to fetch industry strength analysis.", err);
+    industryStrengthCache = { fetchedAt: Date.now(), payload: null };
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function numberOrNull(value: unknown): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -2531,6 +2614,21 @@ function marketRegimeScoreMultiplier(marketRegime: MarketRegimeSnapshot["marketR
   return marketRegime === "Weak" ? WEAK_MARKET_REGIME_SCORE_MULTIPLIER : 1.0;
 }
 
+function industryLookupKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function sectorIndustryLookupNames(sector: string): string[] {
+  return Array.from(new Set([
+    sector,
+    MARKET_STATS_INDUSTRY_ALIASES[sector],
+    ...(INDUSTRY_STRENGTH_EXTRA_ALIASES[sector] ?? []),
+  ].filter((value): value is string => Boolean(value))));
+}
+
 function marketStatsIndustryLookup(marketStats: MarketStatsPayload | null): Map<string, MarketStatsIndustryRow> {
   const lookup = new Map<string, MarketStatsIndustryRow>();
   for (const row of marketStats?.industry ?? []) {
@@ -2582,6 +2680,136 @@ function industryAvgChangeAdjustment(avgChange: number | null): number {
   if (avgChange <= VERY_WEAK_INDUSTRY_AVG_CHANGE_THRESHOLD) return VERY_WEAK_INDUSTRY_AVG_CHANGE_PENALTY;
   if (avgChange <= WEAK_INDUSTRY_AVG_CHANGE_THRESHOLD) return WEAK_INDUSTRY_AVG_CHANGE_PENALTY;
   return 0.0;
+}
+
+function industryStrengthLookup(payload: IndustryStrengthPayload | null): Map<string, IndustryStrengthRow> {
+  const lookup = new Map<string, IndustryStrengthRow>();
+  for (const row of payload?.industries ?? []) {
+    if (row.industry) lookup.set(industryLookupKey(row.industry), row);
+  }
+  return lookup;
+}
+
+function industryStrengthForSector(
+  sector: string,
+  payload: IndustryStrengthPayload | null,
+): IndustryStrengthRow | null {
+  const lookup = industryStrengthLookup(payload);
+  for (const name of sectorIndustryLookupNames(sector)) {
+    const row = lookup.get(industryLookupKey(name));
+    if (row) return row;
+  }
+  return null;
+}
+
+function rotationSignalAdjustment(rotation: IndustryStrengthRotationPattern | undefined): number {
+  const signal = String(rotation?.signal ?? rotation?.pattern ?? "").trim().toUpperCase();
+  const confidence = String(rotation?.confidence ?? "").trim().toLowerCase();
+  const confidenceMultiplier = confidence === "high" ? 1 : confidence === "medium" ? 0.7 : 0.35;
+  if (/(BULL|BUY|POSITIVE|LEADING|ACCUMUL)/.test(signal)) return 0.18 * confidenceMultiplier;
+  if (/(BEAR|SELL|NEGATIVE|LAGGING|DISTRIB)/.test(signal)) return -0.22 * confidenceMultiplier;
+  return 0.0;
+}
+
+function industryStockCountWeight(totalStocks: number | null): number {
+  if (totalStocks === null) return 1.0;
+  if (totalStocks < INDUSTRY_STRENGTH_MIN_PARTIAL_WEIGHT_STOCKS) return 0.45;
+  if (totalStocks < INDUSTRY_STRENGTH_MIN_FULL_WEIGHT_STOCKS) return 0.70;
+  return 1.0;
+}
+
+function industryStrengthAdjustment(row: IndustryStrengthRow): number {
+  const totalStocks = numberOrNull(row.total_stocks);
+  const advancePct = numberOrNull(row.advance_percentage);
+  const day = numberOrNull(row.day_performance_change);
+  const week = numberOrNull(row.week_performance_change);
+  const month = numberOrNull(row.month_performance_change);
+  const currentAvg = numberOrNull(row.current_avg_change);
+  const momentum = numberOrNull(row.momentum_score);
+  const trend = String(row.overall_trend ?? "").trim().toLowerCase();
+
+  let score = 0.0;
+  if (advancePct !== null) {
+    if (advancePct >= 75) score += 0.16;
+    else if (advancePct >= 60) score += 0.08;
+    else if (advancePct <= 30) score -= 0.22;
+    else if (advancePct <= 40) score -= 0.12;
+  }
+  if (day !== null) {
+    if (day >= 1.0) score += 0.08;
+    else if (day <= -1.0) score -= 0.10;
+  }
+  if (week !== null) {
+    if (week >= 1.0) score += 0.08;
+    else if (week <= -2.0) score -= 0.12;
+    else if (week <= -1.0) score -= 0.06;
+  }
+  if (month !== null) {
+    if (month >= 5.0) score += 0.18;
+    else if (month >= 2.0) score += 0.10;
+    else if (month <= -3.0) score -= 0.18;
+    else if (month <= -1.0) score -= 0.08;
+  }
+  if (currentAvg !== null) {
+    if (currentAvg >= 1.0) score += 0.08;
+    else if (currentAvg <= -1.0) score -= 0.10;
+  }
+  if (momentum !== null) {
+    if (momentum >= 2.0) score += 0.12;
+    else if (momentum >= 0.75) score += 0.06;
+    else if (momentum <= -2.0) score -= 0.15;
+    else if (momentum <= -0.75) score -= 0.08;
+  }
+  if (/positive|bull/.test(trend)) score += 0.05;
+  if (/negative|bear/.test(trend)) score -= 0.07;
+  score += rotationSignalAdjustment(row.rotation_pattern);
+
+  return r2(clamp(
+    score * industryStockCountWeight(totalStocks),
+    INDUSTRY_STRENGTH_PENALTY_CAP,
+    INDUSTRY_STRENGTH_BONUS_CAP,
+  ));
+}
+
+function industryStrengthImpact(
+  sector: string,
+  payload: IndustryStrengthPayload | null,
+  fallbackAvgChange: number | null,
+): IndustryStrengthImpact {
+  const row = industryStrengthForSector(sector, payload);
+  if (!row) {
+    const fallbackAdjustment = industryAvgChangeAdjustment(fallbackAvgChange);
+    return {
+      adjustment: r2(fallbackAdjustment),
+      text: fallbackAvgChange !== null
+        ? `Market stats avg ${r2(fallbackAvgChange)}%; sector avg adjustment ${r2(fallbackAdjustment)}`
+        : null,
+      source: fallbackAvgChange !== null ? "market_stats" : "none",
+    };
+  }
+
+  const totalStocks = numberOrNull(row.total_stocks);
+  const advancePct = numberOrNull(row.advance_percentage);
+  const day = numberOrNull(row.day_performance_change);
+  const week = numberOrNull(row.week_performance_change);
+  const month = numberOrNull(row.month_performance_change);
+  const momentum = numberOrNull(row.momentum_score);
+  const rotationSignal = row.rotation_pattern?.signal ?? row.rotation_pattern?.pattern ?? "NEUTRAL";
+  const confidence = row.rotation_pattern?.confidence ?? "n/a";
+  const adjustment = industryStrengthAdjustment(row);
+  const text = [
+    row.industry ? `Industry ${row.industry}` : `Industry ${sector}`,
+    totalStocks !== null ? `${Math.round(totalStocks)} stocks` : null,
+    advancePct !== null ? `adv ${r2(advancePct)}%` : null,
+    day !== null ? `day ${r2(day)}%` : null,
+    week !== null ? `week ${r2(week)}%` : null,
+    month !== null ? `month ${r2(month)}%` : null,
+    momentum !== null ? `momentum ${r2(momentum)}` : null,
+    `rotation ${rotationSignal}/${confidence}`,
+    `sector strength adjustment ${r2(adjustment)}`,
+  ].filter((part): part is string => Boolean(part)).join("; ");
+
+  return { adjustment, text, source: "brkview" };
 }
 
 function bankWeakMarketSectorPenalty(candidate: SwingCandidate, marketRegime: MarketRegimeSnapshot): number {
@@ -3836,6 +4064,7 @@ function finalizeSwingCandidates(
     marketStats: null,
   },
   indexTrend: IndexTrendPayload | null = null,
+  industryStrength: IndustryStrengthPayload | null = null,
   technicalIndicatorsBySymbol: Map<string, TechnicalIndicatorImpact> = new Map(),
   insiderActivityBySymbol: Map<string, InsiderActivityImpact> = new Map(),
 ): SwingCandidate[] {
@@ -3891,7 +4120,7 @@ function finalizeSwingCandidates(
       const industryAdvanceRatio = marketStatsSectorAdvanceRatio(candidate.sector, marketRegime.marketStats);
       const industryPenalty = industryBreadthPenalty(industryAdvanceRatio);
       const industryAvgChange = marketStatsSectorAvgChange(candidate.sector, marketRegime.marketStats);
-      const industryAvgAdjustment = industryAvgChangeAdjustment(industryAvgChange);
+      const industryStrengthContext = industryStrengthImpact(candidate.sector, industryStrength, industryAvgChange);
       const insiderActivity = insiderActivityBySymbol.get(candidate.symbol) ?? null;
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
@@ -3908,7 +4137,7 @@ function finalizeSwingCandidates(
         leaderAdjustment +
         sectorExhaustionPenalty(sectorPerf) +
         industryPenalty +
-        industryAvgAdjustment +
+        industryStrengthContext.adjustment +
         indexTrendImpact.scoreAdjustment +
         technicalAdjustment +
         insiderAdjustment +
@@ -3979,7 +4208,7 @@ function finalizeSwingCandidates(
           : null,
         insiderTransactionDate: insiderActivity?.transactionDate ?? null,
         insiderCategory: insiderActivity?.category ?? null,
-        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryAvgChange !== null ? `; Industry avg ${r2(industryAvgChange)}%; industry avg adjustment ${r2(industryAvgAdjustment)}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryStrengthContext.text ? `; ${industryStrengthContext.text}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
@@ -4070,10 +4299,18 @@ async function runSwingScanner(
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
   const scanTime = new Date().toISOString();
-  const [niftyReturn, marketRegime, indexTrend, technicalIndicatorsBySymbol, insiderActivityBySymbol] = await Promise.all([
+  const [
+    niftyReturn,
+    marketRegime,
+    indexTrend,
+    industryStrength,
+    technicalIndicatorsBySymbol,
+    insiderActivityBySymbol,
+  ] = await Promise.all([
     fetchNiftyDailyReturn(),
     fetchMarketRegimeSnapshot(),
     fetchIndexTrendPayload(),
+    fetchIndustryStrengthAnalysis(),
     fetchTechnicalIndicatorMap(),
     fetchInsiderActivityMap(),
   ]);
@@ -4123,6 +4360,7 @@ async function runSwingScanner(
     ),
     marketRegime,
     indexTrend,
+    industryStrength,
     technicalIndicatorsBySymbol,
     insiderActivityBySymbol,
   );
