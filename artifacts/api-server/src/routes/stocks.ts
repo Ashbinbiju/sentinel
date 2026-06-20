@@ -117,6 +117,14 @@ const STRICT_WEAK_MARKET_SIGNAL_BREADTH_THRESHOLD = 30.0;
 const WEAK_MARKET_REGIME_SCORE_MULTIPLIER = 0.90;
 const WEAK_INDUSTRY_ADVANCE_RATIO_THRESHOLD = 0.20;
 const WEAK_INDUSTRY_BREADTH_PENALTY = -0.30;
+const POSITIVE_INDUSTRY_AVG_CHANGE_THRESHOLD = 0.40;
+const STRONG_INDUSTRY_AVG_CHANGE_THRESHOLD = 1.00;
+const WEAK_INDUSTRY_AVG_CHANGE_THRESHOLD = -0.50;
+const VERY_WEAK_INDUSTRY_AVG_CHANGE_THRESHOLD = -1.00;
+const POSITIVE_INDUSTRY_AVG_CHANGE_BONUS = 0.12;
+const STRONG_INDUSTRY_AVG_CHANGE_BONUS = 0.25;
+const WEAK_INDUSTRY_AVG_CHANGE_PENALTY = -0.15;
+const VERY_WEAK_INDUSTRY_AVG_CHANGE_PENALTY = -0.30;
 const BANK_WEAK_MARKET_SECTOR_SCORE_PENALTY = -0.40;
 const SWING_INDEX_TREND_BULLISH_BONUS = 0.25;
 const SWING_INDEX_TREND_NEUTRAL_PENALTY = -0.10;
@@ -380,6 +388,8 @@ interface MarketStatsIndustryRow {
   total?: number;
   advancing?: number;
   declining?: number;
+  unchanged?: number;
+  totalChange?: number;
   avgChange?: number;
 }
 
@@ -2555,9 +2565,23 @@ function marketStatsSectorAdvanceRatio(sector: string, marketStats: MarketStatsP
   return advancing / total;
 }
 
+function marketStatsSectorAvgChange(sector: string, marketStats: MarketStatsPayload | null): number | null {
+  const stats = marketStatsForSector(sector, marketStats);
+  return numberOrNull(stats?.avgChange);
+}
+
 function industryBreadthPenalty(advanceRatio: number | null): number {
   if (advanceRatio === null) return 0.0;
   return advanceRatio < WEAK_INDUSTRY_ADVANCE_RATIO_THRESHOLD ? WEAK_INDUSTRY_BREADTH_PENALTY : 0.0;
+}
+
+function industryAvgChangeAdjustment(avgChange: number | null): number {
+  if (avgChange === null) return 0.0;
+  if (avgChange >= STRONG_INDUSTRY_AVG_CHANGE_THRESHOLD) return STRONG_INDUSTRY_AVG_CHANGE_BONUS;
+  if (avgChange >= POSITIVE_INDUSTRY_AVG_CHANGE_THRESHOLD) return POSITIVE_INDUSTRY_AVG_CHANGE_BONUS;
+  if (avgChange <= VERY_WEAK_INDUSTRY_AVG_CHANGE_THRESHOLD) return VERY_WEAK_INDUSTRY_AVG_CHANGE_PENALTY;
+  if (avgChange <= WEAK_INDUSTRY_AVG_CHANGE_THRESHOLD) return WEAK_INDUSTRY_AVG_CHANGE_PENALTY;
+  return 0.0;
 }
 
 function bankWeakMarketSectorPenalty(candidate: SwingCandidate, marketRegime: MarketRegimeSnapshot): number {
@@ -3866,6 +3890,8 @@ function finalizeSwingCandidates(
       const leaderAdjustment = leaderAdjustments.get(candidate.symbol)?.adjustment ?? 0;
       const industryAdvanceRatio = marketStatsSectorAdvanceRatio(candidate.sector, marketRegime.marketStats);
       const industryPenalty = industryBreadthPenalty(industryAdvanceRatio);
+      const industryAvgChange = marketStatsSectorAvgChange(candidate.sector, marketRegime.marketStats);
+      const industryAvgAdjustment = industryAvgChangeAdjustment(industryAvgChange);
       const insiderActivity = insiderActivityBySymbol.get(candidate.symbol) ?? null;
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
@@ -3882,6 +3908,7 @@ function finalizeSwingCandidates(
         leaderAdjustment +
         sectorExhaustionPenalty(sectorPerf) +
         industryPenalty +
+        industryAvgAdjustment +
         indexTrendImpact.scoreAdjustment +
         technicalAdjustment +
         insiderAdjustment +
@@ -3952,7 +3979,7 @@ function finalizeSwingCandidates(
           : null,
         insiderTransactionDate: insiderActivity?.transactionDate ?? null,
         insiderCategory: insiderActivity?.category ?? null,
-        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryAvgChange !== null ? `; Industry avg ${r2(industryAvgChange)}%; industry avg adjustment ${r2(industryAvgAdjustment)}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
