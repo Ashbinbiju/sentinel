@@ -306,6 +306,7 @@ type TechnicalTrendDirection = "Bullish" | "Bearish" | "Neutral" | "Unknown";
 interface SwingCandidate {
   symbol: string;
   sector: string;
+  tradeDate: string;
   signalTime: string;
   currentPrice: number;
   entryPrice: number;
@@ -608,6 +609,7 @@ interface MarketRegimeSnapshot {
 }
 
 type SwingTradeStatus = "WATCHLIST" | "ACTIVE" | "TARGET HIT" | "SL HIT" | "EXIT REVIEW" | "CLOSED";
+const OPEN_SWING_TRADE_STATUSES: SwingTradeStatus[] = ["WATCHLIST", "ACTIVE", "EXIT REVIEW"];
 
 interface PersistedSwingTrade {
   id: number;
@@ -3990,6 +3992,7 @@ function analyzeSwingCandidate(
   return {
     symbol: stock.symbol,
     sector: stock.sectorName,
+    tradeDate: getISTDateStr(last.t),
     signalTime: new Date(last.t * 1000).toISOString(),
     currentPrice,
     entryPrice,
@@ -4254,6 +4257,73 @@ function fetchSwingUniverse(selectedSectors: string[]): SwingUniverseStock[] {
   return stocks;
 }
 
+function isOpenSwingTradeStatus(status: string | null | undefined): boolean {
+  return OPEN_SWING_TRADE_STATUSES.includes(status as SwingTradeStatus);
+}
+
+async function fetchOpenSwingSymbols(symbols: string[]): Promise<Set<string>> {
+  const normalizedSymbols = Array.from(new Set(symbols.map(normalizeEquitySymbol).filter(Boolean)));
+  if (normalizedSymbols.length === 0) return new Set();
+
+  await ensureSwingTradesTable();
+  const result = await pool.query(
+    `
+      SELECT DISTINCT symbol
+      FROM swing_trades
+      WHERE status = ANY($1::text[])
+        AND symbol = ANY($2::text[])
+    `,
+    [OPEN_SWING_TRADE_STATUSES, normalizedSymbols],
+  );
+
+  return new Set(result.rows.map((row) => normalizeEquitySymbol(String(row.symbol))));
+}
+
+function compareSwingTradeDisplay(a: SwingTrackerTrade, b: SwingTrackerTrade): number {
+  const dateCompare = b.date.localeCompare(a.date);
+  if (dateCompare !== 0) return dateCompare;
+  return Date.parse(a.signalTime) - Date.parse(b.signalTime);
+}
+
+function preferredOpenSwingTrade(a: SwingTrackerTrade, b: SwingTrackerTrade): SwingTrackerTrade {
+  const priority = (trade: SwingTrackerTrade) =>
+    trade.status === "EXIT REVIEW" ? 3
+      : trade.status === "ACTIVE" ? 2
+        : 1;
+  const priorityDiff = priority(a) - priority(b);
+  if (priorityDiff !== 0) return priorityDiff > 0 ? a : b;
+
+  const aTime = Date.parse(a.signalTime);
+  const bTime = Date.parse(b.signalTime);
+  return (Number.isFinite(aTime) ? aTime : 0) <= (Number.isFinite(bTime) ? bTime : 0) ? a : b;
+}
+
+function dedupeOpenSwingTrades(trades: SwingTrackerTrade[]): SwingTrackerTrade[] {
+  const openBySymbol = new Map<string, SwingTrackerTrade>();
+  const closedTrades: SwingTrackerTrade[] = [];
+
+  for (const trade of trades) {
+    if (!isOpenSwingTradeStatus(trade.status)) {
+      closedTrades.push(trade);
+      continue;
+    }
+
+    const symbol = normalizeEquitySymbol(trade.symbol);
+    const existing = openBySymbol.get(symbol);
+    openBySymbol.set(symbol, existing ? preferredOpenSwingTrade(existing, trade) : trade);
+  }
+
+  return [...closedTrades, ...openBySymbol.values()].sort(compareSwingTradeDisplay);
+}
+
+function latestSwingTradeDate(candidates: SwingCandidate[]): string {
+  return candidates
+    .map((candidate) => candidate.tradeDate)
+    .filter(Boolean)
+    .sort()
+    .at(-1) ?? getTodayISTDateStr();
+}
+
 function createSwingScanJobId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -4364,16 +4434,21 @@ async function runSwingScanner(
     technicalIndicatorsBySymbol,
     insiderActivityBySymbol,
   );
-  const picks = limitSwingPicksBySector(candidates, limit);
-  const savedCount = await persistSwingCandidates(picks, getTodayISTDateStr(), scanTime);
+  const openSymbols = await fetchOpenSwingSymbols(candidates.map((candidate) => candidate.symbol));
+  const availableCandidates = candidates.filter((candidate) =>
+    !openSymbols.has(normalizeEquitySymbol(candidate.symbol))
+  );
+  const picks = limitSwingPicksBySector(availableCandidates, limit);
+  const resultDate = latestSwingTradeDate(picks.length ? picks : candidates);
+  const savedCount = await persistSwingCandidates(picks, scanTime);
 
   return {
     fetchedAt: scanTime,
-    date: getTodayISTDateStr(),
+    date: resultDate,
     selectedSectors,
     sectorCount: selectedSectors.length,
     universeCount: universe.length,
-    candidateCount: candidates.length,
+    candidateCount: availableCandidates.length,
     savedCount,
     niftyReturn: r2(niftyReturn),
     marketRegime: marketRegime.marketRegime,
@@ -4549,21 +4624,28 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
   };
 }
 
-async function persistSwingCandidates(candidates: SwingCandidate[], date: string, scanTime: string): Promise<number> {
+async function persistSwingCandidates(candidates: SwingCandidate[], scanTime: string): Promise<number> {
   await ensureSwingTradesTable();
   let saved = 0;
 
-  await pool.query(
-    `
-      UPDATE swing_trades
-      SET signal_time = $2
-      WHERE date = $1
-        AND to_char(signal_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') = '00:00'
-    `,
-    [date, scanTime],
-  );
+  const openSymbols = await fetchOpenSwingSymbols(candidates.map((candidate) => candidate.symbol));
+  const candidateDates = Array.from(new Set(candidates.map((candidate) => candidate.tradeDate)));
+
+  for (const date of candidateDates) {
+    await pool.query(
+      `
+        UPDATE swing_trades
+        SET signal_time = $2
+        WHERE date = $1
+          AND to_char(signal_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') = '00:00'
+      `,
+      [date, scanTime],
+    );
+  }
 
   for (const candidate of candidates) {
+    if (openSymbols.has(normalizeEquitySymbol(candidate.symbol))) continue;
+
     const result = await pool.query(
       `
         INSERT INTO swing_trades (
@@ -4614,7 +4696,7 @@ async function persistSwingCandidates(candidates: SwingCandidate[], date: string
       `,
       [
         candidate.symbol,
-        date,
+        candidate.tradeDate,
         candidate.signalTime,
         candidate.sector,
         candidate.entryType,
@@ -4833,12 +4915,13 @@ router.get("/swing-trades", async (req, res) => {
       },
     );
 
-    let resolved = enriched.filter((trade): trade is SwingTrackerTrade => trade !== null);
+    let resolved = dedupeOpenSwingTrades(
+      enriched.filter((trade): trade is SwingTrackerTrade => trade !== null),
+    );
     if (statusFilter !== "ALL") {
       resolved = resolved.filter((trade) => String(trade.status).toUpperCase() === statusFilter);
     }
 
-    const activeStatuses = new Set(["WATCHLIST", "ACTIVE", "EXIT REVIEW"]);
     const summary = {
       total: resolved.length,
       watchlist: resolved.filter((trade) => trade.status === "WATCHLIST").length,
@@ -4846,7 +4929,7 @@ router.get("/swing-trades", async (req, res) => {
       targetHit: resolved.filter((trade) => trade.status === "TARGET HIT").length,
       slHit: resolved.filter((trade) => trade.status === "SL HIT").length,
       exitReview: resolved.filter((trade) => trade.status === "EXIT REVIEW").length,
-      open: resolved.filter((trade) => activeStatuses.has(trade.status)).length,
+      open: resolved.filter((trade) => isOpenSwingTradeStatus(trade.status)).length,
     };
 
     return res.json({
