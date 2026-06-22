@@ -15,10 +15,18 @@ import type {
 
 import type {
   ErrorResponse,
+  GetSwingScannerParams,
+  GetSwingTradesParams,
+  GetTradeHistoryParams,
   HealthStatus,
   MarketIndex,
   MomentumPicksResponse,
   SectorPerformance,
+  SwingScanJobResponse,
+  SwingSectorsResponse,
+  SwingTrackerResponse,
+  TodayTradesResponse,
+  TradeHistoryResponse,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -256,8 +264,8 @@ export function useGetSectors<
 }
 
 /**
- * Returns filtered stocks from the most active sectors, enriched with price-action support/resistance signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
- * @summary Get price-action S/R stock picks with SL/Target
+ * Returns filtered stocks from the most active sectors, enriched with ChartPrime Power Channel zone reaction signals, direction, SL, targets, reward:risk, and smart exit rules. Entry candidates must trade at or above INR 100 and avoid repeated zone-tap consolidation. Also returns top 5 intraday picks.
+ * @summary Get ChartPrime Power Channel stock picks with SL/Target
  */
 export const getGetMomentumPicksUrl = () => {
   return `/api/stocks/momentum-picks`;
@@ -308,7 +316,7 @@ export type GetMomentumPicksQueryResult = NonNullable<
 export type GetMomentumPicksQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get price-action S/R stock picks with SL/Target
+ * @summary Get ChartPrime Power Channel stock picks with SL/Target
  */
 
 export function useGetMomentumPicks<
@@ -323,6 +331,529 @@ export function useGetMomentumPicks<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetMomentumPicksQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns current-strategy intraday signals recorded for today's IST session, enriched with live outcome status, inferred direction, and optional hit time.
+ * @summary Get today's intraday trade signals
+ */
+export const getGetTodayTradesUrl = () => {
+  return `/api/stocks/trades/today`;
+};
+
+export const getTodayTrades = async (
+  options?: RequestInit,
+): Promise<TodayTradesResponse> => {
+  return customFetch<TodayTradesResponse>(getGetTodayTradesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTodayTradesQueryKey = () => {
+  return [`/api/stocks/trades/today`] as const;
+};
+
+export const getGetTodayTradesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTodayTrades>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayTrades>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTodayTradesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTodayTrades>>> = ({
+    signal,
+  }) => getTodayTrades({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayTrades>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTodayTradesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTodayTrades>>
+>;
+export type GetTodayTradesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get today's intraday trade signals
+ */
+
+export function useGetTodayTrades<
+  TData = Awaited<ReturnType<typeof getTodayTrades>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getTodayTrades>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTodayTradesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns current-strategy trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status. Legacy rows saved before the active Power Channel rules are filtered out.
+ * @summary Get historical trade signals from the database
+ */
+export const getGetTradeHistoryUrl = (params?: GetTradeHistoryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/trades/history?${stringifiedParams}`
+    : `/api/stocks/trades/history`;
+};
+
+export const getTradeHistory = async (
+  params?: GetTradeHistoryParams,
+  options?: RequestInit,
+): Promise<TradeHistoryResponse> => {
+  return customFetch<TradeHistoryResponse>(getGetTradeHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTradeHistoryQueryKey = (params?: GetTradeHistoryParams) => {
+  return [`/api/stocks/trades/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTradeHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTradeHistory>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetTradeHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTradeHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTradeHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTradeHistory>>> = ({
+    signal,
+  }) => getTradeHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTradeHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTradeHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTradeHistory>>
+>;
+export type GetTradeHistoryQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get historical trade signals from the database
+ */
+
+export function useGetTradeHistory<
+  TData = Awaited<ReturnType<typeof getTradeHistory>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetTradeHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTradeHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTradeHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Starts or returns the active background swing scan. Symbols already in an open swing trade (WATCHLIST, ACTIVE, EXIT REVIEW) are excluded from new picks.
+ * @summary Start a swing scanner job
+ */
+export const getGetSwingScannerUrl = (params?: GetSwingScannerParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/swing-scanner?${stringifiedParams}`
+    : `/api/stocks/swing-scanner`;
+};
+
+export const getSwingScanner = async (
+  params?: GetSwingScannerParams,
+  options?: RequestInit,
+): Promise<SwingScanJobResponse> => {
+  return customFetch<SwingScanJobResponse>(getGetSwingScannerUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSwingScannerQueryKey = (params?: GetSwingScannerParams) => {
+  return [`/api/stocks/swing-scanner`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSwingScannerQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSwingScanner>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetSwingScannerParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSwingScanner>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSwingScannerQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSwingScanner>>> = ({
+    signal,
+  }) => getSwingScanner(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSwingScanner>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSwingScannerQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSwingScanner>>
+>;
+export type GetSwingScannerQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Start a swing scanner job
+ */
+
+export function useGetSwingScanner<
+  TData = Awaited<ReturnType<typeof getSwingScanner>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetSwingScannerParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSwingScanner>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSwingScannerQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get swing scanner job progress
+ */
+export const getGetSwingScanJobUrl = (jobId: string) => {
+  return `/api/stocks/swing-scanner/jobs/${jobId}`;
+};
+
+export const getSwingScanJob = async (
+  jobId: string,
+  options?: RequestInit,
+): Promise<SwingScanJobResponse> => {
+  return customFetch<SwingScanJobResponse>(getGetSwingScanJobUrl(jobId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSwingScanJobQueryKey = (jobId: string) => {
+  return [`/api/stocks/swing-scanner/jobs/${jobId}`] as const;
+};
+
+export const getGetSwingScanJobQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSwingScanJob>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  jobId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSwingScanJob>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSwingScanJobQueryKey(jobId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSwingScanJob>>> = ({
+    signal,
+  }) => getSwingScanJob(jobId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!jobId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSwingScanJob>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSwingScanJobQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSwingScanJob>>
+>;
+export type GetSwingScanJobQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get swing scanner job progress
+ */
+
+export function useGetSwingScanJob<
+  TData = Awaited<ReturnType<typeof getSwingScanJob>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  jobId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSwingScanJob>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSwingScanJobQueryOptions(jobId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get swing scanner sector universe
+ */
+export const getGetSwingSectorsUrl = () => {
+  return `/api/stocks/swing-sectors`;
+};
+
+export const getSwingSectors = async (
+  options?: RequestInit,
+): Promise<SwingSectorsResponse> => {
+  return customFetch<SwingSectorsResponse>(getGetSwingSectorsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSwingSectorsQueryKey = () => {
+  return [`/api/stocks/swing-sectors`] as const;
+};
+
+export const getGetSwingSectorsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSwingSectors>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSwingSectors>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSwingSectorsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSwingSectors>>> = ({
+    signal,
+  }) => getSwingSectors({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSwingSectors>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSwingSectorsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSwingSectors>>
+>;
+export type GetSwingSectorsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get swing scanner sector universe
+ */
+
+export function useGetSwingSectors<
+  TData = Awaited<ReturnType<typeof getSwingSectors>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSwingSectors>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSwingSectorsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns saved swing entries and tracker status. Open entries are de-duplicated so only one WATCHLIST/ACTIVE/EXIT REVIEW row per symbol is returned.
+ * @summary Get swing trade tracker entries
+ */
+export const getGetSwingTradesUrl = (params?: GetSwingTradesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/stocks/swing-trades?${stringifiedParams}`
+    : `/api/stocks/swing-trades`;
+};
+
+export const getSwingTrades = async (
+  params?: GetSwingTradesParams,
+  options?: RequestInit,
+): Promise<SwingTrackerResponse> => {
+  return customFetch<SwingTrackerResponse>(getGetSwingTradesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSwingTradesQueryKey = (params?: GetSwingTradesParams) => {
+  return [`/api/stocks/swing-trades`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetSwingTradesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSwingTrades>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetSwingTradesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSwingTrades>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSwingTradesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSwingTrades>>> = ({
+    signal,
+  }) => getSwingTrades(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSwingTrades>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSwingTradesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSwingTrades>>
+>;
+export type GetSwingTradesQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get swing trade tracker entries
+ */
+
+export function useGetSwingTrades<
+  TData = Awaited<ReturnType<typeof getSwingTrades>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  params?: GetSwingTradesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSwingTrades>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSwingTradesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

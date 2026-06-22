@@ -515,6 +515,20 @@ interface IntradayMarketAlignment {
   indexName: "NIFTY" | "BANKNIFTY" | null;
 }
 
+type ScannerWarningCode =
+  | "NO_CANDLE_DATA"
+  | "NO_CONFIRMED_CANDLES"
+  | "DB_PERSIST_FAILED"
+  | "INDICATOR_ENRICH_FAILED"
+  | "SECTOR_SCAN_FAILED";
+
+interface ScannerWarning {
+  symbol: string | null;
+  sectorName: string | null;
+  code: ScannerWarningCode;
+  message: string;
+}
+
 interface SwingIndexTrendImpact {
   indexName: "NIFTY" | "BANKNIFTY" | null;
   direction: IndexTrendDirection;
@@ -1409,6 +1423,7 @@ function buildPowerChannelSignal(
 }
 
 interface IndicatorResult {
+  warning: ScannerWarning | null;
   vwap: number | null;
   ema20: number | null;
   confirmedClose: number | null;
@@ -1504,12 +1519,31 @@ function findEntrySignalMatch(
   return null;
 }
 
+function unknownErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err || "Unknown error");
+}
+
+function scannerWarning(
+  symbol: string | null,
+  sectorName: string | null | undefined,
+  code: ScannerWarningCode,
+  message: string,
+): ScannerWarning {
+  return {
+    symbol,
+    sectorName: sectorName ?? null,
+    code,
+    message,
+  };
+}
+
 async function enrichWithIndicators(
   symbol: string,
   sectorName?: string,
   indexTrend?: IndexTrendPayload | null,
 ): Promise<IndicatorResult> {
   const empty: IndicatorResult = {
+    warning: null,
     vwap: null,
     ema20: null,
     confirmedClose: null,
@@ -1535,6 +1569,10 @@ async function enrichWithIndicators(
     marketTrendScoreAdjustment: 0,
     marketTrendIndex: null,
   };
+  const withWarning = (warning: ScannerWarning): IndicatorResult => ({
+    ...empty,
+    warning,
+  });
 
   try {
     const today = getTodayISTDateStr();
@@ -1558,13 +1596,27 @@ async function enrichWithIndicators(
         : null;
 
     const candleData = await fetchCandles(symbol);
-    if (!candleData) return empty;
+    if (!candleData) {
+      return withWarning(scannerWarning(
+        symbol,
+        sectorName,
+        "NO_CANDLE_DATA",
+        "No candle data returned from Angel One or Moneycontrol.",
+      ));
+    }
 
     const { sessionCandles, historicalCandles, lastTradingDate } = candleData;
 
     const confirmedSession = getConfirmedCandles(sessionCandles);
     const confirmedHistorical = getConfirmedCandles(historicalCandles);
-    if (confirmedSession.length === 0) return empty;
+    if (confirmedSession.length === 0) {
+      return withWarning(scannerWarning(
+        symbol,
+        sectorName,
+        "NO_CONFIRMED_CANDLES",
+        "Candle feed returned no fully closed candles for the current session.",
+      ));
+    }
 
     const last = confirmedSession[confirmedSession.length - 1];
     let confirmedClose = last.c;
@@ -1690,6 +1742,12 @@ async function enrichWithIndicators(
           }
         } catch (dbErr) {
           console.error(`Failed to persist generated trade signal for ${symbol}`, dbErr);
+          return withWarning(scannerWarning(
+            symbol,
+            sectorName,
+            "DB_PERSIST_FAILED",
+            `Failed to save generated trade signal: ${unknownErrorMessage(dbErr)}`,
+          ));
         }
 
         if (!entrySignal) {
@@ -1710,6 +1768,7 @@ async function enrichWithIndicators(
     const prevClose = sessionStartIndex > 0 ? confirmedHistorical[sessionStartIndex - 1].c : (confirmedSession[0]?.o ?? 0);
 
     return {
+      warning: null,
       vwap: vwapR,
       ema20: ema20R,
       confirmedClose,
@@ -1735,8 +1794,13 @@ async function enrichWithIndicators(
       marketTrendScoreAdjustment: r2(marketAlignment.scoreAdjustment),
       marketTrendIndex: marketAlignment.indexName,
     };
-  } catch {
-    return empty;
+  } catch (err) {
+    return withWarning(scannerWarning(
+      symbol,
+      sectorName,
+      "INDICATOR_ENRICH_FAILED",
+      `Indicator enrichment failed: ${unknownErrorMessage(err)}`,
+    ));
   }
 }
 
@@ -4776,11 +4840,11 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
         if (entryTouched) {
           status = "ACTIVE";
           entryHitDate = candleDate;
-          continue;
         }
       }
 
-      if ((status === "ACTIVE" || status === "EXIT REVIEW") && entryHitDate && candleDate > entryHitDate) {
+      if ((status === "ACTIVE" || status === "EXIT REVIEW") && entryHitDate && candleDate >= entryHitDate) {
+        // Daily candles do not expose whether high or low happened first, so prefer the conservative SL-first outcome.
         if (candle.l <= sl) {
           status = "SL HIT";
           exitDate = candleDate;
@@ -5034,6 +5098,7 @@ router.get("/momentum-picks", async (req, res) => {
 
     let indicatorDate: string | null = null;
     let lastCandleTimeIST: string | null = null;
+    const scannerWarnings: ScannerWarning[] = [];
 
     // Candidates for top 5 picks (entry signal stocks across all sectors)
     const topPickCandidates: Array<{
@@ -5122,6 +5187,10 @@ router.get("/momentum-picks", async (req, res) => {
           );
 
           for (const ind of indicators) {
+            if (ind.warning) {
+              scannerWarnings.push(ind.warning);
+              req.log.warn({ warning: ind.warning }, "Momentum scanner symbol warning");
+            }
             if (!ind.indicatorDate) continue;
             // Keep the most recent indicatorDate + lastCandleTimeIST.
             // Both are lexicographically sortable (YYYY-MM-DD and HH:MM),
@@ -5221,6 +5290,7 @@ router.get("/momentum-picks", async (req, res) => {
               marketAlignmentText: ind.marketAlignmentText,
               marketTrendScoreAdjustment: ind.marketTrendScoreAdjustment,
               marketTrendIndex: ind.marketTrendIndex,
+              warning: ind.warning,
             };
           });
 
@@ -5230,12 +5300,21 @@ router.get("/momentum-picks", async (req, res) => {
             sectorChangePct: sector.changePct,
             stocks,
           };
-        } catch {
+        } catch (err) {
+          const warning = scannerWarning(
+            null,
+            sector.name,
+            "SECTOR_SCAN_FAILED",
+            `Sector scan failed: ${unknownErrorMessage(err)}`,
+          );
+          scannerWarnings.push(warning);
+          req.log.warn({ err, sector: sector.name }, "Momentum scanner sector warning");
           return {
             sectorName: sector.name,
             sectorKeyword: sector.keyword,
             sectorChangePct: sector.changePct,
             stocks: [],
+            warning,
           };
         }
       }),
@@ -5275,6 +5354,7 @@ router.get("/momentum-picks", async (req, res) => {
       lastCandleTimeIST,
       topPicks: liveTopPicks,
       sectors: sectorResults,
+      warnings: scannerWarnings,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to fetch Power Channel picks");
@@ -5352,13 +5432,13 @@ router.get("/trades/today", async (req, res) => {
         if (maxTargetReached >= 1) {
           if (hitsTarget(c, target2)) {
             newStatus = "TARGET 2 HIT";
-            hitTime = getISTTimeStr(c.t);
+            hitTime = getCandleCloseTimeIST(c);
             break;
           }
 
           if (hitsStop(c, entryPrice)) {
             newStatus = "T1 HIT & TRAILING SL HIT";
-            hitTime = getISTTimeStr(c.t);
+            hitTime = getCandleCloseTimeIST(c);
             break;
           }
 
@@ -5367,19 +5447,19 @@ router.get("/trades/today", async (req, res) => {
 
         if (hitsStop(c, originalSl)) {
           newStatus = "SL HIT";
-          hitTime = getISTTimeStr(c.t);
+          hitTime = getCandleCloseTimeIST(c);
           break;
         }
 
         if (hitsTarget(c, target2)) {
           newStatus = "TARGET 2 HIT";
-          hitTime = getISTTimeStr(c.t);
+          hitTime = getCandleCloseTimeIST(c);
           break;
         }
         if (hitsTarget(c, target1) && maxTargetReached < 1) {
           maxTargetReached = 1;
           newStatus = "TARGET 1 HIT";
-          hitTime = getISTTimeStr(c.t);
+          hitTime = getCandleCloseTimeIST(c);
         }
       }
       
@@ -5387,7 +5467,7 @@ router.get("/trades/today", async (req, res) => {
         newStatus = "SQUARED OFF";
         const lastCandle = postSignalCandles[postSignalCandles.length - 1];
         if (lastCandle) {
-          hitTime = getISTTimeStr(lastCandle.t);
+          hitTime = getCandleCloseTimeIST(lastCandle);
         } else {
           hitTime = "15:15";
         }
@@ -5491,7 +5571,7 @@ router.get("/trades/history", async (req, res) => {
         if (maxTargetReached >= 1) {
           if (hitsTarget(c, t2)) {
             status = "TARGET 2 HIT";
-            hitTime = getISTTimeStr(c.t);
+            hitTime = getCandleCloseTimeIST(c);
             exitPrice = t2;
             plPctOverride = plPctForScaledExit(entry, t1, t2, direction);
             break;
@@ -5499,7 +5579,7 @@ router.get("/trades/history", async (req, res) => {
 
           if (hitsStop(c, entry)) {
             status = "T1 HIT & TRAILING SL HIT";
-            hitTime = getISTTimeStr(c.t);
+            hitTime = getCandleCloseTimeIST(c);
             exitPrice = entry;
             plPctOverride = plPctForScaledExit(entry, t1, entry, direction);
             break;
@@ -5510,14 +5590,14 @@ router.get("/trades/history", async (req, res) => {
 
         if (hitsStop(c, sl)) {
           status = "SL HIT";
-          hitTime = getISTTimeStr(c.t);
+          hitTime = getCandleCloseTimeIST(c);
           exitPrice = sl;
           break;
         }
 
         if (hitsTarget(c, t2)) {
           status = "TARGET 2 HIT";
-          hitTime = getISTTimeStr(c.t);
+          hitTime = getCandleCloseTimeIST(c);
           exitPrice = t2;
           plPctOverride = plPctForScaledExit(entry, t1, t2, direction);
           break;
@@ -5526,7 +5606,7 @@ router.get("/trades/history", async (req, res) => {
         if (hitsTarget(c, t1)) {
           maxTargetReached = 1;
           status = "TARGET 1 HIT";
-          hitTime = getISTTimeStr(c.t);
+          hitTime = getCandleCloseTimeIST(c);
           exitPrice = t1;
           plPctOverride = plPctForScaledExit(entry, t1, entry, direction);
         }
@@ -5537,7 +5617,7 @@ router.get("/trades/history", async (req, res) => {
       if (shouldSquareOff && (status === "ACTIVE" || status === "TARGET 1 HIT")) {
         const squareOffCandle = postSignalCandles.at(-1);
         status = "SQUARED OFF";
-        hitTime = squareOffCandle ? getISTTimeStr(squareOffCandle.t) : "15:15";
+        hitTime = squareOffCandle ? getCandleCloseTimeIST(squareOffCandle) : "15:15";
         exitPrice = squareOffCandle?.c ?? exitPrice;
         if (maxTargetReached >= 1 && exitPrice !== null) {
           plPctOverride = plPctForScaledExit(entry, t1, exitPrice, direction);

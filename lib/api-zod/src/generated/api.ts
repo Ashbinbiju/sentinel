@@ -35,8 +35,8 @@ export const GetSectorsResponseItem = zod.object({
 export const GetSectorsResponse = zod.array(GetSectorsResponseItem);
 
 /**
- * Returns filtered stocks from the most active sectors, enriched with price-action support/resistance signals, direction, SL, targets, reward:risk, and smart exit rules. Also returns top 5 intraday picks.
- * @summary Get price-action S/R stock picks with SL/Target
+ * Returns filtered stocks from the most active sectors, enriched with ChartPrime Power Channel zone reaction signals, direction, SL, targets, reward:risk, and smart exit rules. Entry candidates must trade at or above INR 100 and avoid repeated zone-tap consolidation. Also returns top 5 intraday picks.
+ * @summary Get ChartPrime Power Channel stock picks with SL/Target
  */
 export const GetMomentumPicksResponse = zod.object({
   fetchedAt: zod
@@ -65,16 +65,24 @@ export const GetMomentumPicksResponse = zod.object({
           changePct: zod.number(),
           entry: zod.number().describe("Confirmed close (entry price)"),
           sl: zod.number().describe("Stop loss price"),
-          target1: zod.number().describe("First scale target, one risk unit from entry"),
-          target2: zod.number().describe("Final target at the next opposite S/R zone, or fallback 1.5R target"),
+          target1: zod
+            .number()
+            .describe("First scale target, one risk unit from entry"),
+          target2: zod
+            .number()
+            .describe(
+              "Final target at the opposite ChartPrime support\/resistance zone",
+            ),
           riskPct: zod.number().describe("Risk % from entry to SL"),
           rewardRisk: zod
             .number()
-            .describe("Reward-to-risk ratio for the final S/R target"),
+            .describe(
+              "Reward-to-risk ratio for the final Power Channel target",
+            ),
           direction: zod
-            .union([zod.literal("LONG"), zod.literal("SHORT")])
-            .describe("Trade direction from the price-action S/R setup"),
-          setup: zod.string().describe("Price-action setup name"),
+            .enum(["LONG", "SHORT"])
+            .describe("Trade direction from the Power Channel setup"),
+          setup: zod.string().describe("Power Channel setup name"),
           smartExit: zod.string().describe("Smart exit rule"),
           vwap: zod.number(),
           ema20: zod.number(),
@@ -104,17 +112,39 @@ export const GetMomentumPicksResponse = zod.object({
             .boolean()
             .nullish()
             .describe(
-              "True if volumeRatio is at least 1.15 (price-action volume confirmation)",
+              "True if volumeRatio is at least 1.15; volume is context only for Power Channel signals",
             ),
           signalTime: zod
             .string()
             .nullish()
             .describe("UTC ISO timestamp of when the signal fired"),
+          marketAlignment: zod
+            .enum(["ALIGNED", "CAUTION", "BLOCKED", "UNKNOWN"])
+            .optional()
+            .describe("Index trend alignment for the signal direction"),
+          marketAlignmentText: zod
+            .string()
+            .nullish()
+            .describe("NIFTY\/BANKNIFTY 15m and 1h trend context"),
+          marketTrendScoreAdjustment: zod
+            .number()
+            .optional()
+            .describe("Score adjustment from index trend alignment"),
+          marketTrendIndex: zod
+            .union([
+              zod.literal("NIFTY"),
+              zod.literal("BANKNIFTY"),
+              zod.literal(null),
+            ])
+            .nullish()
+            .describe("Index used for market alignment"),
         })
-        .describe("One of the top 5 intraday picks across all sectors"),
+        .describe(
+          "One of the top 5 intraday picks across all sectors. Picks below INR 100 are excluded.",
+        ),
     )
     .describe(
-      "Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score)",
+      "Top 5 intraday picks across all sectors (entry signal stocks sorted by Power Channel setup score)",
     ),
   sectors: zod.array(
     zod.object({
@@ -131,17 +161,25 @@ export const GetMomentumPicksResponse = zod.object({
           confirmedClose: zod.number().nullish(),
           entrySignal: zod.boolean().nullish(),
           direction: zod
-            .union([zod.literal("LONG"), zod.literal("SHORT"), zod.literal(null)])
+            .union([
+              zod.literal("LONG"),
+              zod.literal("SHORT"),
+              zod.literal(null),
+            ])
             .nullish()
-            .describe("Trade direction from the price-action S/R setup"),
+            .describe("Trade direction from the Power Channel setup"),
           setup: zod
             .string()
             .nullish()
-            .describe("Price-action setup name, such as support rejection or resistance breakout"),
+            .describe(
+              "Power Channel setup name, such as support reaction or resistance rejection",
+            ),
           sl: zod
             .number()
             .nullish()
-            .describe("Stop loss price from the active support/resistance zone plus ATR buffer"),
+            .describe(
+              "Stop loss price outside the active ChartPrime support\/resistance zone",
+            ),
           target1: zod
             .number()
             .nullish()
@@ -149,7 +187,9 @@ export const GetMomentumPicksResponse = zod.object({
           target2: zod
             .number()
             .nullish()
-            .describe("Final target at the next opposite S/R zone, or fallback 1.5R target"),
+            .describe(
+              "Final target at the opposite ChartPrime support\/resistance zone",
+            ),
           riskPct: zod
             .number()
             .nullish()
@@ -157,7 +197,9 @@ export const GetMomentumPicksResponse = zod.object({
           rewardRisk: zod
             .number()
             .nullish()
-            .describe("Reward-to-risk ratio for the final S/R target"),
+            .describe(
+              "Reward-to-risk ratio for the final Power Channel target",
+            ),
           smartExit: zod
             .string()
             .nullish()
@@ -188,14 +230,638 @@ export const GetMomentumPicksResponse = zod.object({
             .boolean()
             .nullish()
             .describe(
-              "True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise",
+              "True if volumeRatio is at least 1.15; volume is context only for Power Channel signals",
             ),
           signalTime: zod
             .string()
             .nullish()
             .describe("UTC ISO timestamp of when the signal fired"),
+          marketAlignment: zod
+            .enum(["ALIGNED", "CAUTION", "BLOCKED", "UNKNOWN"])
+            .optional()
+            .describe("Index trend alignment for the signal direction"),
+          marketAlignmentText: zod
+            .string()
+            .nullish()
+            .describe("NIFTY\/BANKNIFTY 15m and 1h trend context"),
+          marketTrendScoreAdjustment: zod
+            .number()
+            .optional()
+            .describe("Score adjustment from index trend alignment"),
+          marketTrendIndex: zod
+            .union([
+              zod.literal("NIFTY"),
+              zod.literal("BANKNIFTY"),
+              zod.literal(null),
+            ])
+            .nullish()
+            .describe("Index used for market alignment"),
+          warning: zod
+            .union([
+              zod.object({
+                symbol: zod.string().nullable(),
+                sectorName: zod.string().nullable(),
+                code: zod.enum([
+                  "NO_CANDLE_DATA",
+                  "NO_CONFIRMED_CANDLES",
+                  "DB_PERSIST_FAILED",
+                  "INDICATOR_ENRICH_FAILED",
+                  "SECTOR_SCAN_FAILED",
+                ]),
+                message: zod.string(),
+              }),
+              zod.null(),
+            ])
+            .optional()
+            .describe(
+              "Warning explaining why scanner data for this symbol is incomplete, if any",
+            ),
         }),
       ),
+      warning: zod
+        .union([
+          zod.object({
+            symbol: zod.string().nullable(),
+            sectorName: zod.string().nullable(),
+            code: zod.enum([
+              "NO_CANDLE_DATA",
+              "NO_CONFIRMED_CANDLES",
+              "DB_PERSIST_FAILED",
+              "INDICATOR_ENRICH_FAILED",
+              "SECTOR_SCAN_FAILED",
+            ]),
+            message: zod.string(),
+          }),
+          zod.null(),
+        ])
+        .optional()
+        .describe("Sector-level warning if the sector scan failed"),
+    }),
+  ),
+  warnings: zod
+    .array(
+      zod.object({
+        symbol: zod.string().nullable(),
+        sectorName: zod.string().nullable(),
+        code: zod.enum([
+          "NO_CANDLE_DATA",
+          "NO_CONFIRMED_CANDLES",
+          "DB_PERSIST_FAILED",
+          "INDICATOR_ENRICH_FAILED",
+          "SECTOR_SCAN_FAILED",
+        ]),
+        message: zod.string(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Non-fatal scanner warnings. If topPicks is empty, clients can inspect this to distinguish no setup from data\/feed\/DB issues.",
+    ),
+});
+
+/**
+ * Returns current-strategy intraday signals recorded for today's IST session, enriched with live outcome status, inferred direction, and optional hit time.
+ * @summary Get today's intraday trade signals
+ */
+export const GetTodayTradesResponse = zod.object({
+  date: zod.string().describe("Today's IST date (YYYY-MM-DD)"),
+  trades: zod.array(
+    zod.object({
+      id: zod.number(),
+      symbol: zod.string(),
+      date: zod.string().describe("YYYY-MM-DD (IST)"),
+      signalTime: zod
+        .string()
+        .describe("UTC ISO timestamp of when the signal fired"),
+      entryPrice: zod.string(),
+      sl: zod.string(),
+      target1: zod.string(),
+      target2: zod.string(),
+      status: zod.enum([
+        "PENDING",
+        "ACTIVE",
+        "TARGET 1 HIT",
+        "TARGET 2 HIT",
+        "SL HIT",
+        "T1 HIT & TRAILING SL HIT",
+        "ENTRY INVALID",
+        "VWAP EXIT",
+        "SQUARED OFF",
+      ]),
+      direction: zod
+        .union([zod.literal("LONG"), zod.literal("SHORT"), zod.literal(null)])
+        .nullish()
+        .describe(
+          "Present when the API could infer trade direction from entry\/SL\/target",
+        ),
+      hitTime: zod
+        .string()
+        .nullish()
+        .describe(
+          "IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.",
+        ),
+    }),
+  ),
+});
+
+/**
+ * Returns current-strategy trade signals from the last N days (default 30, max 90) grouped by date, with estimated P&L per trade based on final status. Legacy rows saved before the active Power Channel rules are filtered out.
+ * @summary Get historical trade signals from the database
+ */
+export const getTradeHistoryQueryDaysDefault = 30;
+export const getTradeHistoryQueryDaysMax = 90;
+
+export const GetTradeHistoryQueryParams = zod.object({
+  days: zod.coerce
+    .number()
+    .min(1)
+    .max(getTradeHistoryQueryDaysMax)
+    .default(getTradeHistoryQueryDaysDefault)
+    .describe("Number of past days to fetch"),
+});
+
+export const GetTradeHistoryResponse = zod.object({
+  days: zod.array(
+    zod.object({
+      date: zod.string().describe("YYYY-MM-DD"),
+      trades: zod.array(
+        zod.object({
+          id: zod.number(),
+          symbol: zod.string(),
+          date: zod.string().describe("YYYY-MM-DD (IST)"),
+          signalTime: zod
+            .string()
+            .describe("UTC ISO timestamp of when the signal fired"),
+          entryPrice: zod.string(),
+          sl: zod.string(),
+          target1: zod.string(),
+          target2: zod.string(),
+          direction: zod
+            .enum(["LONG", "SHORT"])
+            .describe(
+              "Inferred trade direction based on entry, SL, and target",
+            ),
+          status: zod
+            .string()
+            .describe(
+              "Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)",
+            ),
+          hitTime: zod
+            .string()
+            .nullish()
+            .describe(
+              "IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.",
+            ),
+          plPct: zod
+            .number()
+            .nullish()
+            .describe(
+              "Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE\/PENDING trades or when exit data is unavailable.",
+            ),
+        }),
+      ),
+      summary: zod.object({
+        total: zod.number(),
+        winners: zod.number(),
+        losers: zod.number(),
+        breakeven: zod.number(),
+        pending: zod.number(),
+      }),
+    }),
+  ),
+});
+
+/**
+ * Starts or returns the active background swing scan. Symbols already in an open swing trade (WATCHLIST, ACTIVE, EXIT REVIEW) are excluded from new picks.
+ * @summary Start a swing scanner job
+ */
+export const getSwingScannerQueryLimitDefault = 5;
+export const getSwingScannerQueryLimitMax = 10;
+
+export const GetSwingScannerQueryParams = zod.object({
+  sectors: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Optional comma-separated sector names. Omit to scan all sectors.",
+    ),
+  limit: zod.coerce
+    .number()
+    .min(1)
+    .max(getSwingScannerQueryLimitMax)
+    .default(getSwingScannerQueryLimitDefault)
+    .describe("Maximum number of swing picks to save and return."),
+});
+
+export const GetSwingScannerResponse = zod.object({
+  jobId: zod.string(),
+  status: zod.enum(["queued", "running", "completed", "failed"]),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+  startedAt: zod.string().nullable(),
+  completedAt: zod.string().nullable(),
+  selectedSectors: zod.array(zod.string()),
+  sectorCount: zod.number(),
+  universeCount: zod.number(),
+  processedCount: zod.number(),
+  candidateCount: zod.number(),
+  savedCount: zod.number(),
+  progressPct: zod.number(),
+  message: zod.string(),
+  error: zod.string().nullable(),
+  result: zod.union([
+    zod.object({
+      fetchedAt: zod.string(),
+      date: zod
+        .string()
+        .describe(
+          "Trading date represented by the scan result (YYYY-MM-DD IST)",
+        ),
+      selectedSectors: zod.array(zod.string()),
+      sectorCount: zod.number(),
+      universeCount: zod.number(),
+      candidateCount: zod.number(),
+      savedCount: zod.number(),
+      niftyReturn: zod.number(),
+      marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
+      marketBreadthPct: zod.number().nullable(),
+      picks: zod.array(
+        zod.object({
+          symbol: zod.string(),
+          sector: zod.string(),
+          tradeDate: zod
+            .string()
+            .describe(
+              "Latest daily candle date used for this setup (YYYY-MM-DD IST)",
+            ),
+          signalTime: zod
+            .string()
+            .describe("UTC ISO timestamp of when the scan saved the signal"),
+          currentPrice: zod
+            .number()
+            .describe("Last available daily close at scan time"),
+          entryPrice: zod
+            .number()
+            .describe(
+              "Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched.",
+            ),
+          sl: zod.number(),
+          target: zod.number(),
+          score: zod.number(),
+          signalScore: zod.number(),
+          grade: zod.string(),
+          setup: zod.string(),
+          entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
+          reason: zod.string(),
+          expectedHoldDays: zod.number(),
+          recentReturn: zod.number(),
+          relativeStrength: zod.number(),
+          sectorRelativeStrength: zod.number(),
+          rvol: zod.number(),
+          avgTurnover: zod.number(),
+          entryDistancePct: zod.number(),
+          rewardRisk: zod.number(),
+          breakoutQuality: zod.string(),
+          trendPersistence: zod.number(),
+          freshBreakoutAge: zod.number().nullable(),
+          consolidationCandles: zod.number(),
+          setupType: zod.enum([
+            "fresh_breakout",
+            "sector_leader_continuation",
+            "mean_reversion_bounce",
+            "high_rvol_explosive",
+            "slow_institutional_trend",
+            "trend_continuation",
+          ]),
+          latestMovePct: zod.number(),
+          ema20DistancePct: zod.number(),
+          liquidityScore: zod.number(),
+          intradaySignal: zod.string(),
+          swingSignal: zod.string(),
+          shortTermSignal: zod.string(),
+          longTermSignal: zod.string(),
+          breakoutSignal: zod.string(),
+          ichimokuTrend: zod.string(),
+          marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
+          marketBreadthPct: zod.number().nullable(),
+          industryAdvanceRatio: zod.number().nullable(),
+          industryBreadthText: zod.string().nullable(),
+          weakMarketSignalDowngrade: zod.boolean(),
+          indexTrendIndex: zod.string().nullable(),
+          indexTrendDirection: zod.enum([
+            "Bullish",
+            "Bearish",
+            "Neutral",
+            "Unknown",
+          ]),
+          indexTrendText: zod.string().nullable(),
+          indexTrendScoreAdjustment: zod.number(),
+          technicalStage: zod.string().nullable(),
+          technicalScoreAdjustment: zod.number(),
+          technicalIndicatorText: zod.string().nullable(),
+          technicalRs55: zod.number().nullable(),
+          technicalVolumeRatio: zod.number().nullable(),
+          technicalAboveEma200: zod.boolean().nullable(),
+          technicalMacdTrend: zod.enum([
+            "Bullish",
+            "Bearish",
+            "Neutral",
+            "Unknown",
+          ]),
+          technicalAdxTrend: zod.enum([
+            "Bullish",
+            "Bearish",
+            "Neutral",
+            "Unknown",
+          ]),
+          insiderActivity: zod.enum(["Buy", "Sell", "Mixed", "None"]),
+          insiderScoreAdjustment: zod.number(),
+          insiderActivityText: zod.string().nullable(),
+          insiderTransactionValue: zod.number().nullable(),
+          insiderTransactionDate: zod.string().nullable(),
+          insiderCategory: zod.string().nullable(),
+        }),
+      ),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Get swing scanner job progress
+ */
+export const GetSwingScanJobParams = zod.object({
+  jobId: zod.coerce
+    .string()
+    .describe("Job id returned by \/stocks\/swing-scanner."),
+});
+
+export const GetSwingScanJobResponse = zod.object({
+  jobId: zod.string(),
+  status: zod.enum(["queued", "running", "completed", "failed"]),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+  startedAt: zod.string().nullable(),
+  completedAt: zod.string().nullable(),
+  selectedSectors: zod.array(zod.string()),
+  sectorCount: zod.number(),
+  universeCount: zod.number(),
+  processedCount: zod.number(),
+  candidateCount: zod.number(),
+  savedCount: zod.number(),
+  progressPct: zod.number(),
+  message: zod.string(),
+  error: zod.string().nullable(),
+  result: zod.union([
+    zod.object({
+      fetchedAt: zod.string(),
+      date: zod
+        .string()
+        .describe(
+          "Trading date represented by the scan result (YYYY-MM-DD IST)",
+        ),
+      selectedSectors: zod.array(zod.string()),
+      sectorCount: zod.number(),
+      universeCount: zod.number(),
+      candidateCount: zod.number(),
+      savedCount: zod.number(),
+      niftyReturn: zod.number(),
+      marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
+      marketBreadthPct: zod.number().nullable(),
+      picks: zod.array(
+        zod.object({
+          symbol: zod.string(),
+          sector: zod.string(),
+          tradeDate: zod
+            .string()
+            .describe(
+              "Latest daily candle date used for this setup (YYYY-MM-DD IST)",
+            ),
+          signalTime: zod
+            .string()
+            .describe("UTC ISO timestamp of when the scan saved the signal"),
+          currentPrice: zod
+            .number()
+            .describe("Last available daily close at scan time"),
+          entryPrice: zod
+            .number()
+            .describe(
+              "Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched.",
+            ),
+          sl: zod.number(),
+          target: zod.number(),
+          score: zod.number(),
+          signalScore: zod.number(),
+          grade: zod.string(),
+          setup: zod.string(),
+          entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
+          reason: zod.string(),
+          expectedHoldDays: zod.number(),
+          recentReturn: zod.number(),
+          relativeStrength: zod.number(),
+          sectorRelativeStrength: zod.number(),
+          rvol: zod.number(),
+          avgTurnover: zod.number(),
+          entryDistancePct: zod.number(),
+          rewardRisk: zod.number(),
+          breakoutQuality: zod.string(),
+          trendPersistence: zod.number(),
+          freshBreakoutAge: zod.number().nullable(),
+          consolidationCandles: zod.number(),
+          setupType: zod.enum([
+            "fresh_breakout",
+            "sector_leader_continuation",
+            "mean_reversion_bounce",
+            "high_rvol_explosive",
+            "slow_institutional_trend",
+            "trend_continuation",
+          ]),
+          latestMovePct: zod.number(),
+          ema20DistancePct: zod.number(),
+          liquidityScore: zod.number(),
+          intradaySignal: zod.string(),
+          swingSignal: zod.string(),
+          shortTermSignal: zod.string(),
+          longTermSignal: zod.string(),
+          breakoutSignal: zod.string(),
+          ichimokuTrend: zod.string(),
+          marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
+          marketBreadthPct: zod.number().nullable(),
+          industryAdvanceRatio: zod.number().nullable(),
+          industryBreadthText: zod.string().nullable(),
+          weakMarketSignalDowngrade: zod.boolean(),
+          indexTrendIndex: zod.string().nullable(),
+          indexTrendDirection: zod.enum([
+            "Bullish",
+            "Bearish",
+            "Neutral",
+            "Unknown",
+          ]),
+          indexTrendText: zod.string().nullable(),
+          indexTrendScoreAdjustment: zod.number(),
+          technicalStage: zod.string().nullable(),
+          technicalScoreAdjustment: zod.number(),
+          technicalIndicatorText: zod.string().nullable(),
+          technicalRs55: zod.number().nullable(),
+          technicalVolumeRatio: zod.number().nullable(),
+          technicalAboveEma200: zod.boolean().nullable(),
+          technicalMacdTrend: zod.enum([
+            "Bullish",
+            "Bearish",
+            "Neutral",
+            "Unknown",
+          ]),
+          technicalAdxTrend: zod.enum([
+            "Bullish",
+            "Bearish",
+            "Neutral",
+            "Unknown",
+          ]),
+          insiderActivity: zod.enum(["Buy", "Sell", "Mixed", "None"]),
+          insiderScoreAdjustment: zod.number(),
+          insiderActivityText: zod.string().nullable(),
+          insiderTransactionValue: zod.number().nullable(),
+          insiderTransactionDate: zod.string().nullable(),
+          insiderCategory: zod.string().nullable(),
+        }),
+      ),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Get swing scanner sector universe
+ */
+export const GetSwingSectorsResponse = zod.object({
+  totalSectors: zod.number(),
+  totalSymbols: zod.number(),
+  sectors: zod.array(
+    zod.object({
+      name: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * Returns saved swing entries and tracker status. Open entries are de-duplicated so only one WATCHLIST/ACTIVE/EXIT REVIEW row per symbol is returned.
+ * @summary Get swing trade tracker entries
+ */
+export const getSwingTradesQueryDaysDefault = 45;
+export const getSwingTradesQueryDaysMax = 180;
+
+export const getSwingTradesQueryStatusDefault = `all`;
+
+export const GetSwingTradesQueryParams = zod.object({
+  days: zod.coerce
+    .number()
+    .min(1)
+    .max(getSwingTradesQueryDaysMax)
+    .default(getSwingTradesQueryDaysDefault)
+    .describe("Number of past calendar days to fetch."),
+  status: zod.coerce
+    .string()
+    .default(getSwingTradesQueryStatusDefault)
+    .describe(
+      "Optional status filter, e.g. WATCHLIST, ACTIVE, TARGET HIT, SL HIT, EXIT REVIEW, or all.",
+    ),
+});
+
+export const GetSwingTradesResponse = zod.object({
+  fetchedAt: zod.string(),
+  days: zod.number(),
+  summary: zod.object({
+    total: zod.number(),
+    watchlist: zod.number(),
+    active: zod.number(),
+    targetHit: zod.number(),
+    slHit: zod.number(),
+    exitReview: zod.number(),
+    open: zod.number(),
+  }),
+  trades: zod.array(
+    zod.object({
+      id: zod.number(),
+      symbol: zod.string(),
+      date: zod.string().describe("Scan\/trade date (YYYY-MM-DD IST)"),
+      signalTime: zod.string(),
+      sector: zod.string().nullable(),
+      direction: zod.enum(["LONG", "SHORT"]),
+      entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
+      currentPrice: zod.string(),
+      entryPrice: zod.string(),
+      sl: zod.string(),
+      target: zod.string(),
+      score: zod.string(),
+      grade: zod.string(),
+      setup: zod.string(),
+      reason: zod.string().nullable(),
+      expectedHoldDays: zod.string(),
+      status: zod.enum([
+        "WATCHLIST",
+        "ACTIVE",
+        "TARGET HIT",
+        "SL HIT",
+        "EXIT REVIEW",
+        "CLOSED",
+      ]),
+      entryHitDate: zod.string().nullable(),
+      exitDate: zod.string().nullable(),
+      lastPrice: zod.string().nullable(),
+      lastCheckedAt: zod.string().nullable(),
+      indexTrendIndex: zod.string().nullable(),
+      indexTrendDirection: zod
+        .union([
+          zod.literal("Bullish"),
+          zod.literal("Bearish"),
+          zod.literal("Neutral"),
+          zod.literal("Unknown"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      indexTrendText: zod.string().nullable(),
+      indexTrendScoreAdjustment: zod.string(),
+      technicalStage: zod.string().nullable(),
+      technicalScoreAdjustment: zod.string(),
+      technicalIndicatorText: zod.string().nullable(),
+      technicalRs55: zod.string().nullable(),
+      technicalVolumeRatio: zod.string().nullable(),
+      technicalAboveEma200: zod.boolean().nullable(),
+      technicalMacdTrend: zod
+        .union([
+          zod.literal("Bullish"),
+          zod.literal("Bearish"),
+          zod.literal("Neutral"),
+          zod.literal("Unknown"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      technicalAdxTrend: zod
+        .union([
+          zod.literal("Bullish"),
+          zod.literal("Bearish"),
+          zod.literal("Neutral"),
+          zod.literal("Unknown"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      insiderActivity: zod
+        .union([
+          zod.literal("Buy"),
+          zod.literal("Sell"),
+          zod.literal("Mixed"),
+          zod.literal("None"),
+          zod.literal(null),
+        ])
+        .nullable(),
+      insiderScoreAdjustment: zod.string(),
+      insiderActivityText: zod.string().nullable(),
+      insiderTransactionValue: zod.string().nullable(),
+      insiderTransactionDate: zod.string().nullable(),
+      insiderCategory: zod.string().nullable(),
+      plPct: zod.number().nullable(),
+      daysOpen: zod.number().nullable(),
     }),
   ),
 });

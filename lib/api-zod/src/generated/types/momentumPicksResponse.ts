@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ScannerWarning } from "./scannerWarning";
 import type { SectorWithStocks } from "./sectorWithStocks";
 import type { TopPick } from "./topPick";
 
@@ -23,7 +24,9 @@ export interface MomentumPicksResponse {
    * @nullable
    */
   lastCandleTimeIST?: string | null;
-  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score) */
+  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by Power Channel setup score) */
   topPicks: TopPick[];
   sectors: SectorWithStocks[];
+  /** Non-fatal scanner warnings. If topPicks is empty, clients can inspect this to distinguish no setup from data/feed/DB issues. */
+  warnings?: ScannerWarning[];
 }

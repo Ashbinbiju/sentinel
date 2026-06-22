@@ -5,8 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ScannerWarning } from "./scannerWarning";
 import type { StockItemCircuitLimit } from "./stockItemCircuitLimit";
-import type { SignalDirection } from "./signalDirection";
+import type { StockItemDirection } from "./stockItemDirection";
+import type { StockItemMarketAlignment } from "./stockItemMarketAlignment";
+import type { StockItemMarketTrendIndex } from "./stockItemMarketTrendIndex";
 
 export interface StockItem {
   symbol: string;
@@ -20,12 +23,18 @@ export interface StockItem {
   confirmedClose?: number | null;
   /** @nullable */
   entrySignal?: boolean | null;
-  /** Trade direction from the price-action S/R setup */
-  direction?: SignalDirection | null;
-  /** Price-action setup name, such as support rejection or resistance breakout */
+  /**
+   * Trade direction from the Power Channel setup
+   * @nullable
+   */
+  direction?: StockItemDirection;
+  /**
+   * Power Channel setup name, such as support reaction or resistance rejection
+   * @nullable
+   */
   setup?: string | null;
   /**
-   * Stop loss price from the active support/resistance zone plus ATR buffer
+   * Stop loss price outside the active ChartPrime support/resistance zone
    * @nullable
    */
   sl?: number | null;
@@ -35,7 +44,7 @@ export interface StockItem {
    */
   target1?: number | null;
   /**
-   * Final target at the next opposite S/R zone, or fallback 1.5R target
+   * Final target at the opposite ChartPrime support/resistance zone
    * @nullable
    */
   target2?: number | null;
@@ -45,7 +54,7 @@ export interface StockItem {
    */
   riskPct?: number | null;
   /**
-   * Reward-to-risk ratio for the final S/R target
+   * Reward-to-risk ratio for the final Power Channel target
    * @nullable
    */
   rewardRisk?: number | null;
@@ -67,10 +76,29 @@ export interface StockItem {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise
+   * True if volumeRatio is at least 1.15; volume is context only for Power Channel signals
    * @nullable
    */
   volumeOk?: boolean | null;
-  /** UTC ISO timestamp of when the signal fired */
+  /**
+   * UTC ISO timestamp of when the signal fired
+   * @nullable
+   */
   signalTime?: string | null;
+  /** Index trend alignment for the signal direction */
+  marketAlignment?: StockItemMarketAlignment;
+  /**
+   * NIFTY/BANKNIFTY 15m and 1h trend context
+   * @nullable
+   */
+  marketAlignmentText?: string | null;
+  /** Score adjustment from index trend alignment */
+  marketTrendScoreAdjustment?: number;
+  /**
+   * Index used for market alignment
+   * @nullable
+   */
+  marketTrendIndex?: StockItemMarketTrendIndex;
+  /** Warning explaining why scanner data for this symbol is incomplete, if any */
+  warning?: ScannerWarning | null;
 }

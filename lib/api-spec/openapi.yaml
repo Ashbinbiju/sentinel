@@ -84,6 +84,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /stocks/trades/today:
+    get:
+      operationId: getTodayTrades
+      tags: [stocks]
+      summary: Get today's intraday trade signals
+      description: Returns current-strategy intraday signals recorded for today's IST session, enriched with live outcome status, inferred direction, and optional hit time.
+      responses:
+        "200":
+          description: Today's trade signals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayTradesResponse"
+        "500":
+          description: Failed to fetch data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /stocks/trades/history:
     get:
       operationId: getTradeHistory
@@ -108,6 +127,110 @@ paths:
                 $ref: "#/components/schemas/TradeHistoryResponse"
         "500":
           description: Failed to fetch data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/swing-scanner:
+    get:
+      operationId: getSwingScanner
+      tags: [stocks]
+      summary: Start a swing scanner job
+      description: Starts or returns the active background swing scan. Symbols already in an open swing trade (WATCHLIST, ACTIVE, EXIT REVIEW) are excluded from new picks.
+      parameters:
+        - in: query
+          name: sectors
+          schema:
+            type: string
+          description: Optional comma-separated sector names. Omit to scan all sectors.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 10
+          description: Maximum number of swing picks to save and return.
+      responses:
+        "200":
+          description: Swing scan job state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwingScanJobResponse"
+        "500":
+          description: Failed to start scanner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/swing-scanner/jobs/{jobId}:
+    get:
+      operationId: getSwingScanJob
+      tags: [stocks]
+      summary: Get swing scanner job progress
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+          description: Job id returned by /stocks/swing-scanner.
+      responses:
+        "200":
+          description: Swing scan job state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwingScanJobResponse"
+        "404":
+          description: Job expired or not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /stocks/swing-sectors:
+    get:
+      operationId: getSwingSectors
+      tags: [stocks]
+      summary: Get swing scanner sector universe
+      responses:
+        "200":
+          description: Swing sector list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwingSectorsResponse"
+  /stocks/swing-trades:
+    get:
+      operationId: getSwingTrades
+      tags: [stocks]
+      summary: Get swing trade tracker entries
+      description: Returns saved swing entries and tracker status. Open entries are de-duplicated so only one WATCHLIST/ACTIVE/EXIT REVIEW row per symbol is returned.
+      parameters:
+        - in: query
+          name: days
+          schema:
+            type: integer
+            default: 45
+            minimum: 1
+            maximum: 180
+          description: Number of past calendar days to fetch.
+        - in: query
+          name: status
+          schema:
+            type: string
+            default: all
+          description: Optional status filter, e.g. WATCHLIST, ACTIVE, TARGET HIT, SL HIT, EXIT REVIEW, or all.
+      responses:
+        "200":
+          description: Swing tracker response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SwingTrackerResponse"
+        "500":
+          description: Failed to fetch swing trades
           content:
             application/json:
               schema:
@@ -147,6 +270,28 @@ components:
         - name
         - keyword
         - changePct
+    ScannerWarning:
+      type: object
+      properties:
+        symbol:
+          type: ["string", "null"]
+        sectorName:
+          type: ["string", "null"]
+        code:
+          type: string
+          enum:
+            - NO_CANDLE_DATA
+            - NO_CONFIRMED_CANDLES
+            - DB_PERSIST_FAILED
+            - INDICATOR_ENRICH_FAILED
+            - SECTOR_SCAN_FAILED
+        message:
+          type: string
+      required:
+        - symbol
+        - sectorName
+        - code
+        - message
     StockItem:
       type: object
       properties:
@@ -221,6 +366,11 @@ components:
           type: ["string", "null"]
           enum: ["NIFTY", "BANKNIFTY", null]
           description: Index used for market alignment
+        warning:
+          oneOf:
+            - $ref: "#/components/schemas/ScannerWarning"
+            - type: "null"
+          description: Warning explaining why scanner data for this symbol is incomplete, if any
       required:
         - symbol
         - ltp
@@ -330,6 +480,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StockItem"
+        warning:
+          oneOf:
+            - $ref: "#/components/schemas/ScannerWarning"
+            - type: "null"
+          description: Sector-level warning if the sector scan failed
       required:
         - sectorName
         - sectorKeyword
@@ -359,11 +514,597 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SectorWithStocks"
+        warnings:
+          type: array
+          description: Non-fatal scanner warnings. If topPicks is empty, clients can inspect this to distinguish no setup from data/feed/DB issues.
+          items:
+            $ref: "#/components/schemas/ScannerWarning"
       required:
         - fetchedAt
         - isLiveSession
         - topPicks
         - sectors
+    TradeStatus:
+      type: string
+      enum:
+        - PENDING
+        - ACTIVE
+        - TARGET 1 HIT
+        - TARGET 2 HIT
+        - SL HIT
+        - T1 HIT & TRAILING SL HIT
+        - ENTRY INVALID
+        - VWAP EXIT
+        - SQUARED OFF
+    TodayTrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        date:
+          type: string
+          description: YYYY-MM-DD (IST)
+        signalTime:
+          type: string
+          description: UTC ISO timestamp of when the signal fired
+        entryPrice:
+          type: string
+        sl:
+          type: string
+        target1:
+          type: string
+        target2:
+          type: string
+        status:
+          $ref: "#/components/schemas/TradeStatus"
+        direction:
+          type: ["string", "null"]
+          enum: ["LONG", "SHORT", null]
+          description: Present when the API could infer trade direction from entry/SL/target
+        hitTime:
+          type: ["string", "null"]
+          description: IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
+      required:
+        - id
+        - symbol
+        - date
+        - signalTime
+        - entryPrice
+        - sl
+        - target1
+        - target2
+        - status
+    TodayTradesResponse:
+      type: object
+      properties:
+        date:
+          type: string
+          description: Today's IST date (YYYY-MM-DD)
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/TodayTrade"
+      required:
+        - date
+        - trades
+    SwingTradeStatus:
+      type: string
+      enum:
+        - WATCHLIST
+        - ACTIVE
+        - TARGET HIT
+        - SL HIT
+        - EXIT REVIEW
+        - CLOSED
+    SwingEntryType:
+      type: string
+      enum:
+        - BREAKOUT
+        - PULLBACK
+    SwingSectorOption:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+      required:
+        - name
+        - count
+    SwingSectorsResponse:
+      type: object
+      properties:
+        totalSectors:
+          type: integer
+        totalSymbols:
+          type: integer
+        sectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwingSectorOption"
+      required:
+        - totalSectors
+        - totalSymbols
+        - sectors
+    SwingPick:
+      type: object
+      properties:
+        symbol:
+          type: string
+        sector:
+          type: string
+        tradeDate:
+          type: string
+          description: Latest daily candle date used for this setup (YYYY-MM-DD IST)
+        signalTime:
+          type: string
+          description: UTC ISO timestamp of when the scan saved the signal
+        currentPrice:
+          type: number
+          description: Last available daily close at scan time
+        entryPrice:
+          type: number
+          description: Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched.
+        sl:
+          type: number
+        target:
+          type: number
+        score:
+          type: number
+        signalScore:
+          type: number
+        grade:
+          type: string
+        setup:
+          type: string
+        entryType:
+          $ref: "#/components/schemas/SwingEntryType"
+        reason:
+          type: string
+        expectedHoldDays:
+          type: number
+        recentReturn:
+          type: number
+        relativeStrength:
+          type: number
+        sectorRelativeStrength:
+          type: number
+        rvol:
+          type: number
+        avgTurnover:
+          type: number
+        entryDistancePct:
+          type: number
+        rewardRisk:
+          type: number
+        breakoutQuality:
+          type: string
+        trendPersistence:
+          type: number
+        freshBreakoutAge:
+          type: ["number", "null"]
+        consolidationCandles:
+          type: number
+        setupType:
+          type: string
+          enum:
+            - fresh_breakout
+            - sector_leader_continuation
+            - mean_reversion_bounce
+            - high_rvol_explosive
+            - slow_institutional_trend
+            - trend_continuation
+        latestMovePct:
+          type: number
+        ema20DistancePct:
+          type: number
+        liquidityScore:
+          type: number
+        intradaySignal:
+          type: string
+        swingSignal:
+          type: string
+        shortTermSignal:
+          type: string
+        longTermSignal:
+          type: string
+        breakoutSignal:
+          type: string
+        ichimokuTrend:
+          type: string
+        marketRegime:
+          type: string
+          enum: ["Bull", "Neutral", "Weak", "Unknown"]
+        marketBreadthPct:
+          type: ["number", "null"]
+        industryAdvanceRatio:
+          type: ["number", "null"]
+        industryBreadthText:
+          type: ["string", "null"]
+        weakMarketSignalDowngrade:
+          type: boolean
+        indexTrendIndex:
+          type: ["string", "null"]
+        indexTrendDirection:
+          type: string
+          enum: ["Bullish", "Bearish", "Neutral", "Unknown"]
+        indexTrendText:
+          type: ["string", "null"]
+        indexTrendScoreAdjustment:
+          type: number
+        technicalStage:
+          type: ["string", "null"]
+        technicalScoreAdjustment:
+          type: number
+        technicalIndicatorText:
+          type: ["string", "null"]
+        technicalRs55:
+          type: ["number", "null"]
+        technicalVolumeRatio:
+          type: ["number", "null"]
+        technicalAboveEma200:
+          type: ["boolean", "null"]
+        technicalMacdTrend:
+          type: string
+          enum: ["Bullish", "Bearish", "Neutral", "Unknown"]
+        technicalAdxTrend:
+          type: string
+          enum: ["Bullish", "Bearish", "Neutral", "Unknown"]
+        insiderActivity:
+          type: string
+          enum: ["Buy", "Sell", "Mixed", "None"]
+        insiderScoreAdjustment:
+          type: number
+        insiderActivityText:
+          type: ["string", "null"]
+        insiderTransactionValue:
+          type: ["number", "null"]
+        insiderTransactionDate:
+          type: ["string", "null"]
+        insiderCategory:
+          type: ["string", "null"]
+      required:
+        - symbol
+        - sector
+        - tradeDate
+        - signalTime
+        - currentPrice
+        - entryPrice
+        - sl
+        - target
+        - score
+        - signalScore
+        - grade
+        - setup
+        - entryType
+        - reason
+        - expectedHoldDays
+        - recentReturn
+        - relativeStrength
+        - sectorRelativeStrength
+        - rvol
+        - avgTurnover
+        - entryDistancePct
+        - rewardRisk
+        - breakoutQuality
+        - trendPersistence
+        - freshBreakoutAge
+        - consolidationCandles
+        - setupType
+        - latestMovePct
+        - ema20DistancePct
+        - liquidityScore
+        - intradaySignal
+        - swingSignal
+        - shortTermSignal
+        - longTermSignal
+        - breakoutSignal
+        - ichimokuTrend
+        - marketRegime
+        - marketBreadthPct
+        - industryAdvanceRatio
+        - industryBreadthText
+        - weakMarketSignalDowngrade
+        - indexTrendIndex
+        - indexTrendDirection
+        - indexTrendText
+        - indexTrendScoreAdjustment
+        - technicalStage
+        - technicalScoreAdjustment
+        - technicalIndicatorText
+        - technicalRs55
+        - technicalVolumeRatio
+        - technicalAboveEma200
+        - technicalMacdTrend
+        - technicalAdxTrend
+        - insiderActivity
+        - insiderScoreAdjustment
+        - insiderActivityText
+        - insiderTransactionValue
+        - insiderTransactionDate
+        - insiderCategory
+    SwingScannerResult:
+      type: object
+      properties:
+        fetchedAt:
+          type: string
+        date:
+          type: string
+          description: Trading date represented by the scan result (YYYY-MM-DD IST)
+        selectedSectors:
+          type: array
+          items:
+            type: string
+        sectorCount:
+          type: integer
+        universeCount:
+          type: integer
+        candidateCount:
+          type: integer
+        savedCount:
+          type: integer
+        niftyReturn:
+          type: number
+        marketRegime:
+          type: string
+          enum: ["Bull", "Neutral", "Weak", "Unknown"]
+        marketBreadthPct:
+          type: ["number", "null"]
+        picks:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwingPick"
+      required:
+        - fetchedAt
+        - date
+        - selectedSectors
+        - sectorCount
+        - universeCount
+        - candidateCount
+        - savedCount
+        - niftyReturn
+        - marketRegime
+        - marketBreadthPct
+        - picks
+    SwingScanJobResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - completed
+            - failed
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        startedAt:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+        selectedSectors:
+          type: array
+          items:
+            type: string
+        sectorCount:
+          type: integer
+        universeCount:
+          type: integer
+        processedCount:
+          type: integer
+        candidateCount:
+          type: integer
+        savedCount:
+          type: integer
+        progressPct:
+          type: number
+        message:
+          type: string
+        error:
+          type: ["string", "null"]
+        result:
+          oneOf:
+            - $ref: "#/components/schemas/SwingScannerResult"
+            - type: "null"
+      required:
+        - jobId
+        - status
+        - createdAt
+        - updatedAt
+        - startedAt
+        - completedAt
+        - selectedSectors
+        - sectorCount
+        - universeCount
+        - processedCount
+        - candidateCount
+        - savedCount
+        - progressPct
+        - message
+        - error
+        - result
+    SwingTrackerSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        watchlist:
+          type: integer
+        active:
+          type: integer
+        targetHit:
+          type: integer
+        slHit:
+          type: integer
+        exitReview:
+          type: integer
+        open:
+          type: integer
+      required:
+        - total
+        - watchlist
+        - active
+        - targetHit
+        - slHit
+        - exitReview
+        - open
+    SwingTrackerTrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        date:
+          type: string
+          description: Scan/trade date (YYYY-MM-DD IST)
+        signalTime:
+          type: string
+        sector:
+          type: ["string", "null"]
+        direction:
+          type: string
+          enum: ["LONG", "SHORT"]
+        entryType:
+          $ref: "#/components/schemas/SwingEntryType"
+        currentPrice:
+          type: string
+        entryPrice:
+          type: string
+        sl:
+          type: string
+        target:
+          type: string
+        score:
+          type: string
+        grade:
+          type: string
+        setup:
+          type: string
+        reason:
+          type: ["string", "null"]
+        expectedHoldDays:
+          type: string
+        status:
+          $ref: "#/components/schemas/SwingTradeStatus"
+        entryHitDate:
+          type: ["string", "null"]
+        exitDate:
+          type: ["string", "null"]
+        lastPrice:
+          type: ["string", "null"]
+        lastCheckedAt:
+          type: ["string", "null"]
+        indexTrendIndex:
+          type: ["string", "null"]
+        indexTrendDirection:
+          type: ["string", "null"]
+          enum: ["Bullish", "Bearish", "Neutral", "Unknown", null]
+        indexTrendText:
+          type: ["string", "null"]
+        indexTrendScoreAdjustment:
+          type: string
+        technicalStage:
+          type: ["string", "null"]
+        technicalScoreAdjustment:
+          type: string
+        technicalIndicatorText:
+          type: ["string", "null"]
+        technicalRs55:
+          type: ["string", "null"]
+        technicalVolumeRatio:
+          type: ["string", "null"]
+        technicalAboveEma200:
+          type: ["boolean", "null"]
+        technicalMacdTrend:
+          type: ["string", "null"]
+          enum: ["Bullish", "Bearish", "Neutral", "Unknown", null]
+        technicalAdxTrend:
+          type: ["string", "null"]
+          enum: ["Bullish", "Bearish", "Neutral", "Unknown", null]
+        insiderActivity:
+          type: ["string", "null"]
+          enum: ["Buy", "Sell", "Mixed", "None", null]
+        insiderScoreAdjustment:
+          type: string
+        insiderActivityText:
+          type: ["string", "null"]
+        insiderTransactionValue:
+          type: ["string", "null"]
+        insiderTransactionDate:
+          type: ["string", "null"]
+        insiderCategory:
+          type: ["string", "null"]
+        plPct:
+          type: ["number", "null"]
+        daysOpen:
+          type: ["number", "null"]
+      required:
+        - id
+        - symbol
+        - date
+        - signalTime
+        - sector
+        - direction
+        - entryType
+        - currentPrice
+        - entryPrice
+        - sl
+        - target
+        - score
+        - grade
+        - setup
+        - reason
+        - expectedHoldDays
+        - status
+        - entryHitDate
+        - exitDate
+        - lastPrice
+        - lastCheckedAt
+        - indexTrendIndex
+        - indexTrendDirection
+        - indexTrendText
+        - indexTrendScoreAdjustment
+        - technicalStage
+        - technicalScoreAdjustment
+        - technicalIndicatorText
+        - technicalRs55
+        - technicalVolumeRatio
+        - technicalAboveEma200
+        - technicalMacdTrend
+        - technicalAdxTrend
+        - insiderActivity
+        - insiderScoreAdjustment
+        - insiderActivityText
+        - insiderTransactionValue
+        - insiderTransactionDate
+        - insiderCategory
+        - plPct
+        - daysOpen
+    SwingTrackerResponse:
+      type: object
+      properties:
+        fetchedAt:
+          type: string
+        days:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/SwingTrackerSummary"
+        trades:
+          type: array
+          items:
+            $ref: "#/components/schemas/SwingTrackerTrade"
+      required:
+        - fetchedAt
+        - days
+        - summary
+        - trades
     HistoryTrade:
       type: object
       properties:
@@ -392,6 +1133,9 @@ components:
         status:
           type: string
           description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)
+        hitTime:
+          type: ["string", "null"]
+          description: IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
         plPct:
           type: ["number", "null"]
           description: Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.

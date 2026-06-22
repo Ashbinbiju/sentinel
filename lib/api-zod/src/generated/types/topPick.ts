@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TopPickCircuitLimit } from "./topPickCircuitLimit";
-import type { SignalDirection } from "./signalDirection";
+import type { TopPickDirection } from "./topPickDirection";
+import type { TopPickMarketAlignment } from "./topPickMarketAlignment";
+import type { TopPickMarketTrendIndex } from "./topPickMarketTrendIndex";
 
 /**
- * One of the top 5 intraday picks across all sectors
+ * One of the top 5 intraday picks across all sectors. Picks below INR 100 are excluded.
  */
 export interface TopPick {
   symbol: string;
@@ -22,15 +24,15 @@ export interface TopPick {
   sl: number;
   /** First scale target, one risk unit from entry */
   target1: number;
-  /** Final target at the next opposite S/R zone, or fallback 1.5R target */
+  /** Final target at the opposite ChartPrime support/resistance zone */
   target2: number;
   /** Risk % from entry to SL */
   riskPct: number;
-  /** Reward-to-risk ratio for the final S/R target */
+  /** Reward-to-risk ratio for the final Power Channel target */
   rewardRisk: number;
-  /** Trade direction from the price-action S/R setup */
-  direction: SignalDirection;
-  /** Price-action setup name */
+  /** Trade direction from the Power Channel setup */
+  direction: TopPickDirection;
+  /** Power Channel setup name */
   setup: string;
   /** Smart exit rule */
   smartExit: string;
@@ -49,10 +51,27 @@ export interface TopPick {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio is at least 1.15 (price-action volume confirmation)
+   * True if volumeRatio is at least 1.15; volume is context only for Power Channel signals
    * @nullable
    */
   volumeOk?: boolean | null;
-  /** UTC ISO timestamp of when the signal fired */
+  /**
+   * UTC ISO timestamp of when the signal fired
+   * @nullable
+   */
   signalTime?: string | null;
+  /** Index trend alignment for the signal direction */
+  marketAlignment?: TopPickMarketAlignment;
+  /**
+   * NIFTY/BANKNIFTY 15m and 1h trend context
+   * @nullable
+   */
+  marketAlignmentText?: string | null;
+  /** Score adjustment from index trend alignment */
+  marketTrendScoreAdjustment?: number;
+  /**
+   * Index used for market alignment
+   * @nullable
+   */
+  marketTrendIndex?: TopPickMarketTrendIndex;
 }

@@ -21,13 +21,38 @@ export interface SectorPerformance {
   changePct: number;
 }
 
-export type SignalDirection = "LONG" | "SHORT";
-export type MarketAlignmentStatus =
-  | "ALIGNED"
-  | "CAUTION"
-  | "BLOCKED"
-  | "UNKNOWN";
-export type MarketTrendIndex = "NIFTY" | "BANKNIFTY";
+export type ScannerWarningCode =
+  (typeof ScannerWarningCode)[keyof typeof ScannerWarningCode];
+
+export const ScannerWarningCode = {
+  NO_CANDLE_DATA: "NO_CANDLE_DATA",
+  NO_CONFIRMED_CANDLES: "NO_CONFIRMED_CANDLES",
+  DB_PERSIST_FAILED: "DB_PERSIST_FAILED",
+  INDICATOR_ENRICH_FAILED: "INDICATOR_ENRICH_FAILED",
+  SECTOR_SCAN_FAILED: "SECTOR_SCAN_FAILED",
+} as const;
+
+export interface ScannerWarning {
+  /** @nullable */
+  symbol: string | null;
+  /** @nullable */
+  sectorName: string | null;
+  code: ScannerWarningCode;
+  message: string;
+}
+
+/**
+ * Trade direction from the Power Channel setup
+ * @nullable
+ */
+export type StockItemDirection =
+  | (typeof StockItemDirection)[keyof typeof StockItemDirection]
+  | null;
+
+export const StockItemDirection = {
+  LONG: "LONG",
+  SHORT: "SHORT",
+} as const;
 
 /**
  * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
@@ -42,6 +67,32 @@ export const StockItemCircuitLimit = {
   lower: "lower",
 } as const;
 
+/**
+ * Index trend alignment for the signal direction
+ */
+export type StockItemMarketAlignment =
+  (typeof StockItemMarketAlignment)[keyof typeof StockItemMarketAlignment];
+
+export const StockItemMarketAlignment = {
+  ALIGNED: "ALIGNED",
+  CAUTION: "CAUTION",
+  BLOCKED: "BLOCKED",
+  UNKNOWN: "UNKNOWN",
+} as const;
+
+/**
+ * Index used for market alignment
+ * @nullable
+ */
+export type StockItemMarketTrendIndex =
+  | (typeof StockItemMarketTrendIndex)[keyof typeof StockItemMarketTrendIndex]
+  | null;
+
+export const StockItemMarketTrendIndex = {
+  NIFTY: "NIFTY",
+  BANKNIFTY: "BANKNIFTY",
+} as const;
+
 export interface StockItem {
   symbol: string;
   ltp: number;
@@ -54,12 +105,18 @@ export interface StockItem {
   confirmedClose?: number | null;
   /** @nullable */
   entrySignal?: boolean | null;
-  /** Trade direction from the price-action S/R setup */
-  direction?: SignalDirection | null;
-  /** Price-action setup name, such as support rejection or resistance breakout */
+  /**
+   * Trade direction from the Power Channel setup
+   * @nullable
+   */
+  direction?: StockItemDirection;
+  /**
+   * Power Channel setup name, such as support reaction or resistance rejection
+   * @nullable
+   */
   setup?: string | null;
   /**
-   * Stop loss price from the active support/resistance zone plus ATR buffer
+   * Stop loss price outside the active ChartPrime support/resistance zone
    * @nullable
    */
   sl?: number | null;
@@ -69,7 +126,7 @@ export interface StockItem {
    */
   target1?: number | null;
   /**
-   * Final target at the next opposite S/R zone, or fallback 1.5R target
+   * Final target at the opposite ChartPrime support/resistance zone
    * @nullable
    */
   target2?: number | null;
@@ -79,7 +136,7 @@ export interface StockItem {
    */
   riskPct?: number | null;
   /**
-   * Reward-to-risk ratio for the final S/R target
+   * Reward-to-risk ratio for the final Power Channel target
    * @nullable
    */
   rewardRisk?: number | null;
@@ -101,21 +158,43 @@ export interface StockItem {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio is at least 1.15 (price-action volume confirmation), false otherwise
+   * True if volumeRatio is at least 1.15; volume is context only for Power Channel signals
    * @nullable
    */
   volumeOk?: boolean | null;
-  /** Exact time the signal was generated */
+  /**
+   * UTC ISO timestamp of when the signal fired
+   * @nullable
+   */
   signalTime?: string | null;
   /** Index trend alignment for the signal direction */
-  marketAlignment?: MarketAlignmentStatus;
-  /** NIFTY/BANKNIFTY 15m and 1h trend context */
+  marketAlignment?: StockItemMarketAlignment;
+  /**
+   * NIFTY/BANKNIFTY 15m and 1h trend context
+   * @nullable
+   */
   marketAlignmentText?: string | null;
   /** Score adjustment from index trend alignment */
   marketTrendScoreAdjustment?: number;
-  /** Index used for market alignment */
-  marketTrendIndex?: MarketTrendIndex | null;
+  /**
+   * Index used for market alignment
+   * @nullable
+   */
+  marketTrendIndex?: StockItemMarketTrendIndex;
+  /** Warning explaining why scanner data for this symbol is incomplete, if any */
+  warning?: ScannerWarning | null;
 }
+
+/**
+ * Trade direction from the Power Channel setup
+ */
+export type TopPickDirection =
+  (typeof TopPickDirection)[keyof typeof TopPickDirection];
+
+export const TopPickDirection = {
+  LONG: "LONG",
+  SHORT: "SHORT",
+} as const;
 
 /**
  * Set to 'upper' or 'lower' if last 3 candles have identical close (frozen price = circuit hit), null otherwise
@@ -131,7 +210,33 @@ export const TopPickCircuitLimit = {
 } as const;
 
 /**
- * One of the top 5 intraday picks across all sectors
+ * Index trend alignment for the signal direction
+ */
+export type TopPickMarketAlignment =
+  (typeof TopPickMarketAlignment)[keyof typeof TopPickMarketAlignment];
+
+export const TopPickMarketAlignment = {
+  ALIGNED: "ALIGNED",
+  CAUTION: "CAUTION",
+  BLOCKED: "BLOCKED",
+  UNKNOWN: "UNKNOWN",
+} as const;
+
+/**
+ * Index used for market alignment
+ * @nullable
+ */
+export type TopPickMarketTrendIndex =
+  | (typeof TopPickMarketTrendIndex)[keyof typeof TopPickMarketTrendIndex]
+  | null;
+
+export const TopPickMarketTrendIndex = {
+  NIFTY: "NIFTY",
+  BANKNIFTY: "BANKNIFTY",
+} as const;
+
+/**
+ * One of the top 5 intraday picks across all sectors. Picks below INR 100 are excluded.
  */
 export interface TopPick {
   symbol: string;
@@ -144,15 +249,15 @@ export interface TopPick {
   sl: number;
   /** First scale target, one risk unit from entry */
   target1: number;
-  /** Final target at the next opposite S/R zone, or fallback 1.5R target */
+  /** Final target at the opposite ChartPrime support/resistance zone */
   target2: number;
   /** Risk % from entry to SL */
   riskPct: number;
-  /** Reward-to-risk ratio for the final S/R target */
+  /** Reward-to-risk ratio for the final Power Channel target */
   rewardRisk: number;
-  /** Trade direction from the price-action S/R setup */
-  direction: SignalDirection;
-  /** Price-action setup name */
+  /** Trade direction from the Power Channel setup */
+  direction: TopPickDirection;
+  /** Power Channel setup name */
   setup: string;
   /** Smart exit rule */
   smartExit: string;
@@ -171,20 +276,29 @@ export interface TopPick {
    */
   volumeRatio?: number | null;
   /**
-   * True if volumeRatio is at least 1.15 (price-action volume confirmation)
+   * True if volumeRatio is at least 1.15; volume is context only for Power Channel signals
    * @nullable
    */
   volumeOk?: boolean | null;
-  /** Exact time the signal was generated */
+  /**
+   * UTC ISO timestamp of when the signal fired
+   * @nullable
+   */
   signalTime?: string | null;
   /** Index trend alignment for the signal direction */
-  marketAlignment?: MarketAlignmentStatus;
-  /** NIFTY/BANKNIFTY 15m and 1h trend context */
+  marketAlignment?: TopPickMarketAlignment;
+  /**
+   * NIFTY/BANKNIFTY 15m and 1h trend context
+   * @nullable
+   */
   marketAlignmentText?: string | null;
   /** Score adjustment from index trend alignment */
   marketTrendScoreAdjustment?: number;
-  /** Index used for market alignment */
-  marketTrendIndex?: MarketTrendIndex | null;
+  /**
+   * Index used for market alignment
+   * @nullable
+   */
+  marketTrendIndex?: TopPickMarketTrendIndex;
 }
 
 export interface SectorWithStocks {
@@ -192,6 +306,8 @@ export interface SectorWithStocks {
   sectorKeyword: string;
   sectorChangePct: number;
   stocks: StockItem[];
+  /** Sector-level warning if the sector scan failed */
+  warning?: ScannerWarning | null;
 }
 
 export interface MomentumPicksResponse {
@@ -209,11 +325,543 @@ export interface MomentumPicksResponse {
    * @nullable
    */
   lastCandleTimeIST?: string | null;
-  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by S/R setup score) */
+  /** Top 5 intraday picks across all sectors (entry signal stocks sorted by Power Channel setup score) */
   topPicks: TopPick[];
   sectors: SectorWithStocks[];
+  /** Non-fatal scanner warnings. If topPicks is empty, clients can inspect this to distinguish no setup from data/feed/DB issues. */
+  warnings?: ScannerWarning[];
+}
+
+export type TradeStatus = (typeof TradeStatus)[keyof typeof TradeStatus];
+
+export const TradeStatus = {
+  PENDING: "PENDING",
+  ACTIVE: "ACTIVE",
+  TARGET_1_HIT: "TARGET 1 HIT",
+  TARGET_2_HIT: "TARGET 2 HIT",
+  SL_HIT: "SL HIT",
+  "T1_HIT_&_TRAILING_SL_HIT": "T1 HIT & TRAILING SL HIT",
+  ENTRY_INVALID: "ENTRY INVALID",
+  VWAP_EXIT: "VWAP EXIT",
+  SQUARED_OFF: "SQUARED OFF",
+} as const;
+
+/**
+ * Present when the API could infer trade direction from entry/SL/target
+ * @nullable
+ */
+export type TodayTradeDirection =
+  | (typeof TodayTradeDirection)[keyof typeof TodayTradeDirection]
+  | null;
+
+export const TodayTradeDirection = {
+  LONG: "LONG",
+  SHORT: "SHORT",
+} as const;
+
+export interface TodayTrade {
+  id: number;
+  symbol: string;
+  /** YYYY-MM-DD (IST) */
+  date: string;
+  /** UTC ISO timestamp of when the signal fired */
+  signalTime: string;
+  entryPrice: string;
+  sl: string;
+  target1: string;
+  target2: string;
+  status: TradeStatus;
+  /**
+   * Present when the API could infer trade direction from entry/SL/target
+   * @nullable
+   */
+  direction?: TodayTradeDirection;
+  /**
+   * IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
+   * @nullable
+   */
+  hitTime?: string | null;
+}
+
+export interface TodayTradesResponse {
+  /** Today's IST date (YYYY-MM-DD) */
+  date: string;
+  trades: TodayTrade[];
+}
+
+export type SwingTradeStatus =
+  (typeof SwingTradeStatus)[keyof typeof SwingTradeStatus];
+
+export const SwingTradeStatus = {
+  WATCHLIST: "WATCHLIST",
+  ACTIVE: "ACTIVE",
+  TARGET_HIT: "TARGET HIT",
+  SL_HIT: "SL HIT",
+  EXIT_REVIEW: "EXIT REVIEW",
+  CLOSED: "CLOSED",
+} as const;
+
+export type SwingEntryType =
+  (typeof SwingEntryType)[keyof typeof SwingEntryType];
+
+export const SwingEntryType = {
+  BREAKOUT: "BREAKOUT",
+  PULLBACK: "PULLBACK",
+} as const;
+
+export interface SwingSectorOption {
+  name: string;
+  count: number;
+}
+
+export interface SwingSectorsResponse {
+  totalSectors: number;
+  totalSymbols: number;
+  sectors: SwingSectorOption[];
+}
+
+export type SwingPickSetupType =
+  (typeof SwingPickSetupType)[keyof typeof SwingPickSetupType];
+
+export const SwingPickSetupType = {
+  fresh_breakout: "fresh_breakout",
+  sector_leader_continuation: "sector_leader_continuation",
+  mean_reversion_bounce: "mean_reversion_bounce",
+  high_rvol_explosive: "high_rvol_explosive",
+  slow_institutional_trend: "slow_institutional_trend",
+  trend_continuation: "trend_continuation",
+} as const;
+
+export type SwingPickMarketRegime =
+  (typeof SwingPickMarketRegime)[keyof typeof SwingPickMarketRegime];
+
+export const SwingPickMarketRegime = {
+  Bull: "Bull",
+  Neutral: "Neutral",
+  Weak: "Weak",
+  Unknown: "Unknown",
+} as const;
+
+export type SwingPickIndexTrendDirection =
+  (typeof SwingPickIndexTrendDirection)[keyof typeof SwingPickIndexTrendDirection];
+
+export const SwingPickIndexTrendDirection = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+  Unknown: "Unknown",
+} as const;
+
+export type SwingPickTechnicalMacdTrend =
+  (typeof SwingPickTechnicalMacdTrend)[keyof typeof SwingPickTechnicalMacdTrend];
+
+export const SwingPickTechnicalMacdTrend = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+  Unknown: "Unknown",
+} as const;
+
+export type SwingPickTechnicalAdxTrend =
+  (typeof SwingPickTechnicalAdxTrend)[keyof typeof SwingPickTechnicalAdxTrend];
+
+export const SwingPickTechnicalAdxTrend = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+  Unknown: "Unknown",
+} as const;
+
+export type SwingPickInsiderActivity =
+  (typeof SwingPickInsiderActivity)[keyof typeof SwingPickInsiderActivity];
+
+export const SwingPickInsiderActivity = {
+  Buy: "Buy",
+  Sell: "Sell",
+  Mixed: "Mixed",
+  None: "None",
+} as const;
+
+export interface SwingPick {
+  symbol: string;
+  sector: string;
+  /** Latest daily candle date used for this setup (YYYY-MM-DD IST) */
+  tradeDate: string;
+  /** UTC ISO timestamp of when the scan saved the signal */
+  signalTime: string;
+  /** Last available daily close at scan time */
+  currentPrice: number;
+  /** Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched. */
+  entryPrice: number;
+  sl: number;
+  target: number;
+  score: number;
+  signalScore: number;
+  grade: string;
+  setup: string;
+  entryType: SwingEntryType;
+  reason: string;
+  expectedHoldDays: number;
+  recentReturn: number;
+  relativeStrength: number;
+  sectorRelativeStrength: number;
+  rvol: number;
+  avgTurnover: number;
+  entryDistancePct: number;
+  rewardRisk: number;
+  breakoutQuality: string;
+  trendPersistence: number;
+  /** @nullable */
+  freshBreakoutAge: number | null;
+  consolidationCandles: number;
+  setupType: SwingPickSetupType;
+  latestMovePct: number;
+  ema20DistancePct: number;
+  liquidityScore: number;
+  intradaySignal: string;
+  swingSignal: string;
+  shortTermSignal: string;
+  longTermSignal: string;
+  breakoutSignal: string;
+  ichimokuTrend: string;
+  marketRegime: SwingPickMarketRegime;
+  /** @nullable */
+  marketBreadthPct: number | null;
+  /** @nullable */
+  industryAdvanceRatio: number | null;
+  /** @nullable */
+  industryBreadthText: string | null;
+  weakMarketSignalDowngrade: boolean;
+  /** @nullable */
+  indexTrendIndex: string | null;
+  indexTrendDirection: SwingPickIndexTrendDirection;
+  /** @nullable */
+  indexTrendText: string | null;
+  indexTrendScoreAdjustment: number;
+  /** @nullable */
+  technicalStage: string | null;
+  technicalScoreAdjustment: number;
+  /** @nullable */
+  technicalIndicatorText: string | null;
+  /** @nullable */
+  technicalRs55: number | null;
+  /** @nullable */
+  technicalVolumeRatio: number | null;
+  /** @nullable */
+  technicalAboveEma200: boolean | null;
+  technicalMacdTrend: SwingPickTechnicalMacdTrend;
+  technicalAdxTrend: SwingPickTechnicalAdxTrend;
+  insiderActivity: SwingPickInsiderActivity;
+  insiderScoreAdjustment: number;
+  /** @nullable */
+  insiderActivityText: string | null;
+  /** @nullable */
+  insiderTransactionValue: number | null;
+  /** @nullable */
+  insiderTransactionDate: string | null;
+  /** @nullable */
+  insiderCategory: string | null;
+}
+
+export type SwingScannerResultMarketRegime =
+  (typeof SwingScannerResultMarketRegime)[keyof typeof SwingScannerResultMarketRegime];
+
+export const SwingScannerResultMarketRegime = {
+  Bull: "Bull",
+  Neutral: "Neutral",
+  Weak: "Weak",
+  Unknown: "Unknown",
+} as const;
+
+export interface SwingScannerResult {
+  fetchedAt: string;
+  /** Trading date represented by the scan result (YYYY-MM-DD IST) */
+  date: string;
+  selectedSectors: string[];
+  sectorCount: number;
+  universeCount: number;
+  candidateCount: number;
+  savedCount: number;
+  niftyReturn: number;
+  marketRegime: SwingScannerResultMarketRegime;
+  /** @nullable */
+  marketBreadthPct: number | null;
+  picks: SwingPick[];
+}
+
+export type SwingScanJobResponseStatus =
+  (typeof SwingScanJobResponseStatus)[keyof typeof SwingScanJobResponseStatus];
+
+export const SwingScanJobResponseStatus = {
+  queued: "queued",
+  running: "running",
+  completed: "completed",
+  failed: "failed",
+} as const;
+
+export interface SwingScanJobResponse {
+  jobId: string;
+  status: SwingScanJobResponseStatus;
+  createdAt: string;
+  updatedAt: string;
+  /** @nullable */
+  startedAt: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  selectedSectors: string[];
+  sectorCount: number;
+  universeCount: number;
+  processedCount: number;
+  candidateCount: number;
+  savedCount: number;
+  progressPct: number;
+  message: string;
+  /** @nullable */
+  error: string | null;
+  result: SwingScannerResult | null;
+}
+
+export interface SwingTrackerSummary {
+  total: number;
+  watchlist: number;
+  active: number;
+  targetHit: number;
+  slHit: number;
+  exitReview: number;
+  open: number;
+}
+
+export type SwingTrackerTradeDirection =
+  (typeof SwingTrackerTradeDirection)[keyof typeof SwingTrackerTradeDirection];
+
+export const SwingTrackerTradeDirection = {
+  LONG: "LONG",
+  SHORT: "SHORT",
+} as const;
+
+/**
+ * @nullable
+ */
+export type SwingTrackerTradeIndexTrendDirection =
+  | (typeof SwingTrackerTradeIndexTrendDirection)[keyof typeof SwingTrackerTradeIndexTrendDirection]
+  | null;
+
+export const SwingTrackerTradeIndexTrendDirection = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+  Unknown: "Unknown",
+} as const;
+
+/**
+ * @nullable
+ */
+export type SwingTrackerTradeTechnicalMacdTrend =
+  | (typeof SwingTrackerTradeTechnicalMacdTrend)[keyof typeof SwingTrackerTradeTechnicalMacdTrend]
+  | null;
+
+export const SwingTrackerTradeTechnicalMacdTrend = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+  Unknown: "Unknown",
+} as const;
+
+/**
+ * @nullable
+ */
+export type SwingTrackerTradeTechnicalAdxTrend =
+  | (typeof SwingTrackerTradeTechnicalAdxTrend)[keyof typeof SwingTrackerTradeTechnicalAdxTrend]
+  | null;
+
+export const SwingTrackerTradeTechnicalAdxTrend = {
+  Bullish: "Bullish",
+  Bearish: "Bearish",
+  Neutral: "Neutral",
+  Unknown: "Unknown",
+} as const;
+
+/**
+ * @nullable
+ */
+export type SwingTrackerTradeInsiderActivity =
+  | (typeof SwingTrackerTradeInsiderActivity)[keyof typeof SwingTrackerTradeInsiderActivity]
+  | null;
+
+export const SwingTrackerTradeInsiderActivity = {
+  Buy: "Buy",
+  Sell: "Sell",
+  Mixed: "Mixed",
+  None: "None",
+} as const;
+
+export interface SwingTrackerTrade {
+  id: number;
+  symbol: string;
+  /** Scan/trade date (YYYY-MM-DD IST) */
+  date: string;
+  signalTime: string;
+  /** @nullable */
+  sector: string | null;
+  direction: SwingTrackerTradeDirection;
+  entryType: SwingEntryType;
+  currentPrice: string;
+  entryPrice: string;
+  sl: string;
+  target: string;
+  score: string;
+  grade: string;
+  setup: string;
+  /** @nullable */
+  reason: string | null;
+  expectedHoldDays: string;
+  status: SwingTradeStatus;
+  /** @nullable */
+  entryHitDate: string | null;
+  /** @nullable */
+  exitDate: string | null;
+  /** @nullable */
+  lastPrice: string | null;
+  /** @nullable */
+  lastCheckedAt: string | null;
+  /** @nullable */
+  indexTrendIndex: string | null;
+  /** @nullable */
+  indexTrendDirection: SwingTrackerTradeIndexTrendDirection;
+  /** @nullable */
+  indexTrendText: string | null;
+  indexTrendScoreAdjustment: string;
+  /** @nullable */
+  technicalStage: string | null;
+  technicalScoreAdjustment: string;
+  /** @nullable */
+  technicalIndicatorText: string | null;
+  /** @nullable */
+  technicalRs55: string | null;
+  /** @nullable */
+  technicalVolumeRatio: string | null;
+  /** @nullable */
+  technicalAboveEma200: boolean | null;
+  /** @nullable */
+  technicalMacdTrend: SwingTrackerTradeTechnicalMacdTrend;
+  /** @nullable */
+  technicalAdxTrend: SwingTrackerTradeTechnicalAdxTrend;
+  /** @nullable */
+  insiderActivity: SwingTrackerTradeInsiderActivity;
+  insiderScoreAdjustment: string;
+  /** @nullable */
+  insiderActivityText: string | null;
+  /** @nullable */
+  insiderTransactionValue: string | null;
+  /** @nullable */
+  insiderTransactionDate: string | null;
+  /** @nullable */
+  insiderCategory: string | null;
+  /** @nullable */
+  plPct: number | null;
+  /** @nullable */
+  daysOpen: number | null;
+}
+
+export interface SwingTrackerResponse {
+  fetchedAt: string;
+  days: number;
+  summary: SwingTrackerSummary;
+  trades: SwingTrackerTrade[];
+}
+
+/**
+ * Inferred trade direction based on entry, SL, and target
+ */
+export type HistoryTradeDirection =
+  (typeof HistoryTradeDirection)[keyof typeof HistoryTradeDirection];
+
+export const HistoryTradeDirection = {
+  LONG: "LONG",
+  SHORT: "SHORT",
+} as const;
+
+export interface HistoryTrade {
+  id: number;
+  symbol: string;
+  /** YYYY-MM-DD (IST) */
+  date: string;
+  /** UTC ISO timestamp of when the signal fired */
+  signalTime: string;
+  entryPrice: string;
+  sl: string;
+  target1: string;
+  target2: string;
+  /** Inferred trade direction based on entry, SL, and target */
+  direction: HistoryTradeDirection;
+  /** Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING) */
+  status: string;
+  /**
+   * IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
+   * @nullable
+   */
+  hitTime?: string | null;
+  /**
+   * Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+   * @nullable
+   */
+  plPct?: number | null;
+}
+
+export interface TradeHistoryDaySummary {
+  total: number;
+  winners: number;
+  losers: number;
+  breakeven: number;
+  pending: number;
+}
+
+export interface TradeHistoryDay {
+  /** YYYY-MM-DD */
+  date: string;
+  trades: HistoryTrade[];
+  summary: TradeHistoryDaySummary;
+}
+
+export interface TradeHistoryResponse {
+  days: TradeHistoryDay[];
 }
 
 export interface ErrorResponse {
   error: string;
 }
+
+export type GetTradeHistoryParams = {
+  /**
+   * Number of past days to fetch
+   * @minimum 1
+   * @maximum 90
+   */
+  days?: number;
+};
+
+export type GetSwingScannerParams = {
+  /**
+   * Optional comma-separated sector names. Omit to scan all sectors.
+   */
+  sectors?: string;
+  /**
+   * Maximum number of swing picks to save and return.
+   * @minimum 1
+   * @maximum 10
+   */
+  limit?: number;
+};
+
+export type GetSwingTradesParams = {
+  /**
+   * Number of past calendar days to fetch.
+   * @minimum 1
+   * @maximum 180
+   */
+  days?: number;
+  /**
+   * Optional status filter, e.g. WATCHLIST, ACTIVE, TARGET HIT, SL HIT, EXIT REVIEW, or all.
+   */
+  status?: string;
+};

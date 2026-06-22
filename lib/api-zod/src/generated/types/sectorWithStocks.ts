@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ScannerWarning } from "./scannerWarning";
 import type { StockItem } from "./stockItem";
 
 export interface SectorWithStocks {
@@ -12,4 +13,6 @@ export interface SectorWithStocks {
   sectorKeyword: string;
   sectorChangePct: number;
   stocks: StockItem[];
+  /** Sector-level warning if the sector scan failed */
+  warning?: ScannerWarning | null;
 }
