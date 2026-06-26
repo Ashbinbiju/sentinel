@@ -508,6 +508,8 @@ export interface SwingPick {
   rvol: number;
   avgTurnover: number;
   entryDistancePct: number;
+  /** Percent risk from entry to stop loss; scanner rejects new picks above 6%. */
+  riskPct: number;
   rewardRisk: number;
   breakoutQuality: string;
   trendPersistence: number;

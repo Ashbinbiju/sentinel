@@ -82,6 +82,8 @@ const SWING_MIN_PRICE = 100;
 const SWING_MIN_SCORE = 70;
 const SWING_MIN_SIGNAL_SCORE = 4;
 const SWING_MAX_ENTRY_GAP_PCT = 3.0;
+const SWING_MAX_RISK_PCT = 6.0;
+const SWING_MIN_REWARD_RISK = 1.5;
 const SWING_MIN_AVG_TURNOVER = 10_000_000 * 10;
 const SWING_PUBLIC_SHARE_MIN_TURNOVER = 10_000_000 * 20;
 const SWING_MIN_SECTOR_RELATIVE_STRENGTH = 0.25;
@@ -92,7 +94,10 @@ const SWING_NIFTY_TOKEN = "99926000";
 const MAX_SWING_SCAN_JOBS = 8;
 const DD_MIN_TOP_PICK_SCORE = 5;
 const DD_MAX_RANKED_ENTRY_GAP_PERCENT = 3.0;
-const DD_OPPORTUNITY_SCORE_CURVE_SCALE = 1.25;
+const DD_OPPORTUNITY_SCORE_CURVE_SCALE = 1.75;
+const DD_TARGET_RISK_REWARD = 2.0;
+const DD_TARGET_MAX_GAIN_PCT = 10.0;
+const DD_TARGET_NEUTRAL_MAX_GAIN_PCT = 8.0;
 const DD_EXHAUSTION_RVOL_THRESHOLD = 5.0;
 const DD_EXHAUSTION_EMA20_DISTANCE_THRESHOLD = 8.0;
 const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
@@ -325,6 +330,7 @@ interface SwingCandidate {
   rvol: number;
   avgTurnover: number;
   entryDistancePct: number;
+  riskPct: number;
   rewardRisk: number;
   breakoutQuality: string;
   trendPersistence: number;
@@ -2198,10 +2204,11 @@ function technicalStageAdjustment(stage: string | null): number {
 
 function technicalRsAdjustment(rs55: number | null): number {
   if (rs55 === null) return 0;
-  if (rs55 >= 70) return 0.25;
+  if (rs55 >= 70) return 0.30;
   if (rs55 >= 55) return 0.15;
-  if (rs55 < 25) return -0.25;
-  if (rs55 < 40) return -0.10;
+  if (rs55 < 25) return -0.45;
+  if (rs55 < 40) return -0.25;
+  if (rs55 < 50) return -0.10;
   return 0;
 }
 
@@ -3352,6 +3359,13 @@ function entryDistanceAdjustment(distancePct: number): number {
   return 0.0;
 }
 
+function swingRiskAdjustment(riskPct: number): number {
+  if (riskPct <= 3) return 0.6;
+  if (riskPct <= 4.5) return 0.25;
+  if (riskPct <= SWING_MAX_RISK_PCT) return 0.0;
+  return -2.0;
+}
+
 function liquidityAdjustment(avgTurnover: number): number {
   const turnoverCr = avgTurnover / 10_000_000;
   if (turnoverCr < 20) return 0.0;
@@ -3533,11 +3547,19 @@ function calculateDdStopLoss(atr: number | null, entryPrice: number | null, atrM
   return r2(stopLoss);
 }
 
-function calculateDdTarget(adx: number | null, entryPrice: number | null, stopLoss: number | null, riskRewardRatio = 3): number | null {
+function calculateDdTarget(
+  adx: number | null,
+  entryPrice: number | null,
+  stopLoss: number | null,
+  riskRewardRatio = DD_TARGET_RISK_REWARD,
+): number | null {
   if (entryPrice === null || stopLoss === null) return null;
   const risk = entryPrice - stopLoss;
-  const adjustedRatio = (adx ?? 0) > 25 ? Math.min(riskRewardRatio, 5) : Math.min(riskRewardRatio, 3);
-  return r2(Math.min(entryPrice + (risk * adjustedRatio), entryPrice * 1.2));
+  if (!Number.isFinite(risk) || risk <= 0) return null;
+  const isStrongTrend = (adx ?? 0) > 25;
+  const adjustedRatio = isStrongTrend ? riskRewardRatio : Math.min(riskRewardRatio, 1.8);
+  const maxGainPct = isStrongTrend ? DD_TARGET_MAX_GAIN_PCT : DD_TARGET_NEUTRAL_MAX_GAIN_PCT;
+  return r2(Math.min(entryPrice + (risk * adjustedRatio), entryPrice * (1 + (maxGainPct / 100))));
 }
 
 function isBuyRecommendation(value: DdRecommendationSignal | string | null | undefined): boolean {
@@ -4056,8 +4078,15 @@ function analyzeSwingCandidate(
   const entryDistancePct = Math.abs(entryPrice - currentPrice) / currentPrice * 100;
   const risk = entryPrice - sl;
   const reward = target - entryPrice;
+  const riskPct = risk > 0 ? (risk / entryPrice) * 100 : 0;
   const rewardRisk = risk > 0 ? reward / risk : 0;
-  if (!(entryPrice > sl && target > entryPrice && entryDistancePct <= 8 && rewardRisk >= 1.8)) return null;
+  if (!(
+    entryPrice > sl &&
+    target > entryPrice &&
+    entryDistancePct <= 8 &&
+    riskPct <= SWING_MAX_RISK_PCT &&
+    rewardRisk >= SWING_MIN_REWARD_RISK
+  )) return null;
 
   const avgTurnover = avgVolume * currentPrice;
   const rvol = last.v / avgVolume;
@@ -4095,6 +4124,7 @@ function analyzeSwingCandidate(
     rvol: r2(rvol),
     avgTurnover: Math.round(avgTurnover),
     entryDistancePct: r2(entryDistancePct),
+    riskPct: r2(riskPct),
     rewardRisk: r2(rewardRisk),
     breakoutQuality: quality.grade,
     trendPersistence: r2(trendPersistence),
@@ -4187,6 +4217,8 @@ function finalizeSwingCandidates(
     .map((candidate) => {
       const sectorPerf = sectorPerformance.get(candidate.sector) ?? 0;
       if (candidate.entryDistancePct > DD_MAX_RANKED_ENTRY_GAP_PERCENT) return null;
+      if (candidate.riskPct > SWING_MAX_RISK_PCT) return null;
+      if (candidate.rewardRisk < SWING_MIN_REWARD_RISK) return null;
 
       const weakLiquidity = candidate.avgTurnover < SWING_MIN_AVG_TURNOVER;
       const weakSector = candidate.sectorRelativeStrength < SWING_MIN_SECTOR_RELATIVE_STRENGTH;
@@ -4201,6 +4233,7 @@ function finalizeSwingCandidates(
       const liquidityScore = liquidityAdjustment(candidate.avgTurnover);
       const rvolScore = rvolAdjustment(candidate.rvol);
       const entryScore = entryDistanceAdjustment(candidate.entryDistancePct);
+      const riskScore = swingRiskAdjustment(candidate.riskPct);
       const breakoutBonus = freshBreakoutBonus(candidate.freshBreakoutAge);
       const trendAdjustment = trendPersistenceAdjustment(candidate.trendPersistence);
       const leaderAdjustment = leaderAdjustments.get(candidate.symbol)?.adjustment ?? 0;
@@ -4219,6 +4252,7 @@ function finalizeSwingCandidates(
         (sectorMomentumScore * DD_RANKING_WEIGHTS.sector) +
         (liquidityScore * DD_RANKING_WEIGHTS.liquidity) +
         (entryScore * DD_RANKING_WEIGHTS.entry) +
+        riskScore +
         breakoutBonus +
         trendAdjustment +
         leaderAdjustment +
@@ -4295,13 +4329,13 @@ function finalizeSwingCandidates(
           : null,
         insiderTransactionDate: insiderActivity?.transactionDate ?? null,
         insiderCategory: insiderActivity?.category ?? null,
-        reason: `${candidate.reason}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryStrengthContext.text ? `; ${industryStrengthContext.text}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
+        reason: `${candidate.reason}; Risk ${r2(candidate.riskPct)}%; RR ${r2(candidate.rewardRisk)}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryStrengthContext.text ? `; ${industryStrengthContext.text}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
       if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
     })
     .filter((candidate): candidate is SwingCandidate => candidate !== null)
-    .sort((a, b) => b.score - a.score || b.rewardRisk - a.rewardRisk || b.signalScore - a.signalScore);
+    .sort((a, b) => b.score - a.score || a.riskPct - b.riskPct || b.rewardRisk - a.rewardRisk || b.signalScore - a.signalScore);
 }
 
 function parseRequestedSwingSectors(value: unknown): string[] {

@@ -677,6 +677,9 @@ components:
           type: number
         entryDistancePct:
           type: number
+        riskPct:
+          type: number
+          description: Percent risk from entry to stop loss; scanner rejects new picks above 6%.
         rewardRisk:
           type: number
         breakoutQuality:
@@ -787,6 +790,7 @@ components:
         - rvol
         - avgTurnover
         - entryDistancePct
+        - riskPct
         - rewardRisk
         - breakoutQuality
         - trendPersistence

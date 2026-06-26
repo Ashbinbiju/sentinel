@@ -520,6 +520,11 @@ export const GetSwingScannerResponse = zod.object({
           rvol: zod.number(),
           avgTurnover: zod.number(),
           entryDistancePct: zod.number(),
+          riskPct: zod
+            .number()
+            .describe(
+              "Percent risk from entry to stop loss; scanner rejects new picks above 6%.",
+            ),
           rewardRisk: zod.number(),
           breakoutQuality: zod.string(),
           trendPersistence: zod.number(),
@@ -663,6 +668,11 @@ export const GetSwingScanJobResponse = zod.object({
           rvol: zod.number(),
           avgTurnover: zod.number(),
           entryDistancePct: zod.number(),
+          riskPct: zod
+            .number()
+            .describe(
+              "Percent risk from entry to stop loss; scanner rejects new picks above 6%.",
+            ),
           rewardRisk: zod.number(),
           breakoutQuality: zod.string(),
           trendPersistence: zod.number(),
