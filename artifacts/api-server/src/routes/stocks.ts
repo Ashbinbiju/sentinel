@@ -710,6 +710,26 @@ function isSignalTimeInEntryWindowIST(signalTime: string): boolean {
   return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
 }
 
+function getISTDateAndMinuteFromIso(value: string): { date: string; minute: number } | null {
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+
+  const ist = new Date(ms + IST_OFFSET_MS);
+  return {
+    date: ist.toISOString().slice(0, 10),
+    minute: ist.getUTCHours() * 60 + ist.getUTCMinutes(),
+  };
+}
+
+function swingEntryDateIsEligible(candleDate: string, signalTime: string, fallbackSignalDate: string): boolean {
+  const signal = getISTDateAndMinuteFromIso(signalTime);
+  if (!signal) return candleDate > fallbackSignalDate;
+  if (candleDate < signal.date) return false;
+  if (candleDate > signal.date) return true;
+
+  return signal.minute <= ENTRY_SIGNAL_START_MIN_IST;
+}
+
 function isCurrentStrategySignalTime(signalTime: string): boolean {
   const ms = Date.parse(signalTime);
   return !Number.isNaN(ms) && ms >= CURRENT_STRATEGY_EFFECTIVE_AT_MS;
@@ -4825,9 +4845,18 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
     lastPrice = r2(candles.at(-1)!.c);
   }
 
+  if (
+    entryHitDate &&
+    !swingEntryDateIsEligible(entryHitDate, trade.signalTime, trade.date)
+  ) {
+    status = "WATCHLIST";
+    entryHitDate = null;
+    exitDate = null;
+  }
+
   if (candles?.length && status !== "TARGET HIT" && status !== "SL HIT" && status !== "CLOSED") {
     const postSignalCandles = candles
-      .filter((c) => getISTDateStr(c.t) >= trade.date)
+      .filter((c) => swingEntryDateIsEligible(getISTDateStr(c.t), trade.signalTime, trade.date))
       .sort((a, b) => a.t - b.t);
 
     for (const candle of postSignalCandles) {
