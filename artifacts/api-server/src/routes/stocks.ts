@@ -101,7 +101,14 @@ const DD_TARGET_NEUTRAL_MAX_GAIN_PCT = 8.0;
 const DD_EXHAUSTION_RVOL_THRESHOLD = 5.0;
 const DD_EXHAUSTION_EMA20_DISTANCE_THRESHOLD = 8.0;
 const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
+const DD_LATE_BREAKOUT_20D_RETURN_THRESHOLD = 35.0;
+const DD_LATE_BREAKOUT_40D_RETURN_THRESHOLD = 60.0;
+const DD_LATE_BREAKOUT_EMA20_DISTANCE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
+const SWING_MIN_INDEX_DAILY_ADX = 25.0;
+const SWING_MIN_RS55 = 70.0;
+const SWING_MIN_TECHNICAL_RVOL = 1.5;
+const SWING_INTRADAY_STRUCTURE_LOOKBACK = 6;
 const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
 const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
 const INDUSTRY_STRENGTH_URL = "https://www.brkpoint.in/api/brkview/industry-strength-analysis";
@@ -2309,6 +2316,19 @@ function technicalIndicatorImpact(row: TechnicalIndicatorRow): TechnicalIndicato
   };
 }
 
+function passesSwingTechnicalLeadershipGate(
+  candidate: SwingCandidate,
+  technicalImpact: TechnicalIndicatorImpact | null,
+): boolean {
+  const rs55 = technicalImpact?.rs55 ?? null;
+  const rvol = technicalImpact?.volumeRatio ?? candidate.rvol;
+  return (
+    rs55 !== null &&
+    rs55 >= SWING_MIN_RS55 &&
+    rvol >= SWING_MIN_TECHNICAL_RVOL
+  );
+}
+
 function buildTechnicalIndicatorMap(rows: TechnicalIndicatorRow[]): Map<string, TechnicalIndicatorImpact> {
   const output = new Map<string, TechnicalIndicatorImpact>();
   for (const row of rows) {
@@ -2405,6 +2425,10 @@ function indexTrendAdxText(block: IndexTrendBlock | null): string {
   return adx !== null ? `, ADX ${r2(adx)}` : "";
 }
 
+function indexTrendAdxValue(block: IndexTrendBlock | null): number | null {
+  return numberOrNull(block?.analysis?.ADX_analysis?.value);
+}
+
 function indexTrendSummary(indexName: string, timeframe: string, block: IndexTrendBlock | null): string | null {
   if (!block) return null;
   const label = trendLabelFromBlock(block) ?? indexTrendDirection(block);
@@ -2473,6 +2497,13 @@ function swingIndexTrendImpact(sector: string, payload: IndexTrendPayload | null
     scoreAdjustment,
     text,
   };
+}
+
+function passesSwingMarketTrendGate(sector: string, payload: IndexTrendPayload | null): boolean {
+  const day = indexTrendBlockFor(payload, sector, "1d");
+  const direction = indexTrendDirection(day);
+  const adx = indexTrendAdxValue(day);
+  return direction === "Bullish" && adx !== null && adx >= SWING_MIN_INDEX_DAILY_ADX;
 }
 
 async function fetchInsiderTradingRows(): Promise<InsiderTradingRow[]> {
@@ -3239,6 +3270,79 @@ function freshBreakoutAge(candles: Candle[], lookback = 20, maxAge = 3): number 
     if (breakoutClose > priorHigh && previousClose <= previousPriorHigh) return age;
   }
   return null;
+}
+
+function percentChangeOverLookback(closes: number[], lookback: number): number | null {
+  if (closes.length <= lookback) return null;
+  const latest = closes.at(-1);
+  const previous = closes.at(-(lookback + 1));
+  return latest !== undefined && previous !== undefined ? percentChange(latest, previous) : null;
+}
+
+function isLateExtendedBreakout(
+  freshAge: number | null,
+  return20Pct: number | null,
+  return40Pct: number | null,
+  ema20DistancePct: number,
+  consolidationCandles: number,
+): boolean {
+  if (freshAge === null) return false;
+  if (ema20DistancePct < DD_LATE_BREAKOUT_EMA20_DISTANCE_THRESHOLD) return false;
+
+  const return20 = return20Pct ?? 0;
+  const return40 = return40Pct ?? 0;
+  const shortRunIsTooHot = return20 >= DD_LATE_BREAKOUT_20D_RETURN_THRESHOLD;
+  const mediumRunIsTooHot = return40 >= DD_LATE_BREAKOUT_40D_RETURN_THRESHOLD;
+  const thinBaseAfterRun = return20 >= 25 && consolidationCandles < 5;
+
+  return shortRunIsTooHot || mediumRunIsTooHot || thinBaseAfterRun;
+}
+
+function swingEntryTouchIndex(
+  candles: Candle[],
+  entry: number,
+  entryType: "BREAKOUT" | "PULLBACK",
+): number {
+  return candles.findIndex((candle) =>
+    entryType === "BREAKOUT" ? candle.h >= entry : candle.l <= entry
+  );
+}
+
+function hasBullish15mStructureAtEntry(candles: Candle[], entryIndex: number): boolean {
+  const window = candles.slice(
+    Math.max(0, entryIndex - SWING_INTRADAY_STRUCTURE_LOOKBACK + 1),
+    entryIndex + 1,
+  );
+  if (window.length < 4) return false;
+
+  let higherHighs = 0;
+  let higherLows = 0;
+  for (let i = 1; i < window.length; i += 1) {
+    if (window[i].h >= window[i - 1].h) higherHighs += 1;
+    if (window[i].l >= window[i - 1].l) higherLows += 1;
+  }
+
+  const requiredPairs = Math.max(2, Math.ceil((window.length - 1) * 0.6));
+  const closeProgress = window.at(-1)!.c > window[0].c;
+  const triggerIsNotWeakClose = window.at(-1)!.c >= ((window.at(-1)!.h + window.at(-1)!.l) / 2);
+
+  return higherHighs >= requiredPairs && higherLows >= requiredPairs && closeProgress && triggerIsNotWeakClose;
+}
+
+function passesSwingIntradayEntryStructure(
+  candleData: CandleData | null,
+  entryDate: string,
+  entry: number,
+  entryType: "BREAKOUT" | "PULLBACK",
+): boolean {
+  if (!candleData) return false;
+  const intradayCandles = aggregateCandles(
+    getConfirmedCandles(candleData.historicalCandles)
+      .filter((candle) => getISTDateStr(candle.t) === entryDate),
+    15 * 60,
+  );
+  const entryIndex = swingEntryTouchIndex(intradayCandles, entry, entryType);
+  return entryIndex >= 0 && hasBullish15mStructureAtEntry(intradayCandles, entryIndex);
 }
 
 function linearRegressionSlopeAndR2(values: number[]): { slope: number; r2: number } {
@@ -4098,6 +4202,11 @@ function analyzeSwingCandidate(
   const trendPersistence = calculateTrendPersistenceScore(validCandles);
   const freshAge = freshBreakoutAge(validCandles);
   const consolidationCandles = countEntryConsolidationCandles(validCandles, freshAge);
+  const return20Pct = percentChangeOverLookback(closes, 20);
+  const return40Pct = percentChangeOverLookback(closes, 40);
+  if (isLateExtendedBreakout(freshAge, return20Pct, return40Pct, ema20DistancePct, consolidationCandles)) {
+    return null;
+  }
   const liquidityScore = liquidityAdjustment(avgTurnover);
   const quality = breakoutQualityDetails(freshAge, consolidationCandles, rvol, trendPersistence, liquidityScore);
   const entryType: SwingCandidate["entryType"] = recommendation.entryType === "Breakout" ? "BREAKOUT" : "PULLBACK";
@@ -4245,6 +4354,8 @@ function finalizeSwingCandidates(
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
       const technicalImpact = technicalIndicatorsBySymbol.get(candidate.symbol) ?? null;
+      if (!passesSwingMarketTrendGate(candidate.sector, indexTrend)) return null;
+      if (!passesSwingTechnicalLeadershipGate(candidate, technicalImpact)) return null;
       const technicalAdjustment = technicalImpact?.scoreAdjustment ?? 0;
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
@@ -4878,6 +4989,7 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
   if (candles?.length) {
     lastPrice = r2(candles.at(-1)!.c);
   }
+  let intradayCandleData: CandleData | null | undefined;
 
   if (
     entryHitDate &&
@@ -4901,6 +5013,12 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
           ? candle.h >= entry
           : candle.l <= entry;
         if (entryTouched) {
+          if (intradayCandleData === undefined) {
+            intradayCandleData = await fetchCandles(trade.symbol).catch(() => null);
+          }
+          if (!passesSwingIntradayEntryStructure(intradayCandleData, candleDate, entry, trade.entryType)) {
+            continue;
+          }
           status = "ACTIVE";
           entryHitDate = candleDate;
         }
