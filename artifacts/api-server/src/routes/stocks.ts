@@ -90,20 +90,26 @@ const SWING_MIN_SECTOR_RELATIVE_STRENGTH = 0.25;
 const SWING_MIN_PULLBACK_GAP_PCT = 0.5;
 const SWING_MIN_CONSOLIDATION_CANDLES = 3;
 const SWING_EXPECTED_HOLD_DAYS = 8;
+const SWING_ENTRY_VALID_TRADING_DAYS = 2;
+const SWING_MIN_TRIGGER_CLOSE_BUFFER_PCT = 0.05;
 const SWING_NIFTY_TOKEN = "99926000";
 const MAX_SWING_SCAN_JOBS = 8;
 const DD_MIN_TOP_PICK_SCORE = 5;
 const DD_MAX_RANKED_ENTRY_GAP_PERCENT = 3.0;
 const DD_OPPORTUNITY_SCORE_CURVE_SCALE = 1.75;
-const DD_TARGET_RISK_REWARD = 2.0;
-const DD_TARGET_MAX_GAIN_PCT = 10.0;
-const DD_TARGET_NEUTRAL_MAX_GAIN_PCT = 8.0;
+const DD_TARGET_RISK_REWARD = 1.8;
+const DD_TARGET_MAX_GAIN_PCT = 8.0;
+const DD_TARGET_NEUTRAL_MAX_GAIN_PCT = 6.0;
 const DD_EXHAUSTION_RVOL_THRESHOLD = 5.0;
 const DD_EXHAUSTION_EMA20_DISTANCE_THRESHOLD = 8.0;
 const DD_EXHAUSTION_DAILY_MOVE_THRESHOLD = 8.0;
 const DD_LATE_BREAKOUT_20D_RETURN_THRESHOLD = 35.0;
 const DD_LATE_BREAKOUT_40D_RETURN_THRESHOLD = 60.0;
 const DD_LATE_BREAKOUT_EMA20_DISTANCE_THRESHOLD = 8.0;
+const DD_OVEREXTENDED_20D_RETURN_THRESHOLD = 30.0;
+const DD_OVEREXTENDED_40D_RETURN_THRESHOLD = 50.0;
+const DD_OVEREXTENDED_EMA20_DISTANCE_THRESHOLD = 10.0;
+const DD_OVEREXTENDED_LATEST_MOVE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
 const SWING_MIN_INDEX_DAILY_ADX = 25.0;
 const SWING_MIN_RS55 = 70.0;
@@ -635,7 +641,7 @@ interface MarketRegimeSnapshot {
   marketStats: MarketStatsPayload | null;
 }
 
-type SwingTradeStatus = "WATCHLIST" | "ACTIVE" | "TARGET HIT" | "SL HIT" | "EXIT REVIEW" | "CLOSED";
+type SwingTradeStatus = "WATCHLIST" | "ACTIVE" | "TARGET HIT" | "SL HIT" | "EXIT REVIEW" | "CLOSED" | "EXPIRED";
 const OPEN_SWING_TRADE_STATUSES: SwingTradeStatus[] = ["WATCHLIST", "ACTIVE", "EXIT REVIEW"];
 
 interface PersistedSwingTrade {
@@ -3298,6 +3304,27 @@ function isLateExtendedBreakout(
   return shortRunIsTooHot || mediumRunIsTooHot || thinBaseAfterRun;
 }
 
+function isOverextendedSwingSetup(
+  return20Pct: number | null,
+  return40Pct: number | null,
+  ema20DistancePct: number,
+  consolidationCandles: number,
+  latestMovePct: number,
+): boolean {
+  const return20 = return20Pct ?? 0;
+  const return40 = return40Pct ?? 0;
+  const hasTightBase = consolidationCandles >= 5;
+  const shortRunIsExtended = return20 >= DD_OVEREXTENDED_20D_RETURN_THRESHOLD;
+  const mediumRunIsExtended = return40 >= DD_OVEREXTENDED_40D_RETURN_THRESHOLD;
+  const farFromMean = ema20DistancePct >= DD_OVEREXTENDED_EMA20_DISTANCE_THRESHOLD;
+  const freshSpike = latestMovePct >= DD_OVEREXTENDED_LATEST_MOVE_THRESHOLD;
+
+  if ((shortRunIsExtended || mediumRunIsExtended) && !hasTightBase) return true;
+  if ((shortRunIsExtended || mediumRunIsExtended) && farFromMean) return true;
+  if (freshSpike && !hasTightBase) return true;
+  return false;
+}
+
 function swingEntryTouchIndex(
   candles: Candle[],
   entry: number,
@@ -3308,7 +3335,12 @@ function swingEntryTouchIndex(
   );
 }
 
-function hasBullish15mStructureAtEntry(candles: Candle[], entryIndex: number): boolean {
+function hasBullish15mStructureAtEntry(
+  candles: Candle[],
+  entryIndex: number,
+  entry: number,
+  entryType: "BREAKOUT" | "PULLBACK",
+): boolean {
   const window = candles.slice(
     Math.max(0, entryIndex - SWING_INTRADAY_STRUCTURE_LOOKBACK + 1),
     entryIndex + 1,
@@ -3325,8 +3357,20 @@ function hasBullish15mStructureAtEntry(candles: Candle[], entryIndex: number): b
   const requiredPairs = Math.max(2, Math.ceil((window.length - 1) * 0.6));
   const closeProgress = window.at(-1)!.c > window[0].c;
   const triggerIsNotWeakClose = window.at(-1)!.c >= ((window.at(-1)!.h + window.at(-1)!.l) / 2);
+  const triggerCandle = window.at(-1)!;
+  const minConfirmedClose = entry * (1 + (SWING_MIN_TRIGGER_CLOSE_BUFFER_PCT / 100));
+  const triggerConfirmedEntry =
+    entryType === "BREAKOUT"
+      ? triggerCandle.c >= minConfirmedClose
+      : triggerCandle.c >= entry;
 
-  return higherHighs >= requiredPairs && higherLows >= requiredPairs && closeProgress && triggerIsNotWeakClose;
+  return (
+    higherHighs >= requiredPairs &&
+    higherLows >= requiredPairs &&
+    closeProgress &&
+    triggerIsNotWeakClose &&
+    triggerConfirmedEntry
+  );
 }
 
 function passesSwingIntradayEntryStructure(
@@ -3342,7 +3386,7 @@ function passesSwingIntradayEntryStructure(
     15 * 60,
   );
   const entryIndex = swingEntryTouchIndex(intradayCandles, entry, entryType);
-  return entryIndex >= 0 && hasBullish15mStructureAtEntry(intradayCandles, entryIndex);
+  return entryIndex >= 0 && hasBullish15mStructureAtEntry(intradayCandles, entryIndex, entry, entryType);
 }
 
 function linearRegressionSlopeAndR2(values: number[]): { slope: number; r2: number } {
@@ -4207,6 +4251,9 @@ function analyzeSwingCandidate(
   if (isLateExtendedBreakout(freshAge, return20Pct, return40Pct, ema20DistancePct, consolidationCandles)) {
     return null;
   }
+  if (isOverextendedSwingSetup(return20Pct, return40Pct, ema20DistancePct, consolidationCandles, latestMovePct)) {
+    return null;
+  }
   const liquidityScore = liquidityAdjustment(avgTurnover);
   const quality = breakoutQualityDetails(freshAge, consolidationCandles, rvol, trendPersistence, liquidityScore);
   const entryType: SwingCandidate["entryType"] = recommendation.entryType === "Breakout" ? "BREAKOUT" : "PULLBACK";
@@ -4488,6 +4535,10 @@ function fetchSwingUniverse(selectedSectors: string[]): SwingUniverseStock[] {
 
 function isOpenSwingTradeStatus(status: string | null | undefined): boolean {
   return OPEN_SWING_TRADE_STATUSES.includes(status as SwingTradeStatus);
+}
+
+function isTerminalSwingTradeStatus(status: string | null | undefined): boolean {
+  return ["TARGET HIT", "SL HIT", "CLOSED", "EXPIRED"].includes(String(status ?? ""));
 }
 
 async function fetchOpenSwingSymbols(symbols: string[]): Promise<Set<string>> {
@@ -4975,6 +5026,20 @@ function tradingDaysOpen(candles: Candle[], entryHitDate: string | null, latestD
   }).length;
 }
 
+function swingActivationWindowDates(candles: Candle[], signalTime: string, fallbackSignalDate: string): string[] {
+  const dates: string[] = [];
+  const seen = new Set<string>();
+  for (const candle of candles) {
+    const date = getISTDateStr(candle.t);
+    if (!swingEntryDateIsEligible(date, signalTime, fallbackSignalDate)) continue;
+    if (seen.has(date)) continue;
+    seen.add(date);
+    dates.push(date);
+    if (dates.length >= SWING_ENTRY_VALID_TRADING_DAYS) break;
+  }
+  return dates;
+}
+
 async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrackerTrade> {
   const entry = Number(trade.entryPrice);
   const sl = Number(trade.sl);
@@ -5000,15 +5065,27 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
     exitDate = null;
   }
 
-  if (candles?.length && status !== "TARGET HIT" && status !== "SL HIT" && status !== "CLOSED") {
+  if (
+    candles?.length &&
+    entryHitDate &&
+    !isTerminalSwingTradeStatus(status) &&
+    !swingActivationWindowDates(candles, trade.signalTime, trade.date).includes(entryHitDate)
+  ) {
+    const expiryDates = swingActivationWindowDates(candles, trade.signalTime, trade.date);
+    status = "EXPIRED";
+    entryHitDate = null;
+    exitDate = expiryDates.at(-1) ?? null;
+  }
+
+  if (candles?.length && !isTerminalSwingTradeStatus(status)) {
     const postSignalCandles = candles
       .filter((c) => swingEntryDateIsEligible(getISTDateStr(c.t), trade.signalTime, trade.date))
       .sort((a, b) => a.t - b.t);
+    const activationWindowCandles = postSignalCandles.slice(0, SWING_ENTRY_VALID_TRADING_DAYS);
 
-    for (const candle of postSignalCandles) {
-      const candleDate = getISTDateStr(candle.t);
-
-      if (status === "WATCHLIST" && !entryHitDate) {
+    if (status === "WATCHLIST" && !entryHitDate) {
+      for (const candle of activationWindowCandles) {
+        const candleDate = getISTDateStr(candle.t);
         const entryTouched = trade.entryType === "BREAKOUT"
           ? candle.h >= entry
           : candle.l <= entry;
@@ -5021,10 +5098,16 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
           }
           status = "ACTIVE";
           entryHitDate = candleDate;
+          break;
         }
       }
+    }
 
-      if ((status === "ACTIVE" || status === "EXIT REVIEW") && entryHitDate && candleDate >= entryHitDate) {
+    if ((status === "ACTIVE" || status === "EXIT REVIEW") && entryHitDate) {
+      for (const candle of postSignalCandles) {
+        const candleDate = getISTDateStr(candle.t);
+        if (candleDate < entryHitDate) continue;
+
         // Daily candles do not expose whether high or low happened first, so prefer the conservative SL-first outcome.
         if (candle.l <= sl) {
           status = "SL HIT";
@@ -5037,6 +5120,15 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
           break;
         }
       }
+    }
+
+    if (
+      status === "WATCHLIST" &&
+      !entryHitDate &&
+      postSignalCandles.length >= SWING_ENTRY_VALID_TRADING_DAYS
+    ) {
+      status = "EXPIRED";
+      exitDate = getISTDateStr(activationWindowCandles.at(-1)!.t);
     }
 
     const openDays = tradingDaysOpen(candles, entryHitDate, latestDate);
@@ -5068,7 +5160,7 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
   }
 
   const plPct =
-    status === "WATCHLIST" ? null
+    status === "WATCHLIST" || status === "EXPIRED" ? null
       : status === "TARGET HIT" ? r2(((target - entry) / entry) * 100)
         : status === "SL HIT" ? r2(((sl - entry) / entry) * 100)
           : Number.isFinite(lastPrice) ? r2(((lastPrice - entry) / entry) * 100)
@@ -5174,6 +5266,7 @@ router.get("/swing-trades", async (req, res) => {
       targetHit: resolved.filter((trade) => trade.status === "TARGET HIT").length,
       slHit: resolved.filter((trade) => trade.status === "SL HIT").length,
       exitReview: resolved.filter((trade) => trade.status === "EXIT REVIEW").length,
+      expired: resolved.filter((trade) => trade.status === "EXPIRED").length,
       open: resolved.filter((trade) => isOpenSwingTradeStatus(trade.status)).length,
     };
 

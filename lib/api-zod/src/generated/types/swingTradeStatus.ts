@@ -16,4 +16,5 @@ export const SwingTradeStatus = {
   SL_HIT: "SL HIT",
   EXIT_REVIEW: "EXIT REVIEW",
   CLOSED: "CLOSED",
+  EXPIRED: "EXPIRED",
 } as const;

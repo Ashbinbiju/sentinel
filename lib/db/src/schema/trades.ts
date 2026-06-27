@@ -47,6 +47,7 @@ export const SWING_TRADE_STATUSES = [
   "SL HIT",
   "EXIT REVIEW",
   "CLOSED",
+  "EXPIRED",
 ] as const;
 
 export const swingTradeStatusSchema = z.enum(SWING_TRADE_STATUSES);

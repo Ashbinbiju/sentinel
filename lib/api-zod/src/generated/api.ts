@@ -788,6 +788,7 @@ export const GetSwingTradesResponse = zod.object({
     targetHit: zod.number(),
     slHit: zod.number(),
     exitReview: zod.number(),
+    expired: zod.number(),
     open: zod.number(),
   }),
   trades: zod.array(
@@ -815,6 +816,7 @@ export const GetSwingTradesResponse = zod.object({
         "SL HIT",
         "EXIT REVIEW",
         "CLOSED",
+        "EXPIRED",
       ]),
       entryHitDate: zod.string().nullable(),
       exitDate: zod.string().nullable(),

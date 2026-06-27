@@ -598,6 +598,7 @@ components:
         - SL HIT
         - EXIT REVIEW
         - CLOSED
+        - EXPIRED
     SwingEntryType:
       type: string
       enum:
@@ -948,6 +949,8 @@ components:
           type: integer
         exitReview:
           type: integer
+        expired:
+          type: integer
         open:
           type: integer
       required:
@@ -957,6 +960,7 @@ components:
         - targetHit
         - slHit
         - exitReview
+        - expired
         - open
     SwingTrackerTrade:
       type: object

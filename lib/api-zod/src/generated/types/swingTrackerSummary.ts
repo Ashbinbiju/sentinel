@@ -13,5 +13,6 @@ export interface SwingTrackerSummary {
   targetHit: number;
   slHit: number;
   exitReview: number;
+  expired: number;
   open: number;
 }

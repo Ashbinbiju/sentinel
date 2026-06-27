@@ -165,6 +165,7 @@ interface SwingTrackerResponse {
     targetHit: number;
     slHit: number;
     exitReview: number;
+    expired: number;
     open: number;
   };
   trades: SwingTrackerTrade[];
@@ -240,6 +241,12 @@ function getStatusConfig(status: string): { label: string; className: string; ic
         label: "Review",
         className: "border-amber-500/30 bg-amber-500/15 text-amber-300",
         icon: <CalendarClock className="h-3.5 w-3.5" />,
+      };
+    case "EXPIRED":
+      return {
+        label: "Expired",
+        className: "border-slate-500/30 bg-slate-500/10 text-slate-400",
+        icon: <Clock3 className="h-3.5 w-3.5" />,
       };
     default:
       return {
@@ -750,6 +757,7 @@ export default function Swing() {
                 <span className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-sky-300">{summary.active} active</span>
                 <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-emerald-300">{summary.targetHit} target</span>
                 <span className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-rose-300">{summary.slHit} sl</span>
+                <span className="rounded border border-slate-500/30 bg-slate-500/10 px-2 py-1 text-slate-400">{summary.expired} expired</span>
               </div>
             )}
           </div>

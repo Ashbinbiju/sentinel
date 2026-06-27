@@ -399,6 +399,7 @@ export const SwingTradeStatus = {
   SL_HIT: "SL HIT",
   EXIT_REVIEW: "EXIT REVIEW",
   CLOSED: "CLOSED",
+  EXPIRED: "EXPIRED",
 } as const;
 
 export type SwingEntryType =
@@ -630,6 +631,7 @@ export interface SwingTrackerSummary {
   targetHit: number;
   slHit: number;
   exitReview: number;
+  expired: number;
   open: number;
 }
 
