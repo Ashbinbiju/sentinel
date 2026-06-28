@@ -1,0 +1,9 @@
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.pdf
+*.docx
+attached_assets/
+.canvas/
