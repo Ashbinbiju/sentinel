@@ -5238,286 +5238,122 @@ router.get("/momentum-picks", async (req, res) => {
         error: `Upstream sector API responded with ${sectorResponse.status}`,
       });
     }
-    const sectorData = (await sectorResponse.json()) as {
-      labels: string[];
-      keywords: string[];
-      datasets: number[];
-    };
+    const sectorData = await sectorResponse.json() as any;
 
-    const allSectors = sectorData.labels.map((name, i) => ({
+    const allSectors = sectorData.labels.map((name: string, i: number) => ({
       name,
       keyword: sectorData.keywords[i],
       changePct: sectorData.datasets[i] ?? 0,
     }));
 
-    const top4 = [...allSectors]
-      .filter((sector) => Math.abs(sector.changePct) >= MIN_ENTRY_SECTOR_CHANGE_PCT)
-      .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
-      .slice(0, 4);
+    // Top 2 momentum sectors
+    const topSectors = [...allSectors]
+      .filter((sector) => sector.changePct > 0)
+      .sort((a, b) => b.changePct - a.changePct)
+      .slice(0, 2);
 
-    let indicatorDate: string | null = null;
-    let lastCandleTimeIST: string | null = null;
-    const scannerWarnings: ScannerWarning[] = [];
+    const topPickCandidates: any[] = [];
+    const TOUCH_BUFFER_PCT = 0.0075;
 
-    // Candidates for top 5 picks (entry signal stocks across all sectors)
-    const topPickCandidates: Array<{
-      symbol: string;
-      sectorName: string;
-      ltp: number;
-      changePct: number;
-      entry: number;
-      sl: number;
-      target1: number;
-      target2: number;
-      riskPct: number;
-      rewardRisk: number;
-      direction: SignalDirection;
-      setup: string;
-      smartExit: string;
-      vwap: number;
-      ema20: number;
-      sparkline: number[];
-      circuitLimit: "upper" | "lower" | null;
-      volumeRatio: number | null;
-      volumeOk: boolean | null;
-      signalTime: string | null;
-      alertEligible: boolean;
-      marketAlignment: MarketAlignmentStatus;
-      marketAlignmentText: string | null;
-      marketTrendScoreAdjustment: number;
-      marketTrendIndex: "NIFTY" | "BANKNIFTY" | null;
-      score: number;
-    }> = [];
-    const indexTrend = await fetchIndexTrendPayload();
-
-    const sectorResults = await Promise.all(
-      top4.map(async (sector) => {
+    await Promise.all(
+      topSectors.map(async (sector) => {
         try {
           const url = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
           const r = await fetch(url, { headers: HEADERS });
-          if (!r.ok)
-            return {
-              sectorName: sector.name,
-              sectorKeyword: sector.keyword,
-              sectorChangePct: sector.changePct,
-              stocks: [],
-            };
+          if (!r.ok) return;
 
-          const constituentData = (await r.json()) as {
-            indexConstituents?: Array<{
-              symbol: string;
-              ltp: number;
-              changePct: number;
-            }>;
-            nonIndexConstituents?: Array<{
-              symbol: string;
-              ltp: number;
-              changePct: number;
-            }>;
-          };
-
-          const seen = new Set<string>();
-          const all: Array<{ symbol: string; ltp: number; changePct: number }> =
-            [];
-          for (const stock of [
+          const constituentData = await r.json() as any;
+          const allStocks = [
             ...(constituentData.indexConstituents ?? []),
             ...(constituentData.nonIndexConstituents ?? []),
-          ]) {
-            if (!seen.has(stock.symbol)) {
-              seen.add(stock.symbol);
-              all.push(stock);
+          ];
+          
+          // Get top 5 stocks by momentum in this sector
+          const topStocks = allStocks
+            .filter((s) => s.ltp > 100 && s.changePct > 0 && s.changePct < 15)
+            .sort((a, b) => b.changePct - a.changePct)
+            .slice(0, 5);
+
+          for (const stock of topStocks) {
+            const candleData = await fetchCandles(stock.symbol);
+            if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) continue;
+
+            const prevDayCandles = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
+            if (prevDayCandles.length === 0) continue;
+            
+            const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
+            const prevLow = Math.min(...prevDayCandles.map((c) => c.l));
+            
+            const confirmedSession = getConfirmedCandles(candleData.sessionCandles);
+            if (confirmedSession.length === 0) continue;
+
+            const c = confirmedSession[confirmedSession.length - 1]; // latest confirmed 5m candle
+            const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
+
+            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) continue; // Prime Time only
+
+            let setup = "";
+            let direction: "LONG" | "SHORT" | null = null;
+            let sl = 0;
+            let entryPrice = c.c;
+
+            if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
+              if (c.c > prevHigh) {
+                setup = "HIGH BREAKOUT"; direction = "LONG";
+                sl = Math.min(c.l, prevHigh * 0.999);
+              } else if (c.c < c.o) {
+                setup = "HIGH REJECTION"; direction = "SHORT";
+                sl = Math.max(c.h, prevHigh * 1.001);
+              }
+              if (direction) entryPrice = c.c;
+            } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
+              if (c.c < prevLow) {
+                setup = "LOW BREAKDOWN"; direction = "SHORT";
+                sl = Math.max(c.h, prevLow * 1.001);
+              } else if (c.c > c.o) {
+                setup = "LOW SUPPORT"; direction = "LONG";
+                sl = Math.min(c.l, prevLow * 0.999);
+              }
+              if (direction) entryPrice = c.c;
             }
-          }
 
-          const filtered = all.filter((stock) => {
-            const change = stock.changePct ?? 0;
-            return stock.ltp >= MIN_ENTRY_PRICE &&
-              Math.abs(change) >= MIN_ENTRY_STOCK_CHANGE_PCT &&
-              Math.abs(change) < 5.0;
-          })
-            .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
-            .slice(0, MAX_ENTRY_SCAN_SYMBOLS_PER_SECTOR);
-
-          const symbols = filtered.map((s) => s.symbol);
-          const indicators = await runWithConcurrency(
-            symbols,
-            5,
-            (symbol) => enrichWithIndicators(symbol, sector.name, indexTrend),
-          );
-
-          for (const ind of indicators) {
-            if (ind.warning) {
-              scannerWarnings.push(ind.warning);
-              req.log.warn({ warning: ind.warning }, "Momentum scanner symbol warning");
-            }
-            if (!ind.indicatorDate) continue;
-            // Keep the most recent indicatorDate + lastCandleTimeIST.
-            // Both are lexicographically sortable (YYYY-MM-DD and HH:MM),
-            // so a plain string comparison is sufficient.
-            const indKey = `${ind.indicatorDate}T${ind.lastCandleTimeIST ?? "00:00"}`;
-            const curKey = indicatorDate 
-              ? `${indicatorDate}T${lastCandleTimeIST ?? "00:00"}`
-              : "0000-00-00T00:00";
-            if (indKey > curKey) {
-              indicatorDate = ind.indicatorDate;
-              lastCandleTimeIST = ind.lastCandleTimeIST;
-            }
-          }
-
-          const stocks = filtered.map((stock, i) => {
-            const ind = indicators[i];
-
-            // Collect entry signal stocks for top picks
-            if (
-              ind.entrySignal &&
-              ind.confirmedClose !== null &&
-              ind.sl !== null &&
-              ind.target1 !== null &&
-              ind.target2 !== null &&
-              ind.riskPct !== null &&
-              ind.rewardRisk !== null &&
-              ind.direction !== null &&
-              ind.setup !== null &&
-              ind.smartExit !== null
-            ) {
-              // Rank Power Channel setups by RR first, then directional move and volume context.
-              const directionalMove =
-                ind.direction === "LONG" ? stock.changePct : -stock.changePct;
-              const priceActionVolumeBonus =
-                ind.volumeRatio === null ? 0
-                  : ind.volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER ? 1.0
-                    : ind.volumeRatio >= 1.0 ? 0.25
-                      : -0.8;
-              const priceActionScore =
-                ind.rewardRisk * 2
-                + Math.max(0, directionalMove) * 0.8
-                + priceActionVolumeBonus
-                + ind.marketTrendScoreAdjustment;
-
+            if (direction) {
+              const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
+              const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+              
               topPickCandidates.push({
                 symbol: stock.symbol,
-                sectorName: sector.name,
-                ltp: stock.ltp,
-                changePct: stock.changePct,
-                entry: ind.confirmedClose,
-                sl: ind.sl,
-                target1: ind.target1,
-                target2: ind.target2,
-                riskPct: ind.riskPct,
-                rewardRisk: ind.rewardRisk,
-                direction: ind.direction,
-                setup: ind.setup,
-                smartExit: ind.smartExit,
-                vwap: ind.vwap ?? 0,
-                ema20: ind.ema20 ?? 0,
-                sparkline: ind.sparkline,
-                circuitLimit: ind.circuitLimit,
-                volumeRatio: ind.volumeRatio,
-                volumeOk: ind.volumeOk,
-                signalTime: ind.signalTime,
-                alertEligible: ind.alertEligible,
-                marketAlignment: ind.marketAlignment,
-                marketAlignmentText: ind.marketAlignmentText,
-                marketTrendScoreAdjustment: ind.marketTrendScoreAdjustment,
-                marketTrendIndex: ind.marketTrendIndex,
-                score: priceActionScore,
+                direction,
+                entry: entryPrice,
+                target2: target,
+                sl,
+                setup,
+                diagnostics: {
+                  prevHigh,
+                  prevLow,
+                  candleOpen: c.o,
+                  candleHigh: c.h,
+                  candleLow: c.l,
+                  candleClose: c.c,
+                  reason: setup,
+                  candleCloseTimeMs: (c.t + CANDLE_INTERVAL_SECS) * 1000,
+                }
               });
             }
-
-            return {
-              symbol: stock.symbol,
-              ltp: stock.ltp,
-              changePct: stock.changePct,
-              vwap: ind.vwap,
-              ema20: ind.ema20,
-              confirmedClose: ind.confirmedClose,
-              entrySignal: ind.entrySignal,
-              direction: ind.direction,
-              setup: ind.setup,
-              sl: ind.sl,
-              target1: ind.target1,
-              target2: ind.target2,
-              riskPct: ind.riskPct,
-              rewardRisk: ind.rewardRisk,
-              smartExit: ind.smartExit,
-              sparkline: ind.sparkline,
-              circuitLimit: ind.circuitLimit,
-              volumeRatio: ind.volumeRatio,
-              volumeOk: ind.volumeOk,
-              signalTime: ind.signalTime,
-              marketAlignment: ind.marketAlignment,
-              marketAlignmentText: ind.marketAlignmentText,
-              marketTrendScoreAdjustment: ind.marketTrendScoreAdjustment,
-              marketTrendIndex: ind.marketTrendIndex,
-              warning: ind.warning,
-            };
-          });
-
-          return {
-            sectorName: sector.name,
-            sectorKeyword: sector.keyword,
-            sectorChangePct: sector.changePct,
-            stocks,
-          };
+          }
         } catch (err) {
-          const warning = scannerWarning(
-            null,
-            sector.name,
-            "SECTOR_SCAN_FAILED",
-            `Sector scan failed: ${unknownErrorMessage(err)}`,
-          );
-          scannerWarnings.push(warning);
           req.log.warn({ err, sector: sector.name }, "Momentum scanner sector warning");
-          return {
-            sectorName: sector.name,
-            sectorKeyword: sector.keyword,
-            sectorChangePct: sector.changePct,
-            stocks: [],
-            warning,
-          };
         }
-      }),
-    );
-
-    // Build top 5 picks — deduplicated, sorted by score
-    const seen = new Set<string>();
-    const rankedTopPicks = topPickCandidates
-      .sort((a, b) => b.score - a.score)
-      .filter((p) => {
-        if (seen.has(p.symbol)) return false;
-        seen.add(p.symbol);
-        return true;
       })
-      .slice(0, 5);
-
-    const todayIST = getTodayISTDateStr();
-    const isLiveSession = indicatorDate === todayIST;
-    const liveTopPicks = isLiveSession
-      ? rankedTopPicks.map(({ score: _score, alertEligible: _alertEligible, ...rest }) => rest)
-      : [];
-    const alertPicks = isLiveSession
-      ? rankedTopPicks
-        .filter((pick) => pick.alertEligible)
-        .map(({ score: _score, alertEligible: _alertEligible, ...rest }) => rest)
-      : [];
-
-    // Fire Telegram alerts for any new signals (non-blocking)
-    sendTelegramAlerts(alertPicks, req.log).catch((err) =>
-      req.log.error({ err }, "Telegram alert dispatch failed"),
     );
 
     return res.json({
       fetchedAt: new Date().toISOString(),
-      indicatorDate,
-      isLiveSession,
-      lastCandleTimeIST,
-      topPicks: liveTopPicks,
-      sectors: sectorResults,
-      warnings: scannerWarnings.map((w) => w.message),
+      topPicks: topPickCandidates,
     });
   } catch (err) {
-    req.log.error({ err }, "Failed to fetch Power Channel picks");
-    return res.status(500).json({ error: "Failed to fetch Power Channel picks" });
+    req.log.error({ err }, "Failed to fetch Momentum picks");
+    return res.status(500).json({ error: "Failed to fetch Momentum picks" });
   }
 });
 

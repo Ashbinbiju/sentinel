@@ -97,7 +97,7 @@ async function runBacktest(symbols: string[]) {
     for (let i = 1; i < dates.length; i++) {
       const prevDate = dates[i - 1];
       const today = dates[i];
-      // Run for all days
+      if (today !== "2026-06-25") continue;
       
       
       const prevCandles = byDate.get(prevDate)!;
@@ -245,5 +245,5 @@ if (j === 0) {
   console.log(`Total Net Return: ${(totalPnl * 100).toFixed(2)}%`);
 }
 
-const symbols = ["IDFCFIRSTB"];
+const symbols = ["AEGISLOG"];
 runBacktest(symbols).catch(console.error);

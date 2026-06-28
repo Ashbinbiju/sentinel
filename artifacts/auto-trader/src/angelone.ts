@@ -38,6 +38,7 @@ const smartApiLimiters = {
   loginByPassword: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
   getRms: new SmartApiRateLimiter(550), // Angel limit: 2 requests/sec
   getOrderBook: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
+  getPositionApi: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
   orderApi: new SmartApiRateLimiter(150), // place/modify/cancel are cumulative: 9 requests/sec
 };
 
@@ -255,6 +256,103 @@ export class AngelOneBroker {
     } catch (err) {
       console.error("[BROKER] ROBO Order Exception:", err);
       throw err;
+    }
+  }
+
+  async getRiskMetrics(): Promise<{ realizedPnl: number; closedLosingTrades: number }> {
+    try {
+      const response: any = await smartApiLimiters.getPositionApi.schedule(() =>
+        this.smartApi.getPosition()
+      );
+      
+      let realizedPnl = 0;
+      let closedLosingTrades = 0;
+
+      if (!response || !response.status || !response.data) {
+        if (response?.message === "No Data Found" || response?.message === "SUCCESS") {
+          return { realizedPnl: 0, closedLosingTrades: 0 };
+        }
+        throw new Error(response?.message || "Failed to fetch positions");
+      }
+
+      const positions = Array.isArray(response.data) ? response.data : [];
+
+      for (const pos of positions) {
+        const productType = pos.producttype?.toUpperCase();
+        
+        // We only care about closed intraday/BO positions for the kill switch
+        // Angel One returns netqty as string
+        const netQty = Number(pos.netqty ?? 0);
+        
+        if ((productType === "BO" || productType === "INTRADAY") && netQty === 0) {
+          const buyAmount = Number(pos.buyamount ?? 0);
+          const sellAmount = Number(pos.sellamount ?? 0);
+          
+          if (buyAmount > 0 && sellAmount > 0) {
+            const tradePnl = sellAmount - buyAmount;
+            realizedPnl += tradePnl;
+            
+            if (tradePnl < 0) {
+              closedLosingTrades++;
+            }
+          }
+        }
+      }
+
+      return { realizedPnl, closedLosingTrades };
+    } catch (err: any) {
+      console.error("[BROKER] Failed to fetch risk metrics:", err.message);
+      throw err;
+    }
+  }
+
+  async cancelRoboOrder(orderId: string): Promise<void> {
+    try {
+      const response: any = await smartApiLimiters.orderApi.schedule(() =>
+        this.smartApi.cancelOrder({ variety: "ROBO", orderid: orderId })
+      );
+      if (response && response.status) {
+        console.log(`[BROKER] Cancelled ROBO order ${orderId} successfully.`);
+      } else {
+        throw new Error(response?.message || "Failed to cancel order");
+      }
+    } catch (err: any) {
+      console.error(`[BROKER] Exception cancelling order ${orderId}:`, err.message);
+      throw err;
+    }
+  }
+
+  async monitorOrderFill(
+    orderId: string,
+    symbol: string,
+    timeoutMs: number,
+    telegramCallback: (msg: string) => Promise<void>
+  ): Promise<void> {
+    await delay(timeoutMs);
+
+    try {
+      const response: any = await smartApiLimiters.getOrderBook.schedule(() =>
+        this.smartApi.getOrderBook()
+      );
+      
+      if (!response || !response.status || !Array.isArray(response.data)) return;
+
+      const order = response.data.find((o: any) => o.orderid === orderId);
+      if (!order) return;
+
+      const status = (order.orderstatus || order.status || "").toUpperCase();
+      const filledShares = Number(order.filledshares ?? 0);
+
+      if ((status === "OPEN" || status === "PENDING") && filledShares === 0) {
+        console.log(`[BOT] Order ${orderId} for ${symbol} unfilled after ${timeoutMs}ms. Cancelling...`);
+        await this.cancelRoboOrder(orderId);
+        
+        await telegramCallback(
+          `⚠️ SNIPER TIMEOUT\nSymbol: ${symbol}\nOrder ${orderId} was not filled within ${timeoutMs / 1000} seconds.\nOrder has been forcefully cancelled.`
+        );
+      }
+    } catch (err: any) {
+      console.error(`[BOT] Failed to monitor order ${orderId} for ${symbol}:`, err.message);
     }
   }
 }
