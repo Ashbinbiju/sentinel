@@ -1383,7 +1383,7 @@ if (!direction) {
           direction = "LONG";
           setup = "1D HIGH BREAKOUT";
           sl = Math.min(candle.l, prevDayHigh * 0.999);
-        } else {
+        } else if (candle.c < candle.o) { // Must be a RED candle to confirm rejection
           direction = "SHORT";
           setup = "1D HIGH REJECTION";
           sl = Math.max(candle.h, prevDayHigh * 1.001);
@@ -1393,7 +1393,7 @@ if (!direction) {
           direction = "SHORT";
           setup = "1D LOW BREAKDOWN";
           sl = Math.max(candle.h, prevDayLow * 1.001);
-        } else {
+        } else if (candle.c > candle.o) { // Must be a GREEN candle to confirm support
           direction = "LONG";
           setup = "1D LOW SUPPORT";
           sl = Math.min(candle.l, prevDayLow * 0.999);

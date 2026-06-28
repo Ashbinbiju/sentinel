@@ -199,20 +199,20 @@ if (j === 0) {
             if (c.c > prevHigh) {
               setup = "HIGH BREAKOUT"; direction = "LONG";
               sl = Math.min(c.l, prevHigh * 0.999);
-            } else {
+            } else if (c.c < c.o) {
               setup = "HIGH REJECTION"; direction = "SHORT";
               sl = Math.max(c.h, prevHigh * 1.001);
             }
-            entryPrice = c.c;
+            if (direction) entryPrice = c.c;
           } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
             if (c.c < prevLow) {
               setup = "LOW BREAKDOWN"; direction = "SHORT";
               sl = Math.max(c.h, prevLow * 1.001);
-            } else {
+            } else if (c.c > c.o) {
               setup = "LOW SUPPORT"; direction = "LONG";
               sl = Math.min(c.l, prevLow * 0.999);
             }
-            entryPrice = c.c;
+            if (direction) entryPrice = c.c;
           }
         }
 
@@ -245,5 +245,5 @@ if (j === 0) {
   console.log(`Total Net Return: ${(totalPnl * 100).toFixed(2)}%`);
 }
 
-const symbols = ["WELCORP"];
+const symbols = ["WELCORP", "ADANIGREEN", "ANGELONE", "KNRCON", "HINDZINC", "TVSMOTOR"];
 runBacktest(symbols).catch(console.error);
