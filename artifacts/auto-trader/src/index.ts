@@ -153,8 +153,29 @@ async function main() {
 
   console.log("=== INITIALIZATION COMPLETE. STARTING POLLING LOOP ===");
 
+  function isMarketOpenIST(): boolean {
+    const now = new Date();
+    const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric', weekday: 'short' } as const;
+    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+    let hour = 0, minute = 0, weekday = '';
+    for (const p of parts) {
+      if (p.type === 'hour') hour = parseInt(p.value, 10);
+      if (p.type === 'minute') minute = parseInt(p.value, 10);
+      if (p.type === 'weekday') weekday = p.value;
+    }
+    if (weekday === 'Sat' || weekday === 'Sun') return false;
+    const mins = hour * 60 + minute;
+    return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
+  }
+
   while (true) {
     try {
+      if (!isMarketOpenIST() && process.env.DRY_RUN !== "true") {
+        console.log("[BOT] Outside market hours (IST). Sleeping for 5 minutes...");
+        await sleep(5 * 60 * 1000); // Check again in 5 minutes
+        continue;
+      }
+
       if (tradesToday >= MAX_DAILY_TRADES) {
         console.log(`[BOT] Reached max daily trades (${MAX_DAILY_TRADES}). Shutting down loop for today.`);
         break; // Or just sleep for 24h
