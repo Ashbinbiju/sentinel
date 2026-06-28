@@ -121,12 +121,12 @@ async function main() {
       if (trade) {
         // Track highest LTP for trailing SL
         if (ltp > trade.highest_ltp && trade.side === "BUY") {
-          TradeDB.updateHighestLTP(trade.id, ltp);
+          await TradeDB.updateHighestLTP(trade.id, ltp);
           
           // Trailing SL Logic: If LTP reaches halfway to target (1:1 RR), trail SL to breakeven
           const risk = trade.entry_price - trade.current_sl;
           if (risk > 0 && ltp >= trade.entry_price + risk && trade.current_sl < trade.entry_price) {
-            TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
+            await TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
             console.log(`[BOT] Trailing SL moved to breakeven for ${trade.symbol}`);
             sendTelegramAlert(`🚀 TRAILING SL UPDATED\nSymbol: ${trade.symbol}\nNew SL: ₹${trade.entry_price} (Risk Free!)`);
           }
@@ -336,7 +336,7 @@ async function main() {
                   highest_ltp: fillPrice,
                   status: "OPEN"
                 };
-                TradeDB.saveTrade(newTrade);
+                await TradeDB.saveTrade(newTrade);
                 broker.subscribeToTokens([token]);
               }
 
@@ -392,7 +392,7 @@ async function closeTrade(broker: AngelOneBroker, trade: ActiveTrade, reason: st
     const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
     const orderId = await broker.placeMarketBuy(trade.symbol, trade.token, trade.quantity, exitSide);
     
-    TradeDB.markTradeClosed(trade.id);
+    await TradeDB.markTradeClosed(trade.id, reason);
     broker.unsubscribeFromTokens([trade.token]);
     
     const pnl = trade.side === "BUY" ? exitPrice - trade.entry_price : trade.entry_price - exitPrice;
