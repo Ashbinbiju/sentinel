@@ -25,6 +25,28 @@ app.use(
     },
   }),
 );
+
+import rateLimit from "express-rate-limit";
+
+// Global Rate Limiter: 100 requests per 1-minute window
+const limiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 100, 
+  standardHeaders: true, 
+  legacyHeaders: false, 
+  handler: (req, res, next, options) => {
+    // Return the exact JSON payload format requested by the mobile dev team
+    const retryAfterSeconds = Math.ceil(options.windowMs / 1000);
+    res.status(options.statusCode).json({
+      error: "Too many requests",
+      retryAfter: retryAfterSeconds,
+    });
+  },
+});
+
+// Apply rate limiting to all requests
+app.use(limiter);
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
