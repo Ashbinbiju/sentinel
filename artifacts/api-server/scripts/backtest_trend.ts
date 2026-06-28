@@ -174,7 +174,7 @@ async function runBacktest(symbols: string[]) {
         }
 
         if (alreadyTraded) continue;
-        if (mins < 10 * 60 + 5 || mins > 11 * 60 + 30) continue;
+        if (mins < 9 * 60 + 45 || mins > 11 * 60 + 45) continue;
 
         let setup = "";
         let direction: "LONG" | "SHORT" | null = null;
@@ -193,23 +193,26 @@ if (j === 0) {
           }
         } 
         
+
         if (!direction) {
+          const dailyTrend = c.o > prevClose ? "BULLISH" : "BEARISH";
+
           // Intraday touch logic
           if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
             if (c.c > prevHigh) {
-              setup = "HIGH BREAKOUT"; direction = "LONG";
+              if (dailyTrend === "BULLISH") { setup = "HIGH BREAKOUT"; direction = "LONG"; }
               sl = Math.min(c.l, prevHigh * 0.999);
             } else if (c.c < c.o) {
-              setup = "HIGH REJECTION"; direction = "SHORT";
+              if (dailyTrend === "BEARISH") { setup = "HIGH REJECTION"; direction = "SHORT"; }
               sl = Math.max(c.h, prevHigh * 1.001);
             }
             if (direction) entryPrice = c.c;
           } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
             if (c.c < prevLow) {
-              setup = "LOW BREAKDOWN"; direction = "SHORT";
+              if (dailyTrend === "BEARISH") { setup = "LOW BREAKDOWN"; direction = "SHORT"; }
               sl = Math.max(c.h, prevLow * 1.001);
             } else if (c.c > c.o) {
-              setup = "LOW SUPPORT"; direction = "LONG";
+              if (dailyTrend === "BULLISH") { setup = "LOW SUPPORT"; direction = "LONG"; }
               sl = Math.min(c.l, prevLow * 0.999);
             }
             if (direction) entryPrice = c.c;

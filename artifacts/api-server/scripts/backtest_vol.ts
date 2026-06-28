@@ -174,7 +174,7 @@ async function runBacktest(symbols: string[]) {
         }
 
         if (alreadyTraded) continue;
-        if (mins < 10 * 60 + 5 || mins > 11 * 60 + 30) continue;
+        if (mins < 9 * 60 + 45 || mins > 11 * 60 + 45) continue;
 
         let setup = "";
         let direction: "LONG" | "SHORT" | null = null;
