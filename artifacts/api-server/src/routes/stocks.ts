@@ -1818,8 +1818,7 @@ function ensureSwingTradesTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS insider_transaction_value NUMERIC,
         ADD COLUMN IF NOT EXISTS insider_transaction_date TEXT,
         ADD COLUMN IF NOT EXISTS insider_category TEXT
-      `);
-    })();
+      `);}).catch((err) => {  swingTradesTableReady = null;  throw err;});
   }
 
   return swingTradesTableReady;
