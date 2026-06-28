@@ -98,6 +98,7 @@ async function runBacktest(symbols: string[]) {
       const today = dates[i];
       if (today !== "2026-06-25") continue;
       
+      
       const prevCandles = byDate.get(prevDate)!;
       const todayCandles = byDate.get(today)!;
 
@@ -172,7 +173,7 @@ async function runBacktest(symbols: string[]) {
         }
 
         if (alreadyTraded) continue;
-        if (mins < 9 * 60 + 15 || mins > 15 * 60 + 15) continue;
+        if (mins < 9 * 60 + 15 || mins > 11 * 60 + 30) continue;
 
         let setup = "";
         let direction: "LONG" | "SHORT" | null = null;
@@ -243,5 +244,5 @@ if (j === 0) {
   console.log(`Total Net Return: ${(totalPnl * 100).toFixed(2)}%`);
 }
 
-const symbols = ["ABREL"];
+const symbols = ["ANGELONE"];
 runBacktest(symbols).catch(console.error);

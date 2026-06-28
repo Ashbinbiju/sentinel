@@ -732,7 +732,7 @@ function candleClosesBySquareOff(candle: Candle): boolean {
 
 function candleClosesInEntryWindow(candle: Candle): boolean {
   const mins = getISTMinuteOfDay(candle.t + CANDLE_INTERVAL_SECS);
-  return mins >= ENTRY_SIGNAL_START_MIN_IST && mins <= ENTRY_SIGNAL_END_MIN_IST;
+  return mins >= 555 && mins <= 690;
 }
 
 function isSignalTimeInEntryWindowIST(signalTime: string): boolean {
@@ -1279,9 +1279,9 @@ function build1DStrategySignal(
   
   const action = direction === "LONG" ? "BUY" : "SELL";
   const smartExit =
-    ${action} . Entry Rs .  +
-    SL at Rs . Target Rs .  +
-    Exit any open trade by 15:15 IST.;
+    `${action} . Entry Rs ${entry.toFixed(2)}. ` +
+    `SL at Rs ${sl.toFixed(2)}. Target Rs ${target1.toFixed(2)}. ` +
+    `Exit any open trade by 15:15 IST.`;
 
   return {
     candle,
