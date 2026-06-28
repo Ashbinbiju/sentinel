@@ -153,18 +153,28 @@ async function main() {
 
   console.log("=== INITIALIZATION COMPLETE. STARTING POLLING LOOP ===");
 
-  function isMarketOpenIST(): boolean {
+  function getISTMinutes(): number {
     const now = new Date();
-    const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric', weekday: 'short' } as const;
+    const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric' } as const;
     const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
-    let hour = 0, minute = 0, weekday = '';
+    let hour = 0, minute = 0;
     for (const p of parts) {
       if (p.type === 'hour') hour = parseInt(p.value, 10);
       if (p.type === 'minute') minute = parseInt(p.value, 10);
+    }
+    return hour * 60 + minute;
+  }
+
+  function isMarketOpenIST(): boolean {
+    const now = new Date();
+    const options = { timeZone: 'Asia/Kolkata', weekday: 'short' } as const;
+    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+    let weekday = '';
+    for (const p of parts) {
       if (p.type === 'weekday') weekday = p.value;
     }
     if (weekday === 'Sat' || weekday === 'Sun') return false;
-    const mins = hour * 60 + minute;
+    const mins = getISTMinutes();
     return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
   }
 
@@ -173,6 +183,21 @@ async function main() {
       if (!isMarketOpenIST() && process.env.DRY_RUN !== "true") {
         console.log("[BOT] Outside market hours (IST). Sleeping for 5 minutes...");
         await sleep(5 * 60 * 1000); // Check again in 5 minutes
+        continue;
+      }
+
+      // Auto Square-Off at 3:14 PM to avoid Angel One charges
+      const currentMins = getISTMinutes();
+      if (currentMins >= 15 * 60 + 14 && currentMins <= 15 * 60 + 30) {
+        const activeTrades = TradeDB.getOpenTrades();
+        if (activeTrades.length > 0) {
+          console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM). Closing ${activeTrades.length} open positions!`);
+          for (const trade of activeTrades) {
+            await closeTrade(broker, trade, "AUTO SQUARE-OFF (3:14 PM)", trade.highest_ltp || trade.entry_price);
+          }
+        }
+        console.log("[BOT] Market closing soon. Halting new trades and sleeping until 3:30 PM...");
+        await sleep(15 * 60 * 1000);
         continue;
       }
 
