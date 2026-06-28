@@ -174,7 +174,7 @@ async function runBacktest(symbols: string[]) {
         }
 
         if (alreadyTraded) continue;
-        if (mins < 9 * 60 + 15 || mins > 11 * 60 + 30) continue;
+        if (mins < 9 * 60 + 45 || mins > 11 * 60 + 45) continue;
 
         let setup = "";
         let direction: "LONG" | "SHORT" | null = null;
@@ -245,5 +245,5 @@ if (j === 0) {
   console.log(`Total Net Return: ${(totalPnl * 100).toFixed(2)}%`);
 }
 
-const symbols = ["ANGELONE"];
+const symbols = ["WELCORP"];
 runBacktest(symbols).catch(console.error);
