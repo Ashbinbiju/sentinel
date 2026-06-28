@@ -112,12 +112,15 @@ const DD_OVEREXTENDED_EMA20_DISTANCE_THRESHOLD = 10.0;
 const DD_OVEREXTENDED_LATEST_MOVE_THRESHOLD = 8.0;
 const DD_MAX_EXHAUSTION_RANKING_PENALTY = 2.0;
 const SWING_MIN_INDEX_DAILY_ADX = 25.0;
-const SWING_MIN_RS55 = 70.0;
-const SWING_MIN_TECHNICAL_RVOL = 1.5;
+const SWING_STRONG_RS55 = 70.0;
+const SWING_MIN_ACCEPTABLE_RS55 = 50.0;
+const SWING_MIN_ACCEPTABLE_TECHNICAL_RVOL = 0.80;
+const SWING_MIN_FALLBACK_TECHNICAL_RVOL = 1.0;
 const SWING_INTRADAY_STRUCTURE_LOOKBACK = 6;
 const MARKET_STATS_URL = "https://brkpoint.in/api/market-stats";
 const MARKET_STATS_CACHE_TTL_MS = 15 * 60 * 1000;
 const INDUSTRY_STRENGTH_URL = "https://www.brkpoint.in/api/brkview/industry-strength-analysis";
+const INDUSTRY_STRENGTH_FALLBACK_URL = "https://brkpoint.in/api/brkview/industry-strength-analysis";
 const INDUSTRY_STRENGTH_CACHE_TTL_MS = 15 * 60 * 1000;
 const INDEX_TREND_URL = "https://www.brkpoint.in/api/indextrend";
 const INDEX_TREND_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -395,7 +398,17 @@ interface SwingScannerResult {
   niftyReturn: number;
   marketRegime: MarketRegimeSnapshot["marketRegime"];
   marketBreadthPct: number | null;
+  diagnostics: SwingScannerDiagnostics;
   picks: SwingCandidate[];
+}
+
+interface SwingScannerDiagnostics {
+  rawCandidates: number;
+  finalCandidates: number;
+  availableCandidates: number;
+  excludedOpenSymbols: number;
+  technicalIndicatorSymbols: number;
+  technicalDataAvailable: boolean;
 }
 
 type SwingScanJobStatus = "queued" | "running" | "completed" | "failed";
@@ -2138,17 +2151,33 @@ async function fetchIndustryStrengthAnalysis(): Promise<IndustryStrengthPayload 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(INDUSTRY_STRENGTH_URL, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    const parsed = payload && typeof payload === "object" ? payload as IndustryStrengthPayload : null;
-    industryStrengthCache = { fetchedAt: Date.now(), payload: parsed };
-    return parsed;
+    let authFailureStatus: number | null = null;
+    for (const url of [INDUSTRY_STRENGTH_URL, INDUSTRY_STRENGTH_FALLBACK_URL]) {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+          Accept: "application/json, text/plain, */*",
+        },
+        signal: controller.signal,
+      });
+      if ([401, 403].includes(response.status)) {
+        authFailureStatus = response.status;
+        continue;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const parsed = payload && typeof payload === "object" ? payload as IndustryStrengthPayload : null;
+      industryStrengthCache = { fetchedAt: Date.now(), payload: parsed };
+      return parsed;
+    }
+
+    console.info(
+      `[SWING] Industry strength provider returned HTTP ${authFailureStatus ?? 401}; continuing without industry-strength enrichment.`,
+    );
+    industryStrengthCache = { fetchedAt: Date.now(), payload: null };
+    return null;
   } catch (err) {
-    console.warn("[SWING] Failed to fetch industry strength analysis.", err);
+    console.warn("[SWING] Failed to fetch industry strength analysis; continuing without industry-strength enrichment.", err);
     industryStrengthCache = { fetchedAt: Date.now(), payload: null };
     return null;
   } finally {
@@ -2217,7 +2246,7 @@ function technicalStageAdjustment(stage: string | null): number {
 
 function technicalRsAdjustment(rs55: number | null): number {
   if (rs55 === null) return 0;
-  if (rs55 >= 70) return 0.30;
+  if (rs55 >= SWING_STRONG_RS55) return 0.30;
   if (rs55 >= 55) return 0.15;
   if (rs55 < 25) return -0.45;
   if (rs55 < 40) return -0.25;
@@ -2325,14 +2354,24 @@ function technicalIndicatorImpact(row: TechnicalIndicatorRow): TechnicalIndicato
 function passesSwingTechnicalLeadershipGate(
   candidate: SwingCandidate,
   technicalImpact: TechnicalIndicatorImpact | null,
+  technicalDataAvailable: boolean,
 ): boolean {
+  if (!technicalDataAvailable) {
+    return candidate.rvol >= SWING_MIN_FALLBACK_TECHNICAL_RVOL;
+  }
+
+  if (!technicalImpact) {
+    return candidate.rvol >= SWING_MIN_FALLBACK_TECHNICAL_RVOL;
+  }
+
   const rs55 = technicalImpact?.rs55 ?? null;
   const rvol = technicalImpact?.volumeRatio ?? candidate.rvol;
-  return (
-    rs55 !== null &&
-    rs55 >= SWING_MIN_RS55 &&
-    rvol >= SWING_MIN_TECHNICAL_RVOL
-  );
+  const stage = String(technicalImpact?.stage ?? "").toLowerCase().replace(/\s+/g, "");
+  if (stage === "stage4") return false;
+  if (rs55 !== null && rs55 < SWING_MIN_ACCEPTABLE_RS55) return false;
+  if (rvol < SWING_MIN_ACCEPTABLE_TECHNICAL_RVOL) return false;
+
+  return true;
 }
 
 function buildTechnicalIndicatorMap(rows: TechnicalIndicatorRow[]): Map<string, TechnicalIndicatorImpact> {
@@ -2505,11 +2544,11 @@ function swingIndexTrendImpact(sector: string, payload: IndexTrendPayload | null
   };
 }
 
-function passesSwingMarketTrendGate(sector: string, payload: IndexTrendPayload | null): boolean {
+function blocksSwingMarketTrendGate(sector: string, payload: IndexTrendPayload | null): boolean {
   const day = indexTrendBlockFor(payload, sector, "1d");
   const direction = indexTrendDirection(day);
   const adx = indexTrendAdxValue(day);
-  return direction === "Bullish" && adx !== null && adx >= SWING_MIN_INDEX_DAILY_ADX;
+  return direction === "Bearish" && adx !== null && adx >= SWING_MIN_INDEX_DAILY_ADX;
 }
 
 async function fetchInsiderTradingRows(): Promise<InsiderTradingRow[]> {
@@ -4401,8 +4440,8 @@ function finalizeSwingCandidates(
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
       const technicalImpact = technicalIndicatorsBySymbol.get(candidate.symbol) ?? null;
-      if (!passesSwingMarketTrendGate(candidate.sector, indexTrend)) return null;
-      if (!passesSwingTechnicalLeadershipGate(candidate, technicalImpact)) return null;
+      if (blocksSwingMarketTrendGate(candidate.sector, indexTrend)) return null;
+      if (!passesSwingTechnicalLeadershipGate(candidate, technicalImpact, technicalIndicatorsBySymbol.size > 0)) return null;
       const technicalAdjustment = technicalImpact?.scoreAdjustment ?? 0;
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
@@ -4733,6 +4772,14 @@ async function runSwingScanner(
     niftyReturn: r2(niftyReturn),
     marketRegime: marketRegime.marketRegime,
     marketBreadthPct: marketRegime.marketBreadthPct !== null ? r2(marketRegime.marketBreadthPct) : null,
+    diagnostics: {
+      rawCandidates: analyzed.filter((candidate): candidate is SwingCandidate => candidate !== null).length,
+      finalCandidates: candidates.length,
+      availableCandidates: availableCandidates.length,
+      excludedOpenSymbols: candidates.length - availableCandidates.length,
+      technicalIndicatorSymbols: technicalIndicatorsBySymbol.size,
+      technicalDataAvailable: technicalIndicatorsBySymbol.size > 0,
+    },
     picks,
   };
 }

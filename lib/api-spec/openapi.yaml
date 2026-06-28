@@ -857,6 +857,8 @@ components:
           enum: ["Bull", "Neutral", "Weak", "Unknown"]
         marketBreadthPct:
           type: ["number", "null"]
+        diagnostics:
+          $ref: "#/components/schemas/SwingScannerDiagnostics"
         picks:
           type: array
           items:
@@ -872,7 +874,36 @@ components:
         - niftyReturn
         - marketRegime
         - marketBreadthPct
+        - diagnostics
         - picks
+    SwingScannerDiagnostics:
+      type: object
+      properties:
+        rawCandidates:
+          type: integer
+          description: Setups found before final ranking, technical, open-trade, and save filters.
+        finalCandidates:
+          type: integer
+          description: Candidates that passed final quality filters before excluding open tracker symbols.
+        availableCandidates:
+          type: integer
+          description: Final candidates remaining after excluding open tracker symbols.
+        excludedOpenSymbols:
+          type: integer
+          description: Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW.
+        technicalIndicatorSymbols:
+          type: integer
+          description: Number of symbols loaded from the technical-indicators provider.
+        technicalDataAvailable:
+          type: boolean
+          description: Whether technical-indicator provider data was available for this scan.
+      required:
+        - rawCandidates
+        - finalCandidates
+        - availableCandidates
+        - excludedOpenSymbols
+        - technicalIndicatorSymbols
+        - technicalDataAvailable
     SwingScanJobResponse:
       type: object
       properties:

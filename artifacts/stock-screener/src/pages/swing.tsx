@@ -78,7 +78,17 @@ interface SwingScannerResponse {
   candidateCount: number;
   savedCount: number;
   niftyReturn: number;
+  diagnostics?: SwingScannerDiagnostics;
   picks: SwingPick[];
+}
+
+interface SwingScannerDiagnostics {
+  rawCandidates: number;
+  finalCandidates: number;
+  availableCandidates: number;
+  excludedOpenSymbols: number;
+  technicalIndicatorSymbols: number;
+  technicalDataAvailable: boolean;
 }
 
 type SwingScanJobStatus = "queued" | "running" | "completed" | "failed";
@@ -737,6 +747,18 @@ export default function Swing() {
               {scanner.picks.map((pick) => (
                 <PickCard key={`${pick.symbol}-${pick.signalTime}`} pick={pick} />
               ))}
+            </div>
+          ) : scanner ? (
+            <div className="rounded-lg border border-border/50 bg-card p-8 text-center text-muted-foreground">
+              <div>No swing picks passed the final filters.</div>
+              {scanner.diagnostics && (
+                <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+                  <span className="rounded border border-border/50 bg-background/40 px-2 py-1">Raw {scanner.diagnostics.rawCandidates}</span>
+                  <span className="rounded border border-border/50 bg-background/40 px-2 py-1">Final {scanner.diagnostics.finalCandidates}</span>
+                  <span className="rounded border border-border/50 bg-background/40 px-2 py-1">Open excluded {scanner.diagnostics.excludedOpenSymbols}</span>
+                  <span className="rounded border border-border/50 bg-background/40 px-2 py-1">Tech {scanner.diagnostics.technicalIndicatorSymbols}</span>
+                </div>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border border-border/50 bg-card p-8 text-center text-muted-foreground">
