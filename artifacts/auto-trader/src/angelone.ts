@@ -124,7 +124,7 @@ export class AngelOneBroker {
     
     this.ws = new WebSocketV2({
       jwttoken: this.jwtToken,
-      clientcode: process.env.ANGEL_CLIENT_ID!,
+      clientcode: process.env.ANGEL_CLIENT_CODE!,
       apikey: process.env.ANGEL_API_KEY!,
       feedtype: this.feedToken,
     });
