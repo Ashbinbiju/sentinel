@@ -6,7 +6,7 @@ import { TradeDB, ActiveTrade } from "./db";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
 
-const MAX_DAILY_TRADES = 5;
+const MAX_DAILY_TRADES = parseInt(process.env.MAX_DAILY_TRADES || "2", 10);
 const LEVERAGE = 5; // Intraday leverage for NSE Equity
 const MAX_DAILY_LOSS = -1000;
 const MAX_CONSECUTIVE_LOSSES = 3;
