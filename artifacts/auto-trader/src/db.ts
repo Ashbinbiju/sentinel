@@ -1,6 +1,5 @@
-import Database from "better-sqlite3";
-import path from "path";
 import fs from "fs";
+import path from "path";
 
 export interface ActiveTrade {
   id: string;
@@ -15,68 +14,73 @@ export interface ActiveTrade {
   status: "OPEN" | "CLOSED";
 }
 
-const dbPath = path.resolve(__dirname, "../../trades.db");
+const dbPath = path.resolve(__dirname, "../../trades.json");
 
-// Ensure the directory exists if we put it elsewhere, but it's in the workspace root
-const db = new Database(dbPath);
+// Read from JSON file
+function readDB(): ActiveTrade[] {
+  if (!fs.existsSync(dbPath)) {
+    return [];
+  }
+  try {
+    const data = fs.readFileSync(dbPath, "utf-8");
+    return JSON.parse(data);
+  } catch (err) {
+    console.error("[DB] Failed to read database:", err);
+    return [];
+  }
+}
 
-// Initialize DB schema
-db.exec(`
-  CREATE TABLE IF NOT EXISTS active_trades (
-    id TEXT PRIMARY KEY,
-    symbol TEXT NOT NULL,
-    token TEXT NOT NULL,
-    quantity INTEGER NOT NULL,
-    side TEXT NOT NULL,
-    entry_price REAL NOT NULL,
-    current_sl REAL NOT NULL,
-    target REAL NOT NULL,
-    highest_ltp REAL NOT NULL,
-    status TEXT NOT NULL
-  )
-`);
+// Write to JSON file
+function writeDB(trades: ActiveTrade[]) {
+  try {
+    fs.writeFileSync(dbPath, JSON.stringify(trades, null, 2), "utf-8");
+  } catch (err) {
+    console.error("[DB] Failed to write to database:", err);
+  }
+}
 
 export const TradeDB = {
   saveTrade: (trade: ActiveTrade) => {
-    const stmt = db.prepare(`
-      INSERT INTO active_trades (id, symbol, token, quantity, side, entry_price, current_sl, target, highest_ltp, status)
-      VALUES (@id, @symbol, @token, @quantity, @side, @entry_price, @current_sl, @target, @highest_ltp, @status)
-    `);
-    stmt.run(trade);
+    const trades = readDB();
+    const existingIndex = trades.findIndex(t => t.id === trade.id);
+    if (existingIndex >= 0) {
+      trades[existingIndex] = trade;
+    } else {
+      trades.push(trade);
+    }
+    writeDB(trades);
   },
 
   updateTradeSL: (id: string, newSL: number, newHighestLTP: number) => {
-    const stmt = db.prepare(`
-      UPDATE active_trades
-      SET current_sl = @newSL, highest_ltp = @newHighestLTP
-      WHERE id = @id
-    `);
-    stmt.run({ id, newSL, newHighestLTP });
+    const trades = readDB();
+    const trade = trades.find(t => t.id === id);
+    if (trade) {
+      trade.current_sl = newSL;
+      trade.highest_ltp = newHighestLTP;
+      writeDB(trades);
+    }
   },
 
   updateHighestLTP: (id: string, newHighestLTP: number) => {
-    const stmt = db.prepare(`
-      UPDATE active_trades
-      SET highest_ltp = @newHighestLTP
-      WHERE id = @id
-    `);
-    stmt.run({ id, newHighestLTP });
+    const trades = readDB();
+    const trade = trades.find(t => t.id === id);
+    if (trade) {
+      trade.highest_ltp = newHighestLTP;
+      writeDB(trades);
+    }
   },
 
   markTradeClosed: (id: string) => {
-    const stmt = db.prepare(`
-      UPDATE active_trades
-      SET status = 'CLOSED'
-      WHERE id = @id
-    `);
-    stmt.run({ id });
+    const trades = readDB();
+    const trade = trades.find(t => t.id === id);
+    if (trade) {
+      trade.status = "CLOSED";
+      writeDB(trades);
+    }
   },
 
   getOpenTrades: (): ActiveTrade[] => {
-    const stmt = db.prepare(`
-      SELECT * FROM active_trades
-      WHERE status = 'OPEN'
-    `);
-    return stmt.all() as ActiveTrade[];
+    const trades = readDB();
+    return trades.filter(t => t.status === "OPEN");
   }
 };
