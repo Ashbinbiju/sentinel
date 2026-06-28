@@ -49,6 +49,7 @@ async function fetchCandles(symbol: string): Promise<Candle[]> {
   return all.sort((a, b) => a.t - b.t);
 }
 
+const TOUCH_BUFFER_PCT = 0.0075;
 const SLIPPAGE_PCT = 0.0005; // 0.05% slippage on entry and exit
 const BROKERAGE_PCT = 0.0003; // Brokerage & taxes estimate
 
@@ -194,7 +195,7 @@ if (j === 0) {
         
         if (!direction) {
           // Intraday touch logic
-          if (c.h >= prevHigh) {
+          if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
             if (c.c > prevHigh) {
               setup = "HIGH BREAKOUT"; direction = "LONG";
               sl = Math.min(c.l, prevHigh * 0.999);
@@ -203,7 +204,7 @@ if (j === 0) {
               sl = Math.max(c.h, prevHigh * 1.001);
             }
             entryPrice = c.c;
-          } else if (c.l <= prevLow) {
+          } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
             if (c.c < prevLow) {
               setup = "LOW BREAKDOWN"; direction = "SHORT";
               sl = Math.max(c.h, prevLow * 1.001);

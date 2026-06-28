@@ -1375,8 +1375,9 @@ if (i === 0) {
       }
     }
 
-    if (!direction) {
-      if (candle.h >= prevDayHigh) {
+if (!direction) {
+      const TOUCH_BUFFER_PCT = 0.0075; // 0.75% buffer for touches
+      if (candle.h >= prevDayHigh * (1 - TOUCH_BUFFER_PCT)) {
         if (candle.c > prevDayHigh) {
           direction = "LONG";
           setup = "1D HIGH BREAKOUT";
@@ -1386,7 +1387,7 @@ if (i === 0) {
           setup = "1D HIGH REJECTION";
           sl = Math.max(candle.h, prevDayHigh * 1.001);
         }
-      } else if (candle.l <= prevDayLow) {
+      } else if (candle.l <= prevDayLow * (1 + TOUCH_BUFFER_PCT)) {
         if (candle.c < prevDayLow) {
           direction = "SHORT";
           setup = "1D LOW BREAKDOWN";
