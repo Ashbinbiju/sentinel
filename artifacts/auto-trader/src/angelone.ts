@@ -215,6 +215,9 @@ export class AngelOneBroker {
         this.smartApi.getOrderBook()
       );
       if (!response || !response.status || !Array.isArray(response.data)) {
+        if (response?.message === "SUCCESS" || response?.message === "No Data Found") {
+          return new Set<string>(); // Empty order book
+        }
         throw new Error(response?.message || "Failed to fetch order book");
       }
 
