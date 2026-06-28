@@ -5246,9 +5246,8 @@ router.get("/momentum-picks", async (req, res) => {
       changePct: sectorData.datasets[i] ?? 0,
     }));
 
-    // Top 2 momentum sectors
+    // Top 2 momentum sectors (relative strength, regardless of green/red)
     const topSectors = [...allSectors]
-      .filter((sector) => sector.changePct > 0)
       .sort((a, b) => b.changePct - a.changePct)
       .slice(0, 2);
 
@@ -5268,9 +5267,9 @@ router.get("/momentum-picks", async (req, res) => {
             ...(constituentData.nonIndexConstituents ?? []),
           ];
           
-          // Get top 5 stocks by momentum in this sector
+          // Get top 5 stocks by momentum in this sector (relative strength)
           const topStocks = allStocks
-            .filter((s) => s.ltp > 100 && s.changePct > 0 && s.changePct < 15)
+            .filter((s) => s.ltp > 100 && s.changePct < 15)
             .sort((a, b) => b.changePct - a.changePct)
             .slice(0, 5);
 
