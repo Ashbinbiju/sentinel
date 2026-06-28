@@ -62,14 +62,14 @@ export class AngelOneBroker {
   
   constructor() {
     this.smartApi = new SmartAPI({
-      api_key: process.env.ANGEL_API_KEY,
+      api_key: process.env.ANGEL_API_KEY?.trim(),
     });
   }
 
   async login() {
-    const clientCode = process.env.ANGEL_CLIENT_CODE;
-    const password = process.env.ANGEL_PASSWORD;
-    const totpSecret = process.env.ANGEL_TOTP_SECRET;
+    const clientCode = process.env.ANGEL_CLIENT_CODE?.trim();
+    const password = process.env.ANGEL_PASSWORD?.trim();
+    const totpSecret = process.env.ANGEL_TOTP_SECRET?.trim();
 
     if (!clientCode || !password || !totpSecret || !process.env.ANGEL_API_KEY) {
       throw new Error("Missing Angel One credentials in .env");
@@ -124,8 +124,8 @@ export class AngelOneBroker {
     
     this.ws = new WebSocketV2({
       jwttoken: this.jwtToken,
-      clientcode: process.env.ANGEL_CLIENT_CODE!,
-      apikey: process.env.ANGEL_API_KEY!,
+      clientcode: process.env.ANGEL_CLIENT_CODE?.trim()!,
+      apikey: process.env.ANGEL_API_KEY?.trim()!,
       feedtype: this.feedToken,
     });
 
