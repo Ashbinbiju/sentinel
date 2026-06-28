@@ -732,8 +732,8 @@ function candleClosesBySquareOff(candle: Candle): boolean {
 
 function candleClosesInEntryWindow(candle: Candle): boolean {
   const mins = getISTMinuteOfDay(candle.t + CANDLE_INTERVAL_SECS);
-  // Market trades only allowed between 10:05 AM (605 mins) and 11:30 AM (690 mins)
-  return mins >= 605 && mins <= 690;
+  // Market trades only allowed between 10:15 AM (615 mins) and 2:30 PM (870 mins)
+  return mins >= 615 && mins <= 870;
 }
 
 function isSignalTimeInEntryWindowIST(signalTime: string): boolean {
