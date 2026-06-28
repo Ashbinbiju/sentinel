@@ -1,6 +1,4 @@
 import { resolve } from "path";
-import { config } from "dotenv";
-config({ path: resolve(__dirname, "../../../.env") });
 import axios from "axios";
 import { initializeScripMaster, getToken } from "./scrip-master";
 import { AngelOneBroker } from "./angelone";
