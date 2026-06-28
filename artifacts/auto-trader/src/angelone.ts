@@ -1,5 +1,5 @@
 import { TOTP } from "totp-generator";
-const { SmartAPI } = require("smartapi-javascript");
+const { SmartAPI, WebSocketV2 } = require("smartapi-javascript");
 
 const NSE_TICK_MULTIPLIER = 20; // 1 / 0.05 tick size
 
@@ -54,9 +54,11 @@ interface AngelOrderBookOrder {
 
 export class AngelOneBroker {
   private smartApi: any;
+  private ws: any = null;
   private jwtToken: string | null = null;
   private refreshToken: string | null = null;
   private feedToken: string | null = null;
+  private wsCallbacks: ((data: any) => void)[] = [];
   
   constructor() {
     this.smartApi = new SmartAPI({
@@ -113,6 +115,90 @@ export class AngelOneBroker {
       console.error("[BROKER] Failed to fetch account balance:", err);
       throw err;
     }
+  }
+
+  async connectWebSocket(): Promise<void> {
+    if (!this.jwtToken || !this.feedToken) {
+      throw new Error("Cannot connect WebSocket: Not authenticated.");
+    }
+    
+    this.ws = new WebSocketV2({
+      jwttoken: this.jwtToken,
+      clientcode: process.env.ANGEL_CLIENT_ID!,
+      apikey: process.env.ANGEL_API_KEY!,
+      feedtype: this.feedToken,
+    });
+
+    this.ws.connect()
+      .then(() => {
+        console.log("[BROKER] WebSocket Connected.");
+      })
+      .catch((err: any) => {
+        console.error("[BROKER] WebSocket Connection Error:", err);
+      });
+
+    this.ws.on("tick", (data: any) => {
+      this.wsCallbacks.forEach(cb => cb(data));
+    });
+
+    this.ws.on("close", () => {
+      console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 5s...");
+      setTimeout(() => this.connectWebSocket(), 5000);
+    });
+    
+    this.ws.on("error", (err: any) => {
+      console.error("[BROKER] WebSocket Error:", err);
+    });
+  }
+
+  onTick(callback: (data: any) => void) {
+    this.wsCallbacks.push(callback);
+  }
+
+  subscribeToTokens(tokens: string[]) {
+    if (!this.ws) {
+      console.warn("[BROKER] WebSocket not initialized yet.");
+      return;
+    }
+    
+    if (tokens.length === 0) return;
+
+    const req = {
+      correlationID: "sub-" + Date.now(),
+      action: 1, // 1 for subscribe
+      params: {
+        mode: 1, // 1 for LTP mode
+        tokenList: [
+          {
+            exchangeType: 1, // NSE
+            tokens: tokens
+          }
+        ]
+      }
+    };
+    
+    this.ws.fetchData(req);
+    console.log(`[BROKER] Subscribed to ${tokens.length} tokens for LTP streaming.`);
+  }
+
+  unsubscribeFromTokens(tokens: string[]) {
+    if (!this.ws || tokens.length === 0) return;
+
+    const req = {
+      correlationID: "unsub-" + Date.now(),
+      action: 0, // 0 for unsubscribe
+      params: {
+        mode: 1,
+        tokenList: [
+          {
+            exchangeType: 1,
+            tokens: tokens
+          }
+        ]
+      }
+    };
+    
+    this.ws.fetchData(req);
   }
 
   estimateMarginUsed(quantity: number, entryPrice: number, leverage: number): number {

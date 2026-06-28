@@ -4,6 +4,9 @@ config({ path: resolve(__dirname, "../../../.env") });
 import axios from "axios";
 import { initializeScripMaster, getToken } from "./scrip-master";
 import { AngelOneBroker } from "./angelone";
+import { TradeDB, ActiveTrade } from "./db";
+
+const DRY_RUN = process.env.DRY_RUN === "true";
 
 const MAX_DAILY_TRADES = 5;
 const LEVERAGE = 5; // Intraday leverage for NSE Equity
@@ -28,7 +31,7 @@ async function sendTelegramAlert(message: string) {
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return;
 
-  const prefix = process.env.DRY_RUN === "true" ? "🧪 [DRY RUN]\n" : "🤖 [SENTINEL LIVE]\n";
+  const prefix = DRY_RUN ? "🧪 [DRY RUN]\n" : "🤖 [SENTINEL LIVE]\n";
 
   try {
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -58,7 +61,7 @@ async function hydrateTradeStateFromBroker(broker: AngelOneBroker) {
       `[BOT] Hydrated ${tradesToday}/${MAX_DAILY_TRADES} executed broker trade(s) for today: ${[...executedSymbols].join(", ") || "none"}`,
     );
   } catch (err: any) {
-    if (process.env.DRY_RUN === "true") {
+    if (DRY_RUN) {
       console.warn(`[BOT] Failed to hydrate broker orders in dry run. Starting with empty in-memory state. ${err.message}`);
       return;
     }
@@ -68,19 +71,82 @@ async function hydrateTradeStateFromBroker(broker: AngelOneBroker) {
 }
 
 async function main() {
-  console.log("=== SENTINEL AUTO-TRADER STARTING ===");
-  console.log(`Dry Run Mode: ${process.env.DRY_RUN === "true" ? "ON" : "OFF"}`);
+  console.log("Starting Sentinel Auto-Trader (Active Manager)...");
+  
+  if (DRY_RUN) {
+    console.log("⚠️ RUNNING IN DRY-RUN MODE ⚠️");
+    console.log("No actual trades will be placed.");
+  }
+
+  // 1. Initialize Scrip Master
+  await initializeScripMaster();
+
+  // 2. Authenticate Broker
+  const broker = new AngelOneBroker();
+  try {
+    await broker.login();
+  } catch (err: any) {
+    if (!DRY_RUN) {
+      console.error("Failed to authenticate with Angel One. Exiting.", err);
+      process.exit(1);
+    }
+  }
 
   let simulatedBalance: number | null = null;
 
-  // 1. Load Scrip Master
-  await initializeScripMaster();
+  // 3. Connect WebSocket & Setup Active Manager Callbacks
+  if (!DRY_RUN) {
+    await broker.connectWebSocket();
+    
+    // Subscribe to existing open trades from DB
+    const openTrades = TradeDB.getOpenTrades();
+    if (openTrades.length > 0) {
+      console.log(`[BOT] Resuming management for ${openTrades.length} open trades from DB.`);
+      const openTokens = openTrades.map(t => t.token);
+      broker.subscribeToTokens(openTokens);
+    }
 
-  // 2. Login to Broker
-  const broker = new AngelOneBroker();
-  await broker.login();
+    // Handle incoming ticks for Trailing SL / Target Exits
+    broker.onTick(async (data: any) => {
+      // Data usually contains { token, last_traded_price, ... } depending on mode
+      // SmartAPI tick format for LTP mode (mode 1) usually sends { tk: "token", ltp: 123.45 }
+      if (!data || !data.tk || !data.ltp) return;
+      
+      const token = data.tk.toString();
+      const ltp = Number(data.ltp);
 
-  // 3. Restore today's executed broker trades before evaluating any new signals.
+      const activeTrades = TradeDB.getOpenTrades();
+      const trade = activeTrades.find(t => t.token === token);
+      
+      if (trade) {
+        // Track highest LTP for trailing SL
+        if (ltp > trade.highest_ltp && trade.side === "BUY") {
+          TradeDB.updateHighestLTP(trade.id, ltp);
+          
+          // Trailing SL Logic: If LTP reaches halfway to target (1:1 RR), trail SL to breakeven
+          const risk = trade.entry_price - trade.current_sl;
+          if (risk > 0 && ltp >= trade.entry_price + risk && trade.current_sl < trade.entry_price) {
+            TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
+            console.log(`[BOT] Trailing SL moved to breakeven for ${trade.symbol}`);
+            sendTelegramAlert(`🚀 TRAILING SL UPDATED\nSymbol: ${trade.symbol}\nNew SL: ₹${trade.entry_price} (Risk Free!)`);
+          }
+        }
+
+        // Exit Logic
+        if (trade.side === "BUY") {
+          if (ltp <= trade.current_sl) {
+            console.log(`[BOT] STOP LOSS HIT for ${trade.symbol} at ${ltp}`);
+            await closeTrade(broker, trade, "STOP LOSS", ltp);
+          } else if (ltp >= trade.target) {
+            console.log(`[BOT] TARGET HIT for ${trade.symbol} at ${ltp}`);
+            await closeTrade(broker, trade, "TARGET", ltp);
+          }
+        }
+      }
+    });
+  }
+
+  // 4. Determine Initial Capital
   await hydrateTradeStateFromBroker(broker);
 
   await sendTelegramAlert(`✅ Auto-Trader initialized successfully!\nHydrated trades: ${tradesToday}/${MAX_DAILY_TRADES}`);
@@ -184,7 +250,7 @@ async function main() {
             continue;
           }
 
-          // 8. Execute Trade (Using Bracket Order / ROBO) with Auto-Retry
+          // 8. Execute Trade (Using INTRADAY Market Order) with Auto-Retry
           let orderId: string | null = null;
           let retries = 0;
           const MAX_RETRIES = 3;
@@ -195,7 +261,7 @@ async function main() {
 
           while (retries < MAX_RETRIES) {
             try {
-              orderId = await broker.placeRoboOrder(symbol, token, quantity, pick.entry, pick.target2, pick.sl, side);
+              orderId = await broker.placeMarketBuy(symbol, token, quantity, side);
               
               tradesToday++;
               estimatedMarginUsed = broker.estimateMarginUsed(quantity, pick.entry, LEVERAGE);
@@ -207,25 +273,37 @@ async function main() {
               console.log(`[BOT] Trade ${tradesToday}/${MAX_DAILY_TRADES} executed successfully.`);
               console.log(`[BOT] Reserved estimated margin: INR ${estimatedMarginUsed.toFixed(2)} | Cycle balance left: INR ${cycleBalance.toFixed(2)}`);
               
+              // Assume filled at signal entry (in production, we'd fetch actual fill price from order book, but API limits make that hard instantly)
+              const fillPrice = pick.entry;
+
+              // Save to DB for Active Management
+              if (!DRY_RUN) {
+                const newTrade: ActiveTrade = {
+                  id: orderId || `dry-${Date.now()}`,
+                  symbol: pick.symbol,
+                  token: token,
+                  quantity: quantity,
+                  side: side,
+                  entry_price: fillPrice,
+                  current_sl: pick.sl,
+                  target: pick.target2,
+                  highest_ltp: fillPrice,
+                  status: "OPEN"
+                };
+                TradeDB.saveTrade(newTrade);
+                broker.subscribeToTokens([token]);
+              }
+
               const diag = pick.diagnostics;
               let diagText = "";
               if (diag) {
                 diagText = `\n\n📊 Diagnostics:\nPrev High: ₹${diag.prevHigh}\nPrev Low: ₹${diag.prevLow}\nCandle: O=${diag.candleOpen}, H=${diag.candleHigh}, L=${diag.candleLow}, C=${diag.candleClose}\nReason: ${diag.reason}`;
               }
 
-              const limitPriceNum = side === "BUY" ? pick.entry * 1.003 : pick.entry * 0.997;
-              const executionPrice = (Math.round(limitPriceNum * 20) / 20).toFixed(2);
-
               await sendTelegramAlert(
-                `🎯 NEW TRADE EXECUTED\nSymbol: ${pick.symbol}\nSide: ${side}\nSetup: ${pick.setup}\n\nQuantity: ${quantity}\nLimit Execution: ₹${executionPrice}\nTarget: ₹${pick.target2}\nSL: ₹${pick.sl}\n\nMargin Before: ₹${(cycleBalance + estimatedMarginUsed).toFixed(2)}\nMargin Used: ₹${estimatedMarginUsed.toFixed(2)}\nOrder ID: ${orderId || "N/A"}${diagText}`
+                `🎯 NEW ACTIVE TRADE\nSymbol: ${pick.symbol}\nSide: ${side}\nSetup: ${pick.setup}\n\nQuantity: ${quantity}\nEst Entry: ₹${fillPrice}\nTarget: ₹${pick.target2}\nSL: ₹${pick.sl}\n\nMargin Used: ₹${estimatedMarginUsed.toFixed(2)}\nOrder ID: ${orderId || "N/A"}${diagText}`
               );
 
-              // 8.1 Sniper Timeout: Cancel unfilled orders after 20 seconds
-              if (process.env.DRY_RUN !== "true" && orderId) {
-                broker.monitorOrderFill(orderId, symbol, 20000, sendTelegramAlert).catch(err => {
-                  console.error(`[BOT] Monitor failed for ${symbol}:`, err.message);
-                });
-              }
               break; // Success, break out of retry loop
             } catch (err: any) {
               const errMsg = err.message || "";
@@ -260,6 +338,27 @@ async function main() {
     }
 
     await sleep(POLL_INTERVAL_MS);
+  }
+}
+
+async function closeTrade(broker: AngelOneBroker, trade: ActiveTrade, reason: string, exitPrice: number) {
+  try {
+    const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
+    const orderId = await broker.placeMarketBuy(trade.symbol, trade.token, trade.quantity, exitSide);
+    
+    TradeDB.markTradeClosed(trade.id);
+    broker.unsubscribeFromTokens([trade.token]);
+    
+    const pnl = trade.side === "BUY" ? exitPrice - trade.entry_price : trade.entry_price - exitPrice;
+    const totalPnl = pnl * trade.quantity;
+    const icon = totalPnl >= 0 ? "✅" : "❌";
+
+    await sendTelegramAlert(
+      `${icon} TRADE CLOSED (${reason})\nSymbol: ${trade.symbol}\nExit Price: ₹${exitPrice}\nGross P&L: ₹${totalPnl.toFixed(2)}\nOrder ID: ${orderId}`
+    );
+  } catch (err: any) {
+    console.error(`[BOT] Failed to close trade ${trade.symbol}:`, err.message);
+    await sendTelegramAlert(`🚨 URGENT: FAILED TO CLOSE ${trade.symbol} (${reason})\nManual intervention required!\nError: ${err.message}`);
   }
 }
 
