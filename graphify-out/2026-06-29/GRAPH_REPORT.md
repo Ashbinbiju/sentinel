@@ -1,7 +1,7 @@
 # Graph Report - sentinel  (2026-06-29)
 
 ## Corpus Check
-- 257 files · ~103,372 words
+- 257 files · ~103,306 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d80df3e4`
+- Built from commit: `647b1e6d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -178,7 +178,7 @@
   artifacts/mockup-sandbox/src/components/ui/alert-dialog.tsx → artifacts/mockup-sandbox/src/lib/utils.ts
 
 ## Import Cycles
-- 1-file cycle: `artifacts/stock-screener/src/components/ui/input-otp.tsx -> artifacts/stock-screener/src/components/ui/input-otp.tsx`
+- 1-file cycle: `artifacts/mockup-sandbox/src/components/ui/input-otp.tsx -> artifacts/mockup-sandbox/src/components/ui/input-otp.tsx`
 - 1-file cycle: `artifacts/mockup-sandbox/src/components/ui/sonner.tsx -> artifacts/mockup-sandbox/src/components/ui/sonner.tsx`
 
 ## Hyperedges (group relationships)
@@ -249,8 +249,8 @@ Cohesion: 0.09
 Nodes (22): compilerOptions, alwaysStrict, customConditions, isolatedModules, lib, module, moduleResolution, noEmitOnError (+14 more)
 
 ### Community 16 - "Community 16 (customFetch())"
-Cohesion: 0.08
-Nodes (24): DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut(), DropdownMenuSubContent (+16 more)
+Cohesion: 0.11
+Nodes (18): apiUrl(), fetchJson(), formatDate(), formatTurnover(), getStatusConfig(), numberFrom(), PickCard(), StatusBadge() (+10 more)
 
 ### Community 17 - "Community 17 (swingPick.ts)"
 Cohesion: 0.09
@@ -269,8 +269,8 @@ Cohesion: 0.06
 Nodes (33): AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter(), AlertDialogHeader(), AlertDialogOverlay, AlertDialogTitle (+25 more)
 
 ### Community 21 - "Community 21 (devDependencies)"
-Cohesion: 0.20
-Nodes (9): name, private, scripts, build, dev, start, typecheck, type (+1 more)
+Cohesion: 0.11
+Nodes (18): devDependencies, esbuild, esbuild-plugin-pino, pino-pretty, thread-stream, @types/cookie-parser, @types/cors, @types/express (+10 more)
 
 ### Community 22 - "Community 22 (TechnicalIndicatorImpact)"
 Cohesion: 0.14
@@ -285,12 +285,12 @@ Cohesion: 0.09
 Nodes (26): addLevel(), aggregateCandles(), build1DStrategySignal(), buildSupportResistanceContext(), candleClosesInEntryWindow(), findEntrySignalMatch(), getCandleCloseDateIST(), getConfirmedCandles() (+18 more)
 
 ### Community 25 - "Community 25 (components.json)"
-Cohesion: 0.11
-Nodes (19): StockCardProps, StockChartModalProps, TradingViewChart(), TradingViewChartProps, Command, CommandEmpty, CommandGroup, CommandInput (+11 more)
+Cohesion: 0.20
+Nodes (11): StockCardProps, StockChartModalProps, TradingViewChart(), TradingViewChartProps, DialogContent, DialogDescription, DialogFooter(), DialogHeader() (+3 more)
 
 ### Community 26 - "Community 26 (stockItem.ts)"
-Cohesion: 0.17
-Nodes (18): Sparkline(), SparklineProps, StockCard(), StockChartModal(), Ticker(), formatCurrency(), formatPercent(), getBgColorClass() (+10 more)
+Cohesion: 0.20
+Nodes (15): Sparkline(), SparklineProps, StockCard(), StockChartModal(), Ticker(), formatCurrency(), formatPercent(), getBgColorClass() (+7 more)
 
 ### Community 27 - "Community 27 (menubar.tsx)"
 Cohesion: 0.13
@@ -353,8 +353,8 @@ Cohesion: 0.18
 Nodes (11): drizzle-orm, drizzle-orm, zod, zod, Drizzle ORM, dependencies, drizzle-orm, drizzle-zod (+3 more)
 
 ### Community 42 - "Community 42 (package.json)"
-Cohesion: 0.15
-Nodes (12): description, devDependencies, tsx, @types/node, typescript, main, name, scripts (+4 more)
+Cohesion: 0.11
+Nodes (18): dependencies, axios, dotenv, smartapi-javascript, totp-generator, @workspace/db, description, devDependencies (+10 more)
 
 ### Community 43 - "Community 43 (item.tsx)"
 Cohesion: 0.17
@@ -425,8 +425,8 @@ Cohesion: 0.18
 Nodes (10): input-otp, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, input-otp, InputOTP, InputOTPGroup (+2 more)
 
 ### Community 60 - "Community 60 (dependencies)"
-Cohesion: 0.18
-Nodes (11): dependencies, cookie-parser, cors, express, express-rate-limit, pino, pino-http, smartapi-javascript (+3 more)
+Cohesion: 0.20
+Nodes (10): dependencies, cookie-parser, cors, express-rate-limit, pino, pino-http, smartapi-javascript, totp-generator (+2 more)
 
 ### Community 61 - "Community 61 (command.tsx)"
 Cohesion: 0.18
@@ -509,8 +509,8 @@ Cohesion: 0.20
 Nodes (9): compilerOptions, composite, declarationMap, emitDeclarationOnly, outDir, rootDir, types, extends (+1 more)
 
 ### Community 81 - "Community 81 (alert-dialog.tsx)"
-Cohesion: 0.22
-Nodes (9): devDependencies, esbuild, esbuild-plugin-pino, pino-pretty, thread-stream, @types/cookie-parser, @types/cors, @types/express (+1 more)
+Cohesion: 0.20
+Nodes (9): DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut(), DropdownMenuSubContent (+1 more)
 
 ### Community 82 - "Community 82 (input-group.tsx)"
 Cohesion: 0.22
@@ -633,8 +633,8 @@ Cohesion: 0.33
 Nodes (4): Candle, debugTcs(), fetchCandles(), MC_HEADERS
 
 ### Community 112 - "Community 112 (app.ts)"
-Cohesion: 0.18
-Nodes (9): app, limiter, port, logger, router, router, router, Express (+1 more)
+Cohesion: 0.16
+Nodes (10): express, app, limiter, port, logger, router, router, router (+2 more)
 
 ### Community 113 - "Community 113 (card.tsx)"
 Cohesion: 0.40
@@ -649,8 +649,8 @@ Cohesion: 0.29
 Nodes (6): compilerOptions, outDir, rootDir, types, extends, include
 
 ### Community 120 - "Community 120 (dependencies)"
-Cohesion: 0.33
-Nodes (6): dependencies, axios, dotenv, smartapi-javascript, totp-generator, @workspace/db
+Cohesion: 0.20
+Nodes (8): Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut()
 
 ### Community 130 - "Community 130 (tsconfig.json)"
 Cohesion: 0.40
@@ -688,8 +688,8 @@ Nodes (3): SENTINEL Stock Screener, artifacts/stock-screener/public/favicon.svg,
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `React` connect `Community 1 (React)` to `Community 3 (devDependencies)`, `Community 4 (api.ts)`, `Community 5 (api.schemas.ts)`, `Community 134`, `Community 135`, `Community 8 (dashboard.tsx)`, `Community 10 (sidebar.tsx)`, `Community 11 (sidebar.tsx)`, `Community 12 (swing.tsx)`, `Community 16 (customFetch())`, `Community 17 (swingPick.ts)`, `Community 19 (index.ts)`, `Community 20 (swingTrackerTrade.ts)`, `Community 25 (components.json)`, `Community 26 (stockItem.ts)`, `Community 27 (menubar.tsx)`, `Community 34 (use-toast.ts)`, `Community 35 (use-toast.ts)`, `Community 37 (package.json)`, `Community 40 (carousel.tsx)`, `Community 41 (Drizzle ORM)`, `Community 43 (item.tsx)`, `Community 44 (item.tsx)`, `Community 49 (form.tsx)`, `Community 50 (field.tsx)`, `Community 51 (form.tsx)`, `Community 53 (chart.tsx)`, `Community 57 (notifications.ts)`, `Community 58 (package.json)`, `Community 59 (compilerOptions)`, `Community 64 (toast.tsx)`, `Community 65 (command.tsx)`, `Community 68 (toast.tsx)`, `Community 70 (package.json)`, `Community 71 (package.json)`, `Community 82 (input-group.tsx)`, `Community 83 (pagination.tsx)`, `Community 88 (pagination.tsx)`, `Community 89 (sheet.tsx)`, `Community 90 (table.tsx)`, `Community 91 (tsconfig.json)`, `Community 92 (package.json)`, `Community 93 (package.json)`, `Community 94 (Express)`, `Community 95 (breadcrumb.tsx)`, `Community 97 (empty.tsx)`, `Community 98 (navigation-menu.tsx)`, `Community 99 (select.tsx)`, `Community 104 (select.tsx)`, `Community 105 (MarketCards.tsx)`, `Community 106 (SignalFeed.tsx)`, `Community 114 (dialog.tsx)`?**
-  _High betweenness centrality (0.553) - this node is a cross-community bridge._
+- **Why does `React` connect `Community 1 (React)` to `Community 3 (devDependencies)`, `Community 4 (api.ts)`, `Community 5 (api.schemas.ts)`, `Community 134`, `Community 135`, `Community 8 (dashboard.tsx)`, `Community 10 (sidebar.tsx)`, `Community 11 (sidebar.tsx)`, `Community 12 (swing.tsx)`, `Community 16 (customFetch())`, `Community 17 (swingPick.ts)`, `Community 19 (index.ts)`, `Community 20 (swingTrackerTrade.ts)`, `Community 25 (components.json)`, `Community 26 (stockItem.ts)`, `Community 27 (menubar.tsx)`, `Community 34 (use-toast.ts)`, `Community 35 (use-toast.ts)`, `Community 37 (package.json)`, `Community 40 (carousel.tsx)`, `Community 41 (Drizzle ORM)`, `Community 43 (item.tsx)`, `Community 44 (item.tsx)`, `Community 49 (form.tsx)`, `Community 50 (field.tsx)`, `Community 51 (form.tsx)`, `Community 53 (chart.tsx)`, `Community 57 (notifications.ts)`, `Community 58 (package.json)`, `Community 59 (compilerOptions)`, `Community 64 (toast.tsx)`, `Community 65 (command.tsx)`, `Community 68 (toast.tsx)`, `Community 70 (package.json)`, `Community 71 (package.json)`, `Community 81 (alert-dialog.tsx)`, `Community 82 (input-group.tsx)`, `Community 83 (pagination.tsx)`, `Community 88 (pagination.tsx)`, `Community 89 (sheet.tsx)`, `Community 90 (table.tsx)`, `Community 91 (tsconfig.json)`, `Community 92 (package.json)`, `Community 93 (package.json)`, `Community 94 (Express)`, `Community 95 (breadcrumb.tsx)`, `Community 97 (empty.tsx)`, `Community 98 (navigation-menu.tsx)`, `Community 99 (select.tsx)`, `Community 104 (select.tsx)`, `Community 105 (MarketCards.tsx)`, `Community 106 (SignalFeed.tsx)`, `Community 114 (dialog.tsx)`, `Community 120 (dependencies)`?**
+  _High betweenness centrality (0.554) - this node is a cross-community bridge._
 - **Why does `Drizzle ORM` connect `Community 41 (Drizzle ORM)` to `Community 0 (stocks.ts)`, `Community 56 (package.json)`, `Community 63 (dropdown-menu.tsx)`?**
   _High betweenness centrality (0.285) - this node is a cross-community bridge._
 - **Why does `Zod` connect `Community 41 (Drizzle ORM)` to `Community 28 (menubar.tsx)`, `Community 101 (drawer.tsx)`?**

@@ -16,11 +16,10 @@ export interface HistoryTrade {
   signalTime: string;
   entryPrice: string;
   sl: string;
-  target1: string;
-  target2: string;
+  target: string;
   /** Inferred trade direction based on entry, SL, and target */
   direction: HistoryTradeDirection;
-  /** Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING) */
+  /** Final trade status (TARGET HIT, SL HIT, SQUARED OFF, ACTIVE, PENDING) */
   status: string;
   /**
    * IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
@@ -28,7 +27,7 @@ export interface HistoryTrade {
    */
   hitTime?: string | null;
   /**
-   * Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+   * Estimated P&L % based on final status. Null for ACTIVE/PENDING trades or when exit data is unavailable.
    * @nullable
    */
   plPct?: number | null;

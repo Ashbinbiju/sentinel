@@ -121,15 +121,10 @@ export interface StockItem {
    */
   sl?: number | null;
   /**
-   * First scale target, one risk unit from entry
+   * Target price based on entry and risk
    * @nullable
    */
-  target1?: number | null;
-  /**
-   * Final target at the opposite ChartPrime support/resistance zone
-   * @nullable
-   */
-  target2?: number | null;
+  target?: number | null;
   /**
    * Risk percentage from entry to SL
    * @nullable
@@ -247,10 +242,8 @@ export interface TopPick {
   entry: number;
   /** Stop loss price */
   sl: number;
-  /** First scale target, one risk unit from entry */
-  target1: number;
-  /** Final target at the opposite ChartPrime support/resistance zone */
-  target2: number;
+  /** Target price */
+  target: number;
   /** Risk % from entry to SL */
   riskPct: number;
   /** Reward-to-risk ratio for the final Power Channel target */
@@ -261,8 +254,6 @@ export interface TopPick {
   setup: string;
   /** Smart exit rule */
   smartExit: string;
-  vwap: number;
-  ema20: number;
   /** Downsampled intraday close prices for sparkline rendering */
   sparkline?: number[];
   /**
@@ -337,12 +328,9 @@ export type TradeStatus = (typeof TradeStatus)[keyof typeof TradeStatus];
 export const TradeStatus = {
   PENDING: "PENDING",
   ACTIVE: "ACTIVE",
-  TARGET_1_HIT: "TARGET 1 HIT",
-  TARGET_2_HIT: "TARGET 2 HIT",
+  TARGET_HIT: "TARGET HIT",
   SL_HIT: "SL HIT",
-  "T1_HIT_&_TRAILING_SL_HIT": "T1 HIT & TRAILING SL HIT",
   ENTRY_INVALID: "ENTRY INVALID",
-  VWAP_EXIT: "VWAP EXIT",
   SQUARED_OFF: "SQUARED OFF",
 } as const;
 
@@ -368,8 +356,7 @@ export interface TodayTrade {
   signalTime: string;
   entryPrice: string;
   sl: string;
-  target1: string;
-  target2: string;
+  target: string;
   status: TradeStatus;
   /**
    * Present when the API could infer trade direction from entry/SL/target
@@ -576,6 +563,21 @@ export const SwingScannerResultMarketRegime = {
   Unknown: "Unknown",
 } as const;
 
+export interface SwingScannerDiagnostics {
+  /** Setups found before final ranking, technical, open-trade, and save filters. */
+  rawCandidates: number;
+  /** Candidates that passed final quality filters before excluding open tracker symbols. */
+  finalCandidates: number;
+  /** Final candidates remaining after excluding open tracker symbols. */
+  availableCandidates: number;
+  /** Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW. */
+  excludedOpenSymbols: number;
+  /** Number of symbols loaded from the technical-indicators provider. */
+  technicalIndicatorSymbols: number;
+  /** Whether technical-indicator provider data was available for this scan. */
+  technicalDataAvailable: boolean;
+}
+
 export interface SwingScannerResult {
   fetchedAt: string;
   /** Trading date represented by the scan result (YYYY-MM-DD IST) */
@@ -589,6 +591,7 @@ export interface SwingScannerResult {
   marketRegime: SwingScannerResultMarketRegime;
   /** @nullable */
   marketBreadthPct: number | null;
+  diagnostics: SwingScannerDiagnostics;
   picks: SwingPick[];
 }
 
@@ -794,11 +797,10 @@ export interface HistoryTrade {
   signalTime: string;
   entryPrice: string;
   sl: string;
-  target1: string;
-  target2: string;
+  target: string;
   /** Inferred trade direction based on entry, SL, and target */
   direction: HistoryTradeDirection;
-  /** Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING) */
+  /** Final trade status (TARGET HIT, SL HIT, SQUARED OFF, ACTIVE, PENDING) */
   status: string;
   /**
    * IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
@@ -806,7 +808,7 @@ export interface HistoryTrade {
    */
   hitTime?: string | null;
   /**
-   * Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+   * Estimated P&L % based on final status. Null for ACTIVE/PENDING trades or when exit data is unavailable.
    * @nullable
    */
   plPct?: number | null;

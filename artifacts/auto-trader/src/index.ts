@@ -332,7 +332,7 @@ async function main() {
                   side: side,
                   entry_price: fillPrice,
                   current_sl: pick.sl,
-                  target: pick.target2,
+                  target: pick.target,
                   highest_ltp: fillPrice,
                   status: "OPEN"
                 };
@@ -347,7 +347,7 @@ async function main() {
               }
 
               await sendTelegramAlert(
-                `🎯 NEW ACTIVE TRADE\nSymbol: ${pick.symbol}\nSide: ${side}\nSetup: ${pick.setup}\n\nQuantity: ${quantity}\nEst Entry: ₹${fillPrice}\nTarget: ₹${pick.target2}\nSL: ₹${pick.sl}\n\nMargin Used: ₹${estimatedMarginUsed.toFixed(2)}\nOrder ID: ${orderId || "N/A"}${diagText}`
+                `🎯 NEW ACTIVE TRADE\nSymbol: ${pick.symbol}\nSide: ${side}\nSetup: ${pick.setup}\n\nQuantity: ${quantity}\nEst Entry: ₹${fillPrice}\nTarget: ₹${pick.target}\nSL: ₹${pick.sl}\n\nMargin Used: ₹${estimatedMarginUsed.toFixed(2)}\nOrder ID: ${orderId || "N/A"}${diagText}`
               );
 
               break; // Success, break out of retry loop

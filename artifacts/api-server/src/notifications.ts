@@ -41,13 +41,11 @@ interface TopPickForNotify {
   sectorName: string;
   entry: number;
   sl: number;
-  target1: number;
-  target2: number;
+  target: number;
   riskPct: number;
   direction?: "LONG" | "SHORT";
   setup?: string;
   changePct: number;
-  vwap: number;
   volumeRatio: number | null;
   volumeOk: boolean | null;
 }
@@ -82,10 +80,8 @@ function buildMessage(pick: TopPickForNotify): string {
     `<b>${symbol}</b> - ${sectorName}${setup}\n\n` +
     `<b>Entry:</b> Rs ${pick.entry.toFixed(2)}\n` +
     `<b>SL:</b> Rs ${pick.sl.toFixed(2)} (-${pick.riskPct.toFixed(1)}%)\n` +
-    `<b>T1:</b> Rs ${pick.target1.toFixed(2)}\n` +
-    `<b>T2:</b> Rs ${pick.target2.toFixed(2)}\n` +
-    `<b>Change:</b> ${formatSignedPct(pick.changePct)}\n` +
-    `<b>VWAP:</b> Rs ${pick.vwap.toFixed(2)}` +
+    `<b>Target:</b> Rs ${pick.target.toFixed(2)}\n` +
+    `<b>Change:</b> ${formatSignedPct(pick.changePct)}` +
     volLine +
     `\n\n<a href="${chartUrl}">Open Chart</a>`
   );

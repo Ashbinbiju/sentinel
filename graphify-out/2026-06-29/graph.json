@@ -243,7 +243,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "artifacts_api_server_package_dependencies_express",
-      "community": 60,
+      "community": 112,
       "norm_label": "express"
     },
     {
@@ -303,7 +303,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies",
-      "community": 81,
+      "community": 21,
       "norm_label": "devdependencies"
     },
     {
@@ -313,7 +313,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_types_cookie_parser",
-      "community": 81,
+      "community": 21,
       "norm_label": "@types/cookie-parser"
     },
     {
@@ -323,7 +323,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_types_cors",
-      "community": 81,
+      "community": 21,
       "norm_label": "@types/cors"
     },
     {
@@ -333,7 +333,7 @@
       "source_location": "L28",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_types_express",
-      "community": 81,
+      "community": 21,
       "norm_label": "@types/express"
     },
     {
@@ -343,7 +343,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_types_node",
-      "community": 81,
+      "community": 21,
       "norm_label": "@types/node"
     },
     {
@@ -353,7 +353,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_esbuild",
-      "community": 81,
+      "community": 21,
       "norm_label": "esbuild"
     },
     {
@@ -363,7 +363,7 @@
       "source_location": "L31",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_esbuild_plugin_pino",
-      "community": 81,
+      "community": 21,
       "norm_label": "esbuild-plugin-pino"
     },
     {
@@ -373,7 +373,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_pino_pretty",
-      "community": 81,
+      "community": 21,
       "norm_label": "pino-pretty"
     },
     {
@@ -383,7 +383,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_api_server_package_devdependencies_thread_stream",
-      "community": 81,
+      "community": 21,
       "norm_label": "thread-stream"
     },
     {
@@ -3830,7 +3830,7 @@
       "label": "getCachedCandleData()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5591",
+      "source_location": "L5575",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
       "community": 33,
@@ -3840,7 +3840,7 @@
       "label": "getTradeExitCandles()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5604",
+      "source_location": "L5588",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_gettradeexitcandles",
       "community": 14,
@@ -3850,7 +3850,7 @@
       "label": "resolveHistoricalTradeOutcome()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5614",
+      "source_location": "L5598",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "community": 14,
@@ -4073,7 +4073,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_auto_trader_package_dependencies",
-      "community": 120,
+      "community": 42,
       "norm_label": "dependencies"
     },
     {
@@ -4083,7 +4083,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "artifacts_auto_trader_package_dependencies_workspace_db",
-      "community": 120,
+      "community": 42,
       "norm_label": "@workspace/db"
     },
     {
@@ -4093,7 +4093,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_auto_trader_package_dependencies_axios",
-      "community": 120,
+      "community": 42,
       "norm_label": "axios"
     },
     {
@@ -4103,7 +4103,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "artifacts_auto_trader_package_dependencies_dotenv",
-      "community": 120,
+      "community": 42,
       "norm_label": "dotenv"
     },
     {
@@ -4123,7 +4123,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "artifacts_auto_trader_package_dependencies_smartapi_javascript",
-      "community": 120,
+      "community": 42,
       "norm_label": "smartapi-javascript"
     },
     {
@@ -4133,7 +4133,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "artifacts_auto_trader_package_dependencies_totp_generator",
-      "community": 120,
+      "community": 42,
       "norm_label": "totp-generator"
     },
     {
@@ -10753,7 +10753,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_layout",
-      "community": 16,
+      "community": 81,
       "norm_label": "layout.tsx"
     },
     {
@@ -10763,7 +10763,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_layout_sentinellogo",
-      "community": 16,
+      "community": 81,
       "norm_label": "sentinellogo()"
     },
     {
@@ -11743,7 +11743,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command",
-      "community": 25,
+      "community": 120,
       "norm_label": "command.tsx"
     },
     {
@@ -11753,7 +11753,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_command",
-      "community": 25,
+      "community": 120,
       "norm_label": "command"
     },
     {
@@ -11763,7 +11763,7 @@
       "source_location": "L26",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commanddialog",
-      "community": 25,
+      "community": 120,
       "norm_label": "commanddialog()"
     },
     {
@@ -11773,7 +11773,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commandinput",
-      "community": 25,
+      "community": 120,
       "norm_label": "commandinput"
     },
     {
@@ -11783,7 +11783,7 @@
       "source_location": "L57",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commandlist",
-      "community": 25,
+      "community": 120,
       "norm_label": "commandlist"
     },
     {
@@ -11793,7 +11793,7 @@
       "source_location": "L70",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commandempty",
-      "community": 25,
+      "community": 120,
       "norm_label": "commandempty"
     },
     {
@@ -11803,7 +11803,7 @@
       "source_location": "L83",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commandgroup",
-      "community": 25,
+      "community": 120,
       "norm_label": "commandgroup"
     },
     {
@@ -11813,7 +11813,7 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commandseparator",
-      "community": 25,
+      "community": 120,
       "norm_label": "commandseparator"
     },
     {
@@ -11823,7 +11823,7 @@
       "source_location": "L111",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commanditem",
-      "community": 25,
+      "community": 120,
       "norm_label": "commanditem"
     },
     {
@@ -11833,7 +11833,7 @@
       "source_location": "L127",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_command_commandshortcut",
-      "community": 25,
+      "community": 120,
       "norm_label": "commandshortcut()"
     },
     {
@@ -12093,7 +12093,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdown-menu.tsx"
     },
     {
@@ -12103,7 +12103,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenusubtrigger",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenusubtrigger"
     },
     {
@@ -12113,7 +12113,7 @@
       "source_location": "L43",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenusubcontent",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenusubcontent"
     },
     {
@@ -12123,7 +12123,7 @@
       "source_location": "L59",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenucontent",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenucontent"
     },
     {
@@ -12133,7 +12133,7 @@
       "source_location": "L78",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenuitem",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenuitem"
     },
     {
@@ -12143,7 +12143,7 @@
       "source_location": "L96",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenucheckboxitem",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenucheckboxitem"
     },
     {
@@ -12153,7 +12153,7 @@
       "source_location": "L120",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenuradioitem",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenuradioitem"
     },
     {
@@ -12163,7 +12163,7 @@
       "source_location": "L142",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenulabel",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenulabel"
     },
     {
@@ -12173,7 +12173,7 @@
       "source_location": "L160",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenuseparator",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenuseparator"
     },
     {
@@ -12183,7 +12183,7 @@
       "source_location": "L172",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_dropdown_menu_dropdownmenushortcut",
-      "community": 16,
+      "community": 81,
       "norm_label": "dropdownmenushortcut()"
     },
     {
@@ -15123,7 +15123,7 @@
       "source_location": "L204",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_pages_swing_formatdate",
-      "community": 26,
+      "community": 16,
       "norm_label": "formatdate()"
     },
     {
@@ -15133,7 +15133,7 @@
       "source_location": "L214",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_pages_swing_numberfrom",
-      "community": 26,
+      "community": 16,
       "norm_label": "numberfrom()"
     },
     {
@@ -15213,7 +15213,7 @@
       "source_location": "L425",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_pages_swing_trackercard",
-      "community": 26,
+      "community": 16,
       "norm_label": "trackercard()"
     },
     {
@@ -22915,7 +22915,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5591",
+      "source_location": "L5575",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks",
       "target": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
@@ -23025,7 +23025,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5604",
+      "source_location": "L5588",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks",
       "target": "artifacts_api_server_src_routes_stocks_gettradeexitcandles",
@@ -23995,7 +23995,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5614",
+      "source_location": "L5598",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks",
       "target": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
@@ -25191,7 +25191,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5655",
+      "source_location": "L5639",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_getcandleclosetimeist",
@@ -25323,7 +25323,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5696",
+      "source_location": "L5680",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_gettodayistdatestr",
@@ -25367,7 +25367,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5697",
+      "source_location": "L5681",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_isintradaysquareofftimeist",
@@ -25840,7 +25840,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5595",
+      "source_location": "L5579",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
       "target": "artifacts_api_server_src_routes_stocks_fetchcandles",
@@ -26060,7 +26060,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5624",
+      "source_location": "L5608",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_infertradedirectionfromprices",
@@ -26082,7 +26082,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5708",
+      "source_location": "L5692",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_plpctforexit",
@@ -26093,7 +26093,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5657",
+      "source_location": "L5641",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_plpctforscaledexit",
@@ -27688,7 +27688,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5634",
+      "source_location": "L5618",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
@@ -27699,7 +27699,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5639",
+      "source_location": "L5623",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_gettradeexitcandles",
@@ -29829,7 +29829,7 @@
       "weight": 1.0,
       "context": "import",
       "source": "artifacts_mockup_sandbox_package_devdependencies_input_otp",
-      "target": "artifacts_stock_screener_src_components_ui_input_otp",
+      "target": "artifacts_mockup_sandbox_src_components_ui_input_otp",
       "confidence_score": 1.0
     },
     {
@@ -33379,7 +33379,7 @@
       "source_location": "L2",
       "weight": 1.0,
       "source": "artifacts_mockup_sandbox_src_components_ui_input_otp",
-      "target": "artifacts_stock_screener_src_components_ui_input_otp",
+      "target": "artifacts_mockup_sandbox_src_components_ui_input_otp",
       "confidence_score": 1.0
     },
     {
@@ -33391,6 +33391,28 @@
       "weight": 1.0,
       "source": "artifacts_mockup_sandbox_src_components_ui_input_otp",
       "target": "react",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/stock-screener/package.json",
+      "source_location": "L56",
+      "weight": 1.0,
+      "context": "import",
+      "source": "artifacts_stock_screener_package_devdependencies_input_otp",
+      "target": "artifacts_mockup_sandbox_src_components_ui_input_otp",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/stock-screener/src/components/ui/input-otp.tsx",
+      "source_location": "L2",
+      "weight": 1.0,
+      "source": "artifacts_stock_screener_src_components_ui_input_otp",
+      "target": "artifacts_mockup_sandbox_src_components_ui_input_otp",
       "confidence_score": 1.0
     },
     {
@@ -37780,17 +37802,6 @@
       "relation": "imports",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/stock-screener/package.json",
-      "source_location": "L56",
-      "weight": 1.0,
-      "context": "import",
-      "source": "artifacts_stock_screener_package_devdependencies_input_otp",
-      "target": "artifacts_stock_screener_src_components_ui_input_otp",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/stock-screener/package.json",
       "source_location": "L59",
       "weight": 1.0,
       "context": "import",
@@ -41907,17 +41918,6 @@
       "weight": 1.0,
       "source": "artifacts_stock_screener_src_components_ui_input_otp",
       "target": "artifacts_stock_screener_src_lib_utils_cn",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/stock-screener/src/components/ui/input-otp.tsx",
-      "source_location": "L2",
-      "weight": 1.0,
-      "source": "artifacts_stock_screener_src_components_ui_input_otp",
-      "target": "artifacts_stock_screener_src_components_ui_input_otp",
       "confidence_score": 1.0
     },
     {
@@ -54020,5 +54020,5 @@
       "source_file": "render.yaml"
     }
   ],
-  "built_at_commit": "d80df3e4efa2aede5c78dcd2944f489aaac5c767"
+  "built_at_commit": "647b1e6d0fcbbed54b574363a7c53d42847d1fb0"
 }

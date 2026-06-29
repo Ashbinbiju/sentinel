@@ -17,8 +17,7 @@ export interface TodayTrade {
   signalTime: string;
   entryPrice: string;
   sl: string;
-  target1: string;
-  target2: string;
+  target: string;
   status: TradeStatus;
   /**
    * Present when the API could infer trade direction from entry/SL/target

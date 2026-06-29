@@ -22,10 +22,8 @@ export interface TopPick {
   entry: number;
   /** Stop loss price */
   sl: number;
-  /** First scale target, one risk unit from entry */
-  target1: number;
-  /** Final target at the opposite ChartPrime support/resistance zone */
-  target2: number;
+  /** Target price */
+  target: number;
   /** Risk % from entry to SL */
   riskPct: number;
   /** Reward-to-risk ratio for the final Power Channel target */
@@ -36,8 +34,6 @@ export interface TopPick {
   setup: string;
   /** Smart exit rule */
   smartExit: string;
-  vwap: number;
-  ema20: number;
   /** Downsampled intraday close prices for sparkline rendering */
   sparkline?: number[];
   /**

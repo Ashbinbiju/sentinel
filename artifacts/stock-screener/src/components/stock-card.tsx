@@ -140,9 +140,9 @@ export function StockCard({ stock }: StockCardProps) {
           </div>
 
           {/* SL / Target row — only for entry signals */}
-          {entry && stock.sl != null && stock.target1 != null && stock.target2 != null && (
+          {entry && stock.sl != null && stock.target != null && (
             <div className="mt-2 pt-2 border-t border-emerald-500/15 space-y-1">
-              <div className="grid grid-cols-5 gap-1 text-[9px]">
+              <div className="grid grid-cols-4 gap-1 text-[9px]">
                 <div className="flex flex-col items-center gap-0.5 bg-slate-500/10 rounded px-1 py-1 overflow-hidden">
                   <span className="text-slate-400/60 uppercase tracking-wide font-semibold">Time</span>
                   <span className="font-mono text-slate-300 font-bold text-[9px] whitespace-nowrap">
@@ -158,12 +158,8 @@ export function StockCard({ stock }: StockCardProps) {
                   <span className="font-mono text-rose-300 font-bold text-[10px]">₹{stock.sl.toFixed(1)}</span>
                 </div>
                 <div className="flex flex-col items-center gap-0.5 bg-emerald-500/10 rounded px-1 py-1">
-                  <span className="text-emerald-400/60 uppercase tracking-wide font-semibold">T1</span>
-                  <span className="font-mono text-emerald-300 font-bold text-[10px]">₹{stock.target1.toFixed(1)}</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5 bg-emerald-500/15 rounded px-1 py-1">
-                  <span className="text-emerald-400/60 uppercase tracking-wide font-semibold">T2</span>
-                  <span className="font-mono text-emerald-300 font-bold text-[10px]">₹{stock.target2.toFixed(1)}</span>
+                  <span className="text-emerald-400/60 uppercase tracking-wide font-semibold">Target</span>
+                  <span className="font-mono text-emerald-300 font-bold text-[10px]">₹{stock.target.toFixed(1)}</span>
                 </div>
               </div>
             </div>

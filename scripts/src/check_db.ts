@@ -20,8 +20,7 @@ async function main() {
         Time: t.signalTime,
         Entry: t.entryPrice,
         SL: t.sl,
-        Target1: t.target1,
-        Target2: t.target2,
+        Target: t.target,
         Status: t.status
       })));
     } else {

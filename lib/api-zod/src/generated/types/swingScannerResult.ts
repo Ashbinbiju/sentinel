@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SwingPick } from "./swingPick";
+import type { SwingScannerDiagnostics } from "./swingScannerDiagnostics";
 import type { SwingScannerResultMarketRegime } from "./swingScannerResultMarketRegime";
 
 export interface SwingScannerResult {
@@ -21,5 +22,6 @@ export interface SwingScannerResult {
   marketRegime: SwingScannerResultMarketRegime;
   /** @nullable */
   marketBreadthPct: number | null;
+  diagnostics: SwingScannerDiagnostics;
   picks: SwingPick[];
 }

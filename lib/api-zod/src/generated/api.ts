@@ -65,14 +65,7 @@ export const GetMomentumPicksResponse = zod.object({
           changePct: zod.number(),
           entry: zod.number().describe("Confirmed close (entry price)"),
           sl: zod.number().describe("Stop loss price"),
-          target1: zod
-            .number()
-            .describe("First scale target, one risk unit from entry"),
-          target2: zod
-            .number()
-            .describe(
-              "Final target at the opposite ChartPrime support\/resistance zone",
-            ),
+          target: zod.number().describe("Target price"),
           riskPct: zod.number().describe("Risk % from entry to SL"),
           rewardRisk: zod
             .number()
@@ -84,8 +77,6 @@ export const GetMomentumPicksResponse = zod.object({
             .describe("Trade direction from the Power Channel setup"),
           setup: zod.string().describe("Power Channel setup name"),
           smartExit: zod.string().describe("Smart exit rule"),
-          vwap: zod.number(),
-          ema20: zod.number(),
           sparkline: zod
             .array(zod.number())
             .optional()
@@ -180,16 +171,10 @@ export const GetMomentumPicksResponse = zod.object({
             .describe(
               "Stop loss price outside the active ChartPrime support\/resistance zone",
             ),
-          target1: zod
+          target: zod
             .number()
             .nullish()
-            .describe("First scale target, one risk unit from entry"),
-          target2: zod
-            .number()
-            .nullish()
-            .describe(
-              "Final target at the opposite ChartPrime support\/resistance zone",
-            ),
+            .describe("Target price based on entry and risk"),
           riskPct: zod
             .number()
             .nullish()
@@ -335,17 +320,13 @@ export const GetTodayTradesResponse = zod.object({
         .describe("UTC ISO timestamp of when the signal fired"),
       entryPrice: zod.string(),
       sl: zod.string(),
-      target1: zod.string(),
-      target2: zod.string(),
+      target: zod.string(),
       status: zod.enum([
         "PENDING",
         "ACTIVE",
-        "TARGET 1 HIT",
-        "TARGET 2 HIT",
+        "TARGET HIT",
         "SL HIT",
-        "T1 HIT & TRAILING SL HIT",
         "ENTRY INVALID",
-        "VWAP EXIT",
         "SQUARED OFF",
       ]),
       direction: zod
@@ -394,8 +375,7 @@ export const GetTradeHistoryResponse = zod.object({
             .describe("UTC ISO timestamp of when the signal fired"),
           entryPrice: zod.string(),
           sl: zod.string(),
-          target1: zod.string(),
-          target2: zod.string(),
+          target: zod.string(),
           direction: zod
             .enum(["LONG", "SHORT"])
             .describe(
@@ -404,7 +384,7 @@ export const GetTradeHistoryResponse = zod.object({
           status: zod
             .string()
             .describe(
-              "Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)",
+              "Final trade status (TARGET HIT, SL HIT, SQUARED OFF, ACTIVE, PENDING)",
             ),
           hitTime: zod
             .string()
@@ -416,7 +396,7 @@ export const GetTradeHistoryResponse = zod.object({
             .number()
             .nullish()
             .describe(
-              "Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE\/PENDING trades or when exit data is unavailable.",
+              "Estimated P&L % based on final status. Null for ACTIVE\/PENDING trades or when exit data is unavailable.",
             ),
         }),
       ),
@@ -485,6 +465,38 @@ export const GetSwingScannerResponse = zod.object({
       niftyReturn: zod.number(),
       marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
       marketBreadthPct: zod.number().nullable(),
+      diagnostics: zod.object({
+        rawCandidates: zod
+          .number()
+          .describe(
+            "Setups found before final ranking, technical, open-trade, and save filters.",
+          ),
+        finalCandidates: zod
+          .number()
+          .describe(
+            "Candidates that passed final quality filters before excluding open tracker symbols.",
+          ),
+        availableCandidates: zod
+          .number()
+          .describe(
+            "Final candidates remaining after excluding open tracker symbols.",
+          ),
+        excludedOpenSymbols: zod
+          .number()
+          .describe(
+            "Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW.",
+          ),
+        technicalIndicatorSymbols: zod
+          .number()
+          .describe(
+            "Number of symbols loaded from the technical-indicators provider.",
+          ),
+        technicalDataAvailable: zod
+          .boolean()
+          .describe(
+            "Whether technical-indicator provider data was available for this scan.",
+          ),
+      }),
       picks: zod.array(
         zod.object({
           symbol: zod.string(),
@@ -633,6 +645,38 @@ export const GetSwingScanJobResponse = zod.object({
       niftyReturn: zod.number(),
       marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
       marketBreadthPct: zod.number().nullable(),
+      diagnostics: zod.object({
+        rawCandidates: zod
+          .number()
+          .describe(
+            "Setups found before final ranking, technical, open-trade, and save filters.",
+          ),
+        finalCandidates: zod
+          .number()
+          .describe(
+            "Candidates that passed final quality filters before excluding open tracker symbols.",
+          ),
+        availableCandidates: zod
+          .number()
+          .describe(
+            "Final candidates remaining after excluding open tracker symbols.",
+          ),
+        excludedOpenSymbols: zod
+          .number()
+          .describe(
+            "Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW.",
+          ),
+        technicalIndicatorSymbols: zod
+          .number()
+          .describe(
+            "Number of symbols loaded from the technical-indicators provider.",
+          ),
+        technicalDataAvailable: zod
+          .boolean()
+          .describe(
+            "Whether technical-indicator provider data was available for this scan.",
+          ),
+      }),
       picks: zod.array(
         zod.object({
           symbol: zod.string(),

@@ -11,11 +11,8 @@ export type TradeStatus = (typeof TradeStatus)[keyof typeof TradeStatus];
 export const TradeStatus = {
   PENDING: "PENDING",
   ACTIVE: "ACTIVE",
-  TARGET_1_HIT: "TARGET 1 HIT",
-  TARGET_2_HIT: "TARGET 2 HIT",
+  TARGET_HIT: "TARGET HIT",
   SL_HIT: "SL HIT",
-  "T1_HIT_&_TRAILING_SL_HIT": "T1 HIT & TRAILING SL HIT",
   ENTRY_INVALID: "ENTRY INVALID",
-  VWAP_EXIT: "VWAP EXIT",
   SQUARED_OFF: "SQUARED OFF",
 } as const;

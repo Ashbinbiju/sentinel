@@ -34,6 +34,7 @@ export * from "./swingPickTechnicalAdxTrend";
 export * from "./swingPickTechnicalMacdTrend";
 export * from "./swingScanJobResponse";
 export * from "./swingScanJobResponseStatus";
+export * from "./swingScannerDiagnostics";
 export * from "./swingScannerResult";
 export * from "./swingScannerResultMarketRegime";
 export * from "./swingSectorOption";

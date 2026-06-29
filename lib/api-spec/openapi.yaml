@@ -319,12 +319,9 @@ components:
         sl:
           type: ["number", "null"]
           description: Stop loss price outside the active ChartPrime support/resistance zone
-        target1:
+        target:
           type: ["number", "null"]
-          description: First scale target, one risk unit from entry
-        target2:
-          type: ["number", "null"]
-          description: Final target at the opposite ChartPrime support/resistance zone
+          description: Target price based on entry and risk
         riskPct:
           type: ["number", "null"]
           description: Risk percentage from entry to SL
@@ -393,12 +390,9 @@ components:
         sl:
           type: number
           description: Stop loss price
-        target1:
+        target:
           type: number
-          description: First scale target, one risk unit from entry
-        target2:
-          type: number
-          description: Final target at the opposite ChartPrime support/resistance zone
+          description: Target price
         riskPct:
           type: number
           description: Risk % from entry to SL
@@ -415,10 +409,6 @@ components:
         smartExit:
           type: string
           description: Smart exit rule
-        vwap:
-          type: number
-        ema20:
-          type: number
         sparkline:
           type: array
           items:
@@ -458,15 +448,12 @@ components:
         - changePct
         - entry
         - sl
-        - target1
-        - target2
+        - target
         - riskPct
         - rewardRisk
         - direction
         - setup
         - smartExit
-        - vwap
-        - ema20
     SectorWithStocks:
       type: object
       properties:
@@ -529,12 +516,9 @@ components:
       enum:
         - PENDING
         - ACTIVE
-        - TARGET 1 HIT
-        - TARGET 2 HIT
+        - TARGET HIT
         - SL HIT
-        - T1 HIT & TRAILING SL HIT
         - ENTRY INVALID
-        - VWAP EXIT
         - SQUARED OFF
     TodayTrade:
       type: object
@@ -553,9 +537,7 @@ components:
           type: string
         sl:
           type: string
-        target1:
-          type: string
-        target2:
+        target:
           type: string
         status:
           $ref: "#/components/schemas/TradeStatus"
@@ -573,8 +555,7 @@ components:
         - signalTime
         - entryPrice
         - sl
-        - target1
-        - target2
+        - target
         - status
     TodayTradesResponse:
       type: object
@@ -1161,9 +1142,7 @@ components:
           type: string
         sl:
           type: string
-        target1:
-          type: string
-        target2:
+        target:
           type: string
         direction:
           type: string
@@ -1171,13 +1150,13 @@ components:
           description: Inferred trade direction based on entry, SL, and target
         status:
           type: string
-          description: Final trade status (TARGET 2 HIT, TARGET 1 HIT, SL HIT, T1 HIT & TRAILING SL HIT, SQUARED OFF, ACTIVE, PENDING)
+          description: Final trade status (TARGET HIT, SL HIT, SQUARED OFF, ACTIVE, PENDING)
         hitTime:
           type: ["string", "null"]
           description: IST HH:MM candle close time for the candle where the status was reached. Exact tick time is not available from OHLC candles.
         plPct:
           type: ["number", "null"]
-          description: Estimated P&L % based on final status. T1 trailing outcomes assume 50% booked at target1 and 50% exited at the trailing stop, target2, or square-off price. SQUARED OFF uses the latest available candle closing at or before 15:15 IST. Null for ACTIVE/PENDING trades or when exit data is unavailable.
+          description: Estimated P&L % based on final status. Null for ACTIVE/PENDING trades or when exit data is unavailable.
       required:
         - id
         - symbol
@@ -1185,8 +1164,7 @@ components:
         - signalTime
         - entryPrice
         - sl
-        - target1
-        - target2
+        - target
         - direction
         - status
     TradeHistoryDaySummary:

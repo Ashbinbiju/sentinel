@@ -5,12 +5,9 @@ import { z } from "zod/v4";
 export const TRADE_STATUSES = [
   "PENDING",
   "ACTIVE",
-  "TARGET 1 HIT",
-  "TARGET 2 HIT",
+  "TARGET HIT",
   "SL HIT",
-  "T1 HIT & TRAILING SL HIT",
   "ENTRY INVALID",
-  "VWAP EXIT",
   "SQUARED OFF",
 ] as const;
 
@@ -24,8 +21,7 @@ export const tradesTable = pgTable("trades", {
   signalTime: timestamp("signal_time", { mode: "string", withTimezone: true }).notNull(),
   entryPrice: numeric("entry_price").notNull(),
   sl: numeric("sl").notNull(),
-  target1: numeric("target1").notNull(),
-  target2: numeric("target2").notNull(),
+  target: numeric("target").notNull(),
   status: text("status", { enum: TRADE_STATUSES }).notNull().default("PENDING"),
 }, (table) => {
   return {

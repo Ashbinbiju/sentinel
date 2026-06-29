@@ -62,8 +62,7 @@ export const TradeDB = {
         signalTime: new Date().toISOString(),
         entryPrice: trade.entry_price.toString(),
         sl: trade.current_sl.toString(),
-        target1: trade.target.toString(),
-        target2: trade.target.toString(),
+        target: trade.target.toString(),
         status: "ACTIVE"
       }).onConflictDoUpdate({
         target: [tradesTable.symbol, tradesTable.date],

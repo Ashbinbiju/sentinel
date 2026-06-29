@@ -285,8 +285,7 @@ interface PriceActionSignal {
   direction: SignalDirection;
   setup: string;
   sl: number;
-  target1: number;
-  target2: number;
+  target: number;
   riskPct: number;
   rewardRisk: number;
   smartExit: string;
@@ -1341,8 +1340,7 @@ function build1DStrategySignal(
   
   const risk = Math.max(Math.abs(entry - sl), entry * 0.001); 
   const dir = direction === "LONG" ? 1 : -1;
-  const target1 = entry + (risk * 2 * dir);
-  const target2 = target1;
+  const target = entry + (risk * 2 * dir);
   
   const rewardRisk = 2.0;
   const riskPct = r2((risk / entry) * 100);
@@ -1350,7 +1348,7 @@ function build1DStrategySignal(
   const action = direction === "LONG" ? "BUY" : "SELL";
   const smartExit =
     `${action} . Entry Rs ${entry.toFixed(2)}. ` +
-    `SL at Rs ${sl.toFixed(2)}. Target Rs ${target1.toFixed(2)}. ` +
+    `SL at Rs ${sl.toFixed(2)}. Target Rs ${target.toFixed(2)}. ` +
     `Exit any open trade by 15:15 IST.`;
 
   return {
@@ -1359,8 +1357,7 @@ function build1DStrategySignal(
     direction,
     setup,
     sl: r2(sl),
-    target1: r2(target1),
-    target2: r2(target2),
+    target: r2(target),
     riskPct,
     rewardRisk: r2(rewardRisk),
     smartExit,
@@ -1369,15 +1366,12 @@ function build1DStrategySignal(
 
 interface IndicatorResult {
   warning: ScannerWarning | null;
-  vwap: number | null;
-  ema20: number | null;
   confirmedClose: number | null;
   entrySignal: boolean | null;
   direction: SignalDirection | null;
   setup: string | null;
   sl: number | null;
-  target1: number | null;
-  target2: number | null;
+  target: number | null;
   riskPct: number | null;
   rewardRisk: number | null;
   smartExit: string | null;
@@ -1503,15 +1497,12 @@ async function enrichWithIndicators(
 ): Promise<IndicatorResult> {
   const empty: IndicatorResult = {
     warning: null,
-    vwap: null,
-    ema20: null,
     confirmedClose: null,
     entrySignal: null,
     direction: null,
     setup: null,
     sl: null,
-    target1: null,
-    target2: null,
+    target: null,
     riskPct: null,
     rewardRisk: null,
     smartExit: null,
@@ -1580,18 +1571,14 @@ async function enrichWithIndicators(
     const last = confirmedSession[confirmedSession.length - 1];
     let confirmedClose = last.c;
 
-    const vwap = calculateVWAP(confirmedSession);
     const sessionCloses = confirmedSession.map((c) => c.c);
-    const historicalCloses = confirmedHistorical.map((c) => c.c);
-    const ema20 = calculateEMA(historicalCloses);
 
     // Downsample sparkline to at most 40 points to keep payload lean
     const step = Math.max(1, Math.floor(sessionCloses.length / 40));
     const sparkline = sessionCloses.filter((_, i) => i % step === 0 || i === sessionCloses.length - 1).map(r2);
 
     let sl: number | null = null;
-    let target1: number | null = null;
-    let target2: number | null = null;
+    let target: number | null = null;
     let riskPct: number | null = null;
     let rewardRisk: number | null = null;
     let smartExit: string | null = null;
@@ -1607,9 +1594,6 @@ async function enrichWithIndicators(
       indexName: null,
     };
 
-    const vwapR = vwap !== null ? r2(vwap) : null;
-    const ema20R = ema20 !== null ? r2(ema20) : null;
-
     // Volume is displayed as context only; the ChartPrime Power Channel script itself does not filter by volume.
     const volumeRatio = calculateVolumeRatio(confirmedHistorical);
     const volumeOk = volumeRatio !== null ? volumeRatio >= VOLUME_CONFIRMATION_MULTIPLIER : null;
@@ -1617,18 +1601,17 @@ async function enrichWithIndicators(
     if (existingTrade) {
       entrySignal = isEntryWindow && (existingTrade.status === "PENDING" || existingTrade.status === "ACTIVE");
       sl = Number(existingTrade.sl);
-      target1 = Number(existingTrade.target1);
-      target2 = Number(existingTrade.target2);
+      target = Number(existingTrade.target);
 
       const entryPrice = Number(existingTrade.entryPrice);
-      direction = target2 < entryPrice || sl > entryPrice ? "SHORT" : "LONG";
+      direction = target < entryPrice || sl > entryPrice ? "SHORT" : "LONG";
       setup = "SAVED POWER CHANNEL SIGNAL";
       const risk = Math.abs(entryPrice - sl);
-      const reward = Math.abs(target2 - entryPrice);
+      const reward = Math.abs(target - entryPrice);
       riskPct = r2((risk / entryPrice) * 100);
       rewardRisk = risk > 0 ? r2(reward / risk) : null;
       signalTime = existingTrade.signalTime;
-      smartExit = `[SAVED] ${direction} Power Channel setup entered at Rs ${entryPrice}. SL Rs ${sl}; target Rs ${target2}; square off by 15:15 IST.`;
+      smartExit = `[SAVED] ${direction} Power Channel setup entered at Rs ${entryPrice}. SL Rs ${sl}; target Rs ${target}; square off by 15:15 IST.`;
       marketAlignment = intradayIndexTrendAlignment(sectorName ?? "", direction, indexTrend ?? null);
       if (marketAlignment.status === "BLOCKED") {
         entrySignal = false;
@@ -1647,8 +1630,7 @@ async function enrichWithIndicators(
       );
       if (entryMatch) {
         sl = entryMatch.sl;
-        target1 = entryMatch.target1;
-        target2 = entryMatch.target2;
+        target = entryMatch.target;
         riskPct = entryMatch.riskPct;
         rewardRisk = entryMatch.rewardRisk;
         smartExit = entryMatch.smartExit;
@@ -1677,8 +1659,7 @@ async function enrichWithIndicators(
                 signalTime,
                 entryPrice: String(entryMatch.confirmedClose),
                 sl: String(sl),
-                target1: String(target1),
-                target2: String(target2),
+                target: String(target),
                 status: "PENDING",
               })
               .where(eq(tradesTable.id, invalidExistingTrade.id));
@@ -1691,8 +1672,7 @@ async function enrichWithIndicators(
               signalTime,
               entryPrice: String(entryMatch.confirmedClose),
               sl: String(sl),
-              target1: String(target1),
-              target2: String(target2),
+              target: String(target),
               status: "PENDING"
             }).onConflictDoNothing().returning({ id: tradesTable.id });
 
@@ -1711,8 +1691,7 @@ async function enrichWithIndicators(
 
         if (!entrySignal) {
           sl = null;
-          target1 = null;
-          target2 = null;
+          target = null;
           riskPct = null;
           rewardRisk = null;
           smartExit = null;
@@ -1728,15 +1707,12 @@ async function enrichWithIndicators(
 
     return {
       warning: null,
-      vwap: vwapR,
-      ema20: ema20R,
       confirmedClose,
       entrySignal,
       direction,
       setup,
       sl,
-      target1,
-      target2,
+      target,
       riskPct,
       rewardRisk,
       smartExit,
@@ -5395,7 +5371,7 @@ router.get("/momentum-picks", async (req, res) => {
                 symbol: stock.symbol,
                 direction,
                 entry: entryPrice,
-                target2: target,
+                target: target,
                 sl,
                 setup,
                 diagnostics: {
@@ -5456,7 +5432,7 @@ router.get("/trades/today", async (req, res) => {
       };
 
       const squareOffOpenTrade = async () => {
-        if (trade.status !== "PENDING" && trade.status !== "ACTIVE" && trade.status !== "TARGET 1 HIT") return null;
+        if (trade.status !== "PENDING" && trade.status !== "ACTIVE") return null;
 
         const persisted = await persistTradeStatus("SQUARED OFF");
         if (!persisted) return { ...trade, hitTime: null };
@@ -5480,55 +5456,32 @@ router.get("/trades/today", async (req, res) => {
       
       let hitTime: string | null = null;
       
-      const target1 = Number(trade.target1);
-      const target2 = Number(trade.target2);
+      const target = Number(trade.target);
       const entryPrice = Number(trade.entryPrice);
       const originalSl = Number(trade.sl);
-      const direction = inferTradeDirectionFromPrices(entryPrice, originalSl, target2);
-      const hitsTarget = (c: Candle, target: number) =>
-        direction === "LONG" ? c.h >= target : c.l <= target;
+      const direction = inferTradeDirectionFromPrices(entryPrice, originalSl, target);
+      const hitsTarget = (c: Candle, targetVal: number) =>
+        direction === "LONG" ? c.h >= targetVal : c.l <= targetVal;
       const hitsStop = (c: Candle, stop: number) =>
         direction === "LONG" ? c.l <= stop : c.h >= stop;
       
       let newStatus: TradeStatus = "ACTIVE";
-      let maxTargetReached = 0;
       
       for (const c of postSignalCandles) {
-        if (maxTargetReached >= 1) {
-          if (hitsTarget(c, target2)) {
-            newStatus = "TARGET 2 HIT";
-            hitTime = getCandleCloseTimeIST(c);
-            break;
-          }
-
-          if (hitsStop(c, entryPrice)) {
-            newStatus = "T1 HIT & TRAILING SL HIT";
-            hitTime = getCandleCloseTimeIST(c);
-            break;
-          }
-
-          continue;
-        }
-
         if (hitsStop(c, originalSl)) {
           newStatus = "SL HIT";
           hitTime = getCandleCloseTimeIST(c);
           break;
         }
 
-        if (hitsTarget(c, target2)) {
-          newStatus = "TARGET 2 HIT";
+        if (hitsTarget(c, target)) {
+          newStatus = "TARGET HIT";
           hitTime = getCandleCloseTimeIST(c);
           break;
         }
-        if (hitsTarget(c, target1) && maxTargetReached < 1) {
-          maxTargetReached = 1;
-          newStatus = "TARGET 1 HIT";
-          hitTime = getCandleCloseTimeIST(c);
-        }
       }
       
-      if (forceSquareOff && (newStatus === "ACTIVE" || newStatus === "TARGET 1 HIT")) {
+      if (forceSquareOff && newStatus === "ACTIVE") {
         newStatus = "SQUARED OFF";
         const lastCandle = postSignalCandles[postSignalCandles.length - 1];
         if (lastCandle) {
@@ -5603,10 +5556,9 @@ router.get("/trades/history", async (req, res) => {
     }> {
       const entry = Number(trade.entryPrice);
       const sl    = Number(trade.sl);
-      const t1    = Number(trade.target1);
-      const t2    = Number(trade.target2);
-      const direction = inferTradeDirectionFromPrices(entry, sl, t2);
-      if (!entry || !Number.isFinite(sl) || !Number.isFinite(t1) || !Number.isFinite(t2)) {
+      const target = Number(trade.target);
+      const direction = inferTradeDirectionFromPrices(entry, sl, target);
+      if (!entry || !Number.isFinite(sl) || !Number.isFinite(target)) {
         return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
       }
 
@@ -5621,38 +5573,16 @@ router.get("/trades/history", async (req, res) => {
       }
 
       const postSignalCandles = getTradeExitCandles(candleData, trade, signalTimeMs);
-      const hitsTarget = (c: Candle, target: number) =>
-        direction === "LONG" ? c.h >= target : c.l <= target;
+      const hitsTarget = (c: Candle, targetVal: number) =>
+        direction === "LONG" ? c.h >= targetVal : c.l <= targetVal;
       const hitsStop = (c: Candle, stop: number) =>
         direction === "LONG" ? c.l <= stop : c.h >= stop;
 
       let status: TradeStatus = "ACTIVE";
       let hitTime: string | null = null;
       let exitPrice: number | null = null;
-      let plPctOverride: number | null = null;
-      let maxTargetReached = 0;
 
       for (const c of postSignalCandles) {
-        if (maxTargetReached >= 1) {
-          if (hitsTarget(c, t2)) {
-            status = "TARGET 2 HIT";
-            hitTime = getCandleCloseTimeIST(c);
-            exitPrice = t2;
-            plPctOverride = plPctForScaledExit(entry, t1, t2, direction);
-            break;
-          }
-
-          if (hitsStop(c, entry)) {
-            status = "T1 HIT & TRAILING SL HIT";
-            hitTime = getCandleCloseTimeIST(c);
-            exitPrice = entry;
-            plPctOverride = plPctForScaledExit(entry, t1, entry, direction);
-            break;
-          }
-
-          continue;
-        }
-
         if (hitsStop(c, sl)) {
           status = "SL HIT";
           hitTime = getCandleCloseTimeIST(c);
@@ -5660,36 +5590,24 @@ router.get("/trades/history", async (req, res) => {
           break;
         }
 
-        if (hitsTarget(c, t2)) {
-          status = "TARGET 2 HIT";
+        if (hitsTarget(c, target)) {
+          status = "TARGET HIT";
           hitTime = getCandleCloseTimeIST(c);
-          exitPrice = t2;
-          plPctOverride = plPctForScaledExit(entry, t1, t2, direction);
+          exitPrice = target;
           break;
-        }
-
-        if (hitsTarget(c, t1)) {
-          maxTargetReached = 1;
-          status = "TARGET 1 HIT";
-          hitTime = getCandleCloseTimeIST(c);
-          exitPrice = t1;
-          plPctOverride = plPctForScaledExit(entry, t1, entry, direction);
         }
       }
 
       const today = getTodayISTDateStr();
       const shouldSquareOff = trade.date < today || (trade.date === today && isIntradaySquareOffTimeIST());
-      if (shouldSquareOff && (status === "ACTIVE" || status === "TARGET 1 HIT")) {
+      if (shouldSquareOff && status === "ACTIVE") {
         const squareOffCandle = postSignalCandles.at(-1);
         status = "SQUARED OFF";
         hitTime = squareOffCandle ? getCandleCloseTimeIST(squareOffCandle) : "15:15";
         exitPrice = squareOffCandle?.c ?? exitPrice;
-        if (maxTargetReached >= 1 && exitPrice !== null) {
-          plPctOverride = plPctForScaledExit(entry, t1, exitPrice, direction);
-        }
       }
 
-      const plPct = plPctOverride ?? (exitPrice !== null ? plPctForExit(entry, exitPrice, direction) : null);
+      const plPct = exitPrice !== null ? plPctForExit(entry, exitPrice, direction) : null;
 
       if (status !== trade.status) {
         try {

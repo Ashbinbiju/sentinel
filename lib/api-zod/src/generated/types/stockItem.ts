@@ -39,15 +39,10 @@ export interface StockItem {
    */
   sl?: number | null;
   /**
-   * First scale target, one risk unit from entry
+   * Target price based on entry and risk
    * @nullable
    */
-  target1?: number | null;
-  /**
-   * Final target at the opposite ChartPrime support/resistance zone
-   * @nullable
-   */
-  target2?: number | null;
+  target?: number | null;
   /**
    * Risk percentage from entry to SL
    * @nullable

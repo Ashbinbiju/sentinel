@@ -310,8 +310,7 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
   const href = `https://www.tradingview.com/chart/?symbol=NSE%3A${pick.symbol}`;
   const isShort = pick.direction === "SHORT";
   const actionLabel = isShort ? "SELL" : "BUY";
-  const t1Pct = Math.abs(((pick.target1 - pick.entry) / pick.entry) * 100);
-  const t2Pct = Math.abs(((pick.target2 - pick.entry) / pick.entry) * 100);
+  const targetPct = Math.abs(((pick.target - pick.entry) / pick.entry) * 100);
 
   return (
     <a
@@ -401,7 +400,7 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
           {/* Sparkline */}
           {pick.sparkline && pick.sparkline.length > 2 && (
             <div className="mb-3 rounded overflow-hidden opacity-85 -mx-1">
-              <Sparkline closes={pick.sparkline} vwap={pick.vwap} height={42} id={`pick-${pick.symbol}`} />
+              <Sparkline closes={pick.sparkline} height={42} id={`pick-${pick.symbol}`} />
             </div>
           )}
 
@@ -436,8 +435,8 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
             </div>
           )}
 
-          {/* EP / SL / T1 / T2 grid */}
-          <div className="grid grid-cols-4 gap-1 mb-3">
+          {/* EP / SL / Target grid */}
+          <div className="grid grid-cols-3 gap-1 mb-3">
             <div className="flex flex-col justify-between bg-sky-500/10 rounded-lg px-1.5 py-1.5 border border-sky-500/15">
               <div className="flex items-center gap-1">
                 <span className="text-[9px] text-sky-400/70 font-semibold uppercase tracking-wide">EP</span>
@@ -455,18 +454,10 @@ function TopPickCard({ pick, rank, fullWidth = false }: { pick: TopPick; rank: n
             <div className="flex flex-col gap-0.5 bg-emerald-500/10 rounded-lg px-1.5 py-1.5 border border-emerald-500/15">
               <div className="flex items-center gap-1">
                 <Target className="w-2.5 h-2.5 text-emerald-400/70" />
-                <span className="text-[9px] text-emerald-400/70 font-semibold uppercase tracking-wide">T1</span>
+                <span className="text-[9px] text-emerald-400/70 font-semibold uppercase tracking-wide">Target</span>
               </div>
-              <span className="font-mono text-[11px] font-bold text-emerald-300">₹{pick.target1.toFixed(1)}</span>
-              <span className="text-[8px] text-emerald-400/50">+{t1Pct.toFixed(1)}%</span>
-            </div>
-            <div className="flex flex-col gap-0.5 bg-emerald-500/15 rounded-lg px-1.5 py-1.5 border border-emerald-500/20">
-              <div className="flex items-center gap-1">
-                <TrendingUp className="w-2.5 h-2.5 text-emerald-400/70" />
-                <span className="text-[9px] text-emerald-400/70 font-semibold uppercase tracking-wide">T2</span>
-              </div>
-              <span className="font-mono text-[11px] font-bold text-emerald-300">₹{pick.target2.toFixed(1)}</span>
-              <span className="text-[8px] text-emerald-400/50">+{t2Pct.toFixed(1)}%</span>
+              <span className="font-mono text-[11px] font-bold text-emerald-300">₹{pick.target.toFixed(1)}</span>
+              <span className="text-[8px] text-emerald-400/50">+{targetPct.toFixed(1)}%</span>
             </div>
           </div>
 
