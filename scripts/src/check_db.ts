@@ -1,4 +1,4 @@
-import { db, tradesTable, swingTradesTable } from "@workspace/db";
+import { db, tradesTable, swingTradesTable } from "../../lib/db/src/index.ts";
 import { eq } from "drizzle-orm";
 
 async function main() {
