@@ -40,8 +40,8 @@
     "semantic_hash": "92cc5d7d5681d89bfb68273aee36118f"
   },
   "artifacts/api-server/src/routes/stocks.ts": {
-    "mtime": 1782729293.7078092,
-    "ast_hash": "b78f01bb680257da8c90e33ce85c4083",
+    "mtime": 1782733723.818097,
+    "ast_hash": "ee80bed012610266a3cccb6eb45629d0",
     "semantic_hash": ""
   },
   "artifacts/api-server/src/swing-universe.ts": {
@@ -1175,9 +1175,9 @@
     "semantic_hash": "35905c8c9ee9cc0dcb83d5c3899a7668"
   },
   "scripts/package.json": {
-    "mtime": 1782726097.9518743,
-    "ast_hash": "c88204a14e516c6c63de1b38b073a15a",
-    "semantic_hash": "c88204a14e516c6c63de1b38b073a15a"
+    "mtime": 1782732216.2322986,
+    "ast_hash": "1c64c2eaa9e1a8eb980d17429c21c22b",
+    "semantic_hash": ""
   },
   "scripts/post-merge.sh": {
     "mtime": 1782726097.9518743,
@@ -1313,5 +1313,10 @@
     "mtime": 1782726097.664569,
     "ast_hash": "f1f0500576f90fb2303e7dc72f8b4366",
     "semantic_hash": "f1f0500576f90fb2303e7dc72f8b4366"
+  },
+  "scripts/src/check_db.ts": {
+    "mtime": 1782732221.1371553,
+    "ast_hash": "9194fbeb91e65b417fe9bbd33e6d50a1",
+    "semantic_hash": ""
   }
 }

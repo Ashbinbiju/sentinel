@@ -40,9 +40,9 @@
     "semantic_hash": "92cc5d7d5681d89bfb68273aee36118f"
   },
   "artifacts/api-server/src/routes/stocks.ts": {
-    "mtime": 1782726097.576643,
-    "ast_hash": "c20b259e3857f09b9377842a43159699",
-    "semantic_hash": "c20b259e3857f09b9377842a43159699"
+    "mtime": 1782729293.7078092,
+    "ast_hash": "b78f01bb680257da8c90e33ce85c4083",
+    "semantic_hash": ""
   },
   "artifacts/api-server/src/swing-universe.ts": {
     "mtime": 1782726097.577735,
@@ -60,14 +60,14 @@
     "semantic_hash": "dd0ef910e72512e0c9d7aa17c05bd764"
   },
   "artifacts/auto-trader/src/angelone.ts": {
-    "mtime": 1782726097.5835054,
-    "ast_hash": "6d209d150893984594feb20e1919aa16",
-    "semantic_hash": "6d209d150893984594feb20e1919aa16"
+    "mtime": 1782729261.172359,
+    "ast_hash": "fd8cb534c5148af2317d940bb1f0c291",
+    "semantic_hash": ""
   },
   "artifacts/auto-trader/src/index.ts": {
-    "mtime": 1782726097.5865142,
-    "ast_hash": "ea37d213c7e6d7cc0ef72ef0913abb4d",
-    "semantic_hash": "ea37d213c7e6d7cc0ef72ef0913abb4d"
+    "mtime": 1782729270.774129,
+    "ast_hash": "9bc2daae9347f25b31ec1d619527e8dc",
+    "semantic_hash": ""
   },
   "artifacts/auto-trader/src/scrip-master.ts": {
     "mtime": 1782726097.587515,
