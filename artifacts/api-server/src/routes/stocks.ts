@@ -5389,31 +5389,15 @@ router.get("/momentum-picks", async (req, res) => {
 
             if (direction) {
               const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-              const target1 = direction === "LONG" ? entryPrice + risk : entryPrice - risk;
-              const target2 = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+              const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
               
-              const closesList = confirmedSession.map(cand => cand.c);
-              const emaVal = emaSeries(closesList, 20).at(-1) ?? entryPrice;
-              const vwapVal = calculateVWAP(confirmedSession) ?? entryPrice;
-
               topPickCandidates.push({
                 symbol: stock.symbol,
-                sectorName: sector.name,
-                ltp: stock.ltp || entryPrice,
-                changePct: stock.changePct || 0,
                 direction,
-                entry: r2(entryPrice),
-                target1: r2(target1),
-                target2: r2(target2),
-                sl: r2(sl),
-                riskPct: r2((risk / entryPrice) * 100),
-                rewardRisk: 2.0,
+                entry: entryPrice,
+                target2: target,
+                sl,
                 setup,
-                smartExit: "NONE",
-                vwap: r2(vwapVal),
-                ema20: r2(emaVal),
-                sparkline: confirmedSession.slice(-10).map(cand => cand.c),
-                circuitLimit: null,
                 diagnostics: {
                   prevHigh,
                   prevLow,
