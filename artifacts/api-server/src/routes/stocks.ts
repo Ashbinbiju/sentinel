@@ -10,6 +10,8 @@ import {
 } from "@workspace/db";
 import { and, eq, gte, desc } from "drizzle-orm";
 import { TOTP } from "totp-generator";
+import * as fs from "fs";
+import * as path from "path";
 
 const { SmartAPI } = require("smartapi-javascript");
 
@@ -902,6 +904,19 @@ async function getAngelScripMap(): Promise<Map<string, string>> {
   return angelScripMapPromise;
 }
 
+function getSessionFilePath(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i++) {
+    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
+      return path.join(dir, ".angel_session.json");
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return path.resolve(process.cwd(), "../../.angel_session.json");
+}
+
 async function getAngelSmartApi(): Promise<any> {
   const now = Date.now();
   if (angelSmartApi && now < angelSessionExpiresAt) return angelSmartApi;
@@ -923,6 +938,25 @@ async function getAngelSmartApi(): Promise<any> {
       throw new Error("Missing Angel One credentials");
     }
 
+    const sessionFilePath = getSessionFilePath();
+    try {
+      if (fs.existsSync(sessionFilePath)) {
+        const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
+        if (sessionData.jwtToken && sessionData.expiresAt > Date.now() + 5 * 60 * 1000) {
+          const smartApi = new SmartAPI({ api_key: apiKey });
+          smartApi.access_token = sessionData.jwtToken;
+          smartApi.refresh_token = sessionData.refreshToken;
+
+          angelSmartApi = smartApi;
+          angelSessionExpiresAt = sessionData.expiresAt;
+          console.log("[DATA] Loaded valid shared Angel One session from file.");
+          return smartApi;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[DATA] Failed to read shared session file:", err.message);
+    }
+
     const smartApi = new SmartAPI({ api_key: apiKey });
     const totpInfo = await TOTP.generate(totpSecret);
     const totp = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
@@ -934,8 +968,22 @@ async function getAngelSmartApi(): Promise<any> {
       throw new Error(session?.message || "Angel One login failed");
     }
 
+    const expiresAt = Date.now() + 7 * 60 * 60 * 1000;
+    const sessionData = {
+      jwtToken: session.data.jwtToken,
+      refreshToken: session.data.refreshToken,
+      feedToken: session.data.feedToken,
+      expiresAt: expiresAt
+    };
+    try {
+      fs.writeFileSync(sessionFilePath, JSON.stringify(sessionData, null, 2), "utf8");
+      console.log("[DATA] Saved new shared session to file.");
+    } catch (err: any) {
+      console.warn("[DATA] Failed to write shared session file:", err.message);
+    }
+
     angelSmartApi = smartApi;
-    angelSessionExpiresAt = Date.now() + 7 * 60 * 60 * 1000;
+    angelSessionExpiresAt = expiresAt;
     console.log("[DATA] Angel One SmartAPI market-data login successful.");
     return smartApi;
   })();
@@ -968,36 +1016,57 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
   const now = new Date();
   const from = new Date(now.getTime() - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
   const smartApi = await getAngelSmartApi();
-  const response: any = await smartApiLimiters.getCandleData.schedule(() =>
-    smartApi.getCandleData({
-      exchange: "NSE",
-      symboltoken: token,
-      interval: "FIVE_MINUTE",
-      fromdate: formatAngelDate(from),
-      todate: formatAngelDate(now),
-    })
-  );
+  try {
+    const response: any = await smartApiLimiters.getCandleData.schedule(() =>
+      smartApi.getCandleData({
+        exchange: "NSE",
+        symboltoken: token,
+        interval: "FIVE_MINUTE",
+        fromdate: formatAngelDate(from),
+        todate: formatAngelDate(now),
+      })
+    );
 
-  if (!response?.status || !Array.isArray(response.data)) {
-    throw new Error(response?.message || "Angel One returned no candle data");
+    if (!response?.status || !Array.isArray(response.data)) {
+      throw new Error(response?.message || "Angel One returned no candle data");
+    }
+
+    const candles: Candle[] = [];
+    for (const row of response.data as AngelCandleRow[]) {
+      const epochSecs = parseAngelEpochSecs(row[0]);
+      if (epochSecs === null) continue;
+
+      candles.push({
+        t: epochSecs,
+        o: Number(row[1]),
+        h: Number(row[2]),
+        l: Number(row[3]),
+        c: Number(row[4]),
+        v: Number(row[5]),
+      });
+    }
+
+    return buildCandleData(candles);
+  } catch (err: any) {
+    const msg = err.message || "";
+    if (
+      msg.includes("Invalid Token") ||
+      msg.includes("Token Expired") ||
+      msg.includes("Session Expired") ||
+      msg.includes("AG8001")
+    ) {
+      console.warn("[DATA] Invalid token error from Angel One during candle fetch. Clearing cached session file.");
+      angelSmartApi = null;
+      angelSessionExpiresAt = 0;
+      try {
+        const sessionFilePath = getSessionFilePath();
+        if (fs.existsSync(sessionFilePath)) {
+          fs.unlinkSync(sessionFilePath);
+        }
+      } catch {}
+    }
+    throw err;
   }
-
-  const candles: Candle[] = [];
-  for (const row of response.data as AngelCandleRow[]) {
-    const epochSecs = parseAngelEpochSecs(row[0]);
-    if (epochSecs === null) continue;
-
-    candles.push({
-      t: epochSecs,
-      o: Number(row[1]),
-      h: Number(row[2]),
-      l: Number(row[3]),
-      c: Number(row[4]),
-      v: Number(row[5]),
-    });
-  }
-
-  return buildCandleData(candles);
 }
 
 async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {

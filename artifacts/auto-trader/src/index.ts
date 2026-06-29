@@ -1,4 +1,6 @@
 import { resolve } from "path";
+import * as fs from "fs";
+import * as path from "path";
 import axios from "axios";
 import { initializeScripMaster, getToken } from "./scrip-master";
 import { AngelOneBroker } from "./angelone";
@@ -379,6 +381,38 @@ async function main() {
 
     } catch (err: any) {
       console.error(`[BOT] Polling Error: ${err.message}`);
+      const msg = err.message || "";
+      if (
+        msg.includes("Invalid Token") ||
+        msg.includes("Token Expired") ||
+        msg.includes("Session Expired") ||
+        msg.includes("AG8001")
+      ) {
+        console.error("[BOT] Critical token error. Deleting session file and exiting process for PM2 to restart.");
+        try {
+          let dir = process.cwd();
+          let sessionFilePath = "";
+          for (let i = 0; i < 5; i++) {
+            if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
+              sessionFilePath = path.join(dir, ".angel_session.json");
+              break;
+            }
+            const parent = path.dirname(dir);
+            if (parent === dir) break;
+            dir = parent;
+          }
+          if (!sessionFilePath) {
+            sessionFilePath = path.resolve(process.cwd(), "../../.angel_session.json");
+          }
+          if (fs.existsSync(sessionFilePath)) {
+            fs.unlinkSync(sessionFilePath);
+            console.log("[BOT] Deleted shared session file.");
+          }
+        } catch (fileErr: any) {
+          console.error("[BOT] Failed to delete session file:", fileErr.message);
+        }
+        process.exit(1);
+      }
     }
 
     await sleep(POLL_INTERVAL_MS);

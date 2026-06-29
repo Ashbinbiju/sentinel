@@ -1,4 +1,6 @@
 import { TOTP } from "totp-generator";
+import * as fs from "fs";
+import * as path from "path";
 const { SmartAPI, WebSocketV2 } = require("smartapi-javascript");
 
 const NSE_TICK_MULTIPLIER = 20; // 1 / 0.05 tick size
@@ -66,6 +68,19 @@ export class AngelOneBroker {
     });
   }
 
+  private getSessionFilePath(): string {
+    let dir = process.cwd();
+    for (let i = 0; i < 5; i++) {
+      if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
+        return path.join(dir, ".angel_session.json");
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+    return path.resolve(process.cwd(), "../../.angel_session.json");
+  }
+
   async login() {
     const clientCode = process.env.ANGEL_CLIENT_CODE?.trim();
     const password = process.env.ANGEL_PASSWORD?.trim();
@@ -73,6 +88,24 @@ export class AngelOneBroker {
 
     if (!clientCode || !password || !totpSecret || !process.env.ANGEL_API_KEY) {
       throw new Error("Missing Angel One credentials in .env");
+    }
+
+    const sessionFilePath = this.getSessionFilePath();
+    try {
+      if (fs.existsSync(sessionFilePath)) {
+        const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
+        if (sessionData.jwtToken && sessionData.expiresAt > Date.now() + 5 * 60 * 1000) {
+          this.jwtToken = sessionData.jwtToken;
+          this.refreshToken = sessionData.refreshToken;
+          this.feedToken = sessionData.feedToken;
+          this.smartApi.access_token = sessionData.jwtToken;
+          this.smartApi.refresh_token = sessionData.refreshToken;
+          console.log("[BROKER] Loaded valid shared session from file.");
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.warn("[BROKER] Failed to read shared session file:", err.message);
     }
 
     // Generate TOTP
@@ -90,6 +123,21 @@ export class AngelOneBroker {
         this.jwtToken = data.data.jwtToken;
         this.refreshToken = data.data.refreshToken;
         this.feedToken = data.data.feedToken;
+
+        // Save session data to file
+        const sessionData = {
+          jwtToken: this.jwtToken,
+          refreshToken: this.refreshToken,
+          feedToken: this.feedToken,
+          expiresAt: Date.now() + 7 * 60 * 60 * 1000 // 7 hours expiry
+        };
+        try {
+          fs.writeFileSync(sessionFilePath, JSON.stringify(sessionData, null, 2), "utf8");
+          console.log("[BROKER] Saved new shared session to file.");
+        } catch (err: any) {
+          console.warn("[BROKER] Failed to write shared session file:", err.message);
+        }
+
         console.log("[BROKER] Login successful!");
       } else {
         throw new Error(data.message || "Login failed");
