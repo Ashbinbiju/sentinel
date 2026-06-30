@@ -1,16 +1,16 @@
 # Graph Report - sentinel  (2026-06-30)
 
 ## Corpus Check
-- 258 files · ~103,007 words
+- 258 files · ~102,746 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2037 nodes · 3209 edges · 147 communities (132 shown, 15 thin omitted)
+- 2037 nodes · 3209 edges · 148 communities (132 shown, 16 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 9 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `2e59d7f1`
+- Built from commit: `d2a352d1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -146,6 +146,7 @@
 - [[_COMMUNITY_Community 134|Community 134]]
 - [[_COMMUNITY_Community 135|Community 135]]
 - [[_COMMUNITY_Community 136|Community 136]]
+- [[_COMMUNITY_Community 137|Community 137]]
 - [[_COMMUNITY_Community 138|Community 138]]
 - [[_COMMUNITY_Community 139|Community 139]]
 - [[_COMMUNITY_Community 144 (SmartAPI)|Community 144 (SmartAPI)]]
@@ -182,14 +183,14 @@
 
 ## Import Cycles
 - 1-file cycle: `artifacts/stock-screener/src/components/ui/input-otp.tsx -> artifacts/stock-screener/src/components/ui/input-otp.tsx`
-- 1-file cycle: `artifacts/stock-screener/src/components/ui/sonner.tsx -> artifacts/stock-screener/src/components/ui/sonner.tsx`
+- 1-file cycle: `artifacts/mockup-sandbox/src/components/ui/sonner.tsx -> artifacts/mockup-sandbox/src/components/ui/sonner.tsx`
 
 ## Hyperedges (group relationships)
 - **Stock Screener Frontend** — stock_screener_html, stock_screener_favicon, stock_screener_app [INFERRED 0.80]
 - **API Contract** — api_spec_yaml, healthz_endpoint, momentum_picks_endpoint, momentum_picks_response_schema [EXTRACTED 0.90]
 - **Render Deployment** — render_config, sentinel_api, sentinel_keepalive [EXTRACTED 1.00]
 
-## Communities (147 total, 15 thin omitted)
+## Communities (148 total, 16 thin omitted)
 
 ### Community 0 - "Community 0 (stocks.ts)"
 Cohesion: 0.02
@@ -244,8 +245,8 @@ Cohesion: 0.09
 Nodes (30): breakoutQualityDetails(), buildInsiderActivityMap(), calculateDdBuyAt(), calculateDdStopLoss(), calculateDdTarget(), calculateTrendPersistenceScore(), clamp(), fetchInsiderActivityMap() (+22 more)
 
 ### Community 14 - "Community 14 (enrichWithIndicators())"
-Cohesion: 0.09
-Nodes (25): build1DStrategySignal(), calculateVolumeRatio(), candleClosesBySquareOff(), candleClosesInEntryWindow(), detectCircuitLimit(), enrichWithIndicators(), filterEntryWindowTrades(), findEntrySignalMatch() (+17 more)
+Cohesion: 0.13
+Nodes (17): calculateVolumeRatio(), candleClosesBySquareOff(), detectCircuitLimit(), enrichWithIndicators(), filterEntryWindowTrades(), getCandleCloseTimeIST(), getISTTimeStr(), getNowISTParts() (+9 more)
 
 ### Community 15 - "Community 15 (compilerOptions)"
 Cohesion: 0.09
@@ -260,8 +261,8 @@ Cohesion: 0.09
 Nodes (22): toISTDisplay(), cleanSectorName(), Dashboard(), formatDuration(), formatSessionDate(), formatSessionDateFull(), getNowIST(), isMarketOpen() (+14 more)
 
 ### Community 18 - "Community 18 (format.ts)"
-Cohesion: 0.15
-Nodes (25): ApiError, applyBaseUrl(), BodyType, buildErrorMessage(), customFetch(), CustomFetchOptions, getMediaType(), getStringField() (+17 more)
+Cohesion: 0.12
+Nodes (28): ApiError, applyBaseUrl(), AuthTokenGetter, BodyType, buildErrorMessage(), customFetch(), CustomFetchOptions, getMediaType() (+20 more)
 
 ### Community 19 - "Community 19 (index.ts)"
 Cohesion: 0.11
@@ -284,8 +285,8 @@ Cohesion: 0.14
 Nodes (16): absoluteSectorLeaderScore(), ensureSwingTradesTable(), fetchIndexTrendPayload(), fetchIndustryStrengthAnalysis(), fetchMarketRegimeSnapshot(), fetchMarketStats(), fetchOpenSwingSymbols(), finalizeSwingCandidates() (+8 more)
 
 ### Community 24 - "Community 24 (resolveSwingTrade())"
-Cohesion: 0.13
-Nodes (18): addLevel(), aggregateCandles(), buildSupportResistanceContext(), getConfirmedCandles(), getISTDateAndMinuteFromIso(), getISTDateStr(), hasBullish15mStructureAtEntry(), insiderDateStringFromMs() (+10 more)
+Cohesion: 0.09
+Nodes (26): addLevel(), aggregateCandles(), build1DStrategySignal(), buildSupportResistanceContext(), candleClosesInEntryWindow(), findEntrySignalMatch(), getCandleCloseDateIST(), getConfirmedCandles() (+18 more)
 
 ### Community 25 - "Community 25 (components.json)"
 Cohesion: 0.11
@@ -320,8 +321,8 @@ Cohesion: 0.22
 Nodes (9): SwingTrackerResponse, SwingTrackerSummary, SwingTrackerTrade, SwingTrackerTradeDirection, SwingTrackerTradeIndexTrendDirection, SwingTrackerTradeInsiderActivity, SwingTrackerTradeTechnicalAdxTrend, SwingTrackerTradeTechnicalMacdTrend (+1 more)
 
 ### Community 33 - "Community 33 (fetchAngelDailyCandles())"
-Cohesion: 0.09
-Nodes (25): buildCandleData(), buildTechnicalIndicatorMap(), createSwingScanJobId(), dedupeOpenSwingTrades(), fetchAngelCandles(), fetchAngelDailyCandles(), fetchCandles(), fetchDailyCandles() (+17 more)
+Cohesion: 0.20
+Nodes (12): buildCandleData(), fetchAngelCandles(), fetchAngelDailyCandles(), fetchCandles(), fetchMoneycontrolCandles(), getAngelScripMap(), getAngelSmartApi(), getCachedCandleData() (+4 more)
 
 ### Community 34 - "Community 34 (use-toast.ts)"
 Cohesion: 0.12
@@ -583,10 +584,6 @@ Nodes (7): NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, Navig
 Cohesion: 0.20
 Nodes (9): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuShortcut(), ContextMenuSubContent (+1 more)
 
-### Community 99 - "Community 99 (select.tsx)"
-Cohesion: 0.29
-Nodes (5): SavedPickRecord, AuthTokenGetter, setAuthTokenGetter(), setBaseUrl(), SectorWithStocks
-
 ### Community 100 - "Community 100 (breadcrumb.tsx)"
 Cohesion: 0.25
 Nodes (7): devDependencies, orval, name, private, scripts, codegen, version
@@ -675,6 +672,10 @@ Nodes (4): industryLookupKey(), industryStrengthForSector(), industryStrengthLoo
 Cohesion: 0.40
 Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
 
+### Community 137 - "Community 137"
+Cohesion: 0.15
+Nodes (13): buildTechnicalIndicatorMap(), createSwingScanJobId(), dedupeOpenSwingTrades(), fetchDailyCandles(), fetchMoneycontrolDailyCandles(), fetchSwingUniverse(), fetchTechnicalIndicatorMap(), fetchTechnicalIndicatorRows() (+5 more)
+
 ### Community 138 - "Community 138"
 Cohesion: 0.25
 Nodes (7): SelectContent, SelectItem, SelectLabel, SelectScrollDownButton, SelectScrollUpButton, SelectSeparator, SelectTrigger
@@ -694,7 +695,7 @@ Nodes (3): SENTINEL Stock Screener, artifacts/stock-screener/public/favicon.svg,
 ## Knowledge Gaps
 - **891 isolated node(s):** `artifactDir`, `name`, `version`, `private`, `type` (+886 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **15 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **16 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_

@@ -2000,74 +2000,11 @@ async function fetchNiftyDailyReturn(): Promise<number> {
 }
 
 async function fetchMarketStats(): Promise<MarketStatsPayload | null> {
-  if (marketStatsCache && Date.now() - marketStatsCache.fetchedAt < MARKET_STATS_CACHE_TTL_MS) {
-    return marketStatsCache.payload;
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetch(MARKET_STATS_URL, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    const parsed = payload && typeof payload === "object" ? payload as MarketStatsPayload : null;
-    marketStatsCache = { fetchedAt: Date.now(), payload: parsed };
-    return parsed;
-  } catch (err) {
-    console.warn("[SWING] Failed to fetch market stats breadth.", err);
-    marketStatsCache = { fetchedAt: Date.now(), payload: null };
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return null;
 }
 
 async function fetchIndustryStrengthAnalysis(): Promise<IndustryStrengthPayload | null> {
-  if (
-    industryStrengthCache &&
-    Date.now() - industryStrengthCache.fetchedAt < INDUSTRY_STRENGTH_CACHE_TTL_MS
-  ) {
-    return industryStrengthCache.payload;
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000);
-  try {
-    let authFailureStatus: number | null = null;
-    for (const url of [INDUSTRY_STRENGTH_URL, INDUSTRY_STRENGTH_FALLBACK_URL]) {
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          Accept: "application/json, text/plain, */*",
-        },
-        signal: controller.signal,
-      });
-      if ([401, 403].includes(response.status)) {
-        authFailureStatus = response.status;
-        continue;
-      }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json();
-      const parsed = payload && typeof payload === "object" ? payload as IndustryStrengthPayload : null;
-      industryStrengthCache = { fetchedAt: Date.now(), payload: parsed };
-      return parsed;
-    }
-
-    console.info(
-      `[SWING] Industry strength provider returned HTTP ${authFailureStatus ?? 401}; continuing without industry-strength enrichment.`,
-    );
-    industryStrengthCache = { fetchedAt: Date.now(), payload: null };
-    return null;
-  } catch (err) {
-    console.warn("[SWING] Failed to fetch industry strength analysis; continuing without industry-strength enrichment.", err);
-    industryStrengthCache = { fetchedAt: Date.now(), payload: null };
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return null;
 }
 
 function numberOrNull(value: unknown): number | null {

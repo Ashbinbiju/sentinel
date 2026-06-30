@@ -1,16 +1,16 @@
 # Graph Report - sentinel  (2026-06-30)
 
 ## Corpus Check
-- 258 files · ~102,916 words
+- 258 files · ~103,007 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2037 nodes · 3209 edges · 149 communities (134 shown, 15 thin omitted)
+- 2037 nodes · 3209 edges · 147 communities (132 shown, 15 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 9 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b5fac786`
+- Built from commit: `2e59d7f1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -146,10 +146,8 @@
 - [[_COMMUNITY_Community 134|Community 134]]
 - [[_COMMUNITY_Community 135|Community 135]]
 - [[_COMMUNITY_Community 136|Community 136]]
-- [[_COMMUNITY_Community 137|Community 137]]
 - [[_COMMUNITY_Community 138|Community 138]]
 - [[_COMMUNITY_Community 139|Community 139]]
-- [[_COMMUNITY_Community 140|Community 140]]
 - [[_COMMUNITY_Community 144 (SmartAPI)|Community 144 (SmartAPI)]]
 - [[_COMMUNITY_Community 146 (graphify knowledge graph)|Community 146 (graphify knowledge graph)]]
 - [[_COMMUNITY_Community 162 (scratch-fix.js)|Community 162 (scratch-fix.js)]]
@@ -184,14 +182,14 @@
 
 ## Import Cycles
 - 1-file cycle: `artifacts/stock-screener/src/components/ui/input-otp.tsx -> artifacts/stock-screener/src/components/ui/input-otp.tsx`
-- 1-file cycle: `artifacts/mockup-sandbox/src/components/ui/sonner.tsx -> artifacts/mockup-sandbox/src/components/ui/sonner.tsx`
+- 1-file cycle: `artifacts/stock-screener/src/components/ui/sonner.tsx -> artifacts/stock-screener/src/components/ui/sonner.tsx`
 
 ## Hyperedges (group relationships)
 - **Stock Screener Frontend** — stock_screener_html, stock_screener_favicon, stock_screener_app [INFERRED 0.80]
 - **API Contract** — api_spec_yaml, healthz_endpoint, momentum_picks_endpoint, momentum_picks_response_schema [EXTRACTED 0.90]
 - **Render Deployment** — render_config, sentinel_api, sentinel_keepalive [EXTRACTED 1.00]
 
-## Communities (149 total, 15 thin omitted)
+## Communities (147 total, 15 thin omitted)
 
 ### Community 0 - "Community 0 (stocks.ts)"
 Cohesion: 0.02
@@ -199,7 +197,7 @@ Nodes (57): AngelCandleRow, AngelScripMasterRow, Candle, CandleData, CURRENT_STR
 
 ### Community 1 - "Community 1 (React)"
 Cohesion: 0.06
-Nodes (22): Alert, AlertDescription, AlertTitle, alertVariants, Checkbox, HoverCardContent, PopoverContent, Progress (+14 more)
+Nodes (24): AccordionContent, AccordionItem, AccordionTrigger, Avatar, AvatarFallback, AvatarImage, Checkbox, HoverCardContent (+16 more)
 
 ### Community 2 - "Community 2 (devDependencies)"
 Cohesion: 0.04
@@ -246,8 +244,8 @@ Cohesion: 0.09
 Nodes (30): breakoutQualityDetails(), buildInsiderActivityMap(), calculateDdBuyAt(), calculateDdStopLoss(), calculateDdTarget(), calculateTrendPersistenceScore(), clamp(), fetchInsiderActivityMap() (+22 more)
 
 ### Community 14 - "Community 14 (enrichWithIndicators())"
-Cohesion: 0.13
-Nodes (17): calculateVolumeRatio(), candleClosesBySquareOff(), detectCircuitLimit(), enrichWithIndicators(), filterEntryWindowTrades(), getCandleCloseTimeIST(), getISTTimeStr(), getNowISTParts() (+9 more)
+Cohesion: 0.09
+Nodes (25): build1DStrategySignal(), calculateVolumeRatio(), candleClosesBySquareOff(), candleClosesInEntryWindow(), detectCircuitLimit(), enrichWithIndicators(), filterEntryWindowTrades(), findEntrySignalMatch() (+17 more)
 
 ### Community 15 - "Community 15 (compilerOptions)"
 Cohesion: 0.09
@@ -286,8 +284,8 @@ Cohesion: 0.14
 Nodes (16): absoluteSectorLeaderScore(), ensureSwingTradesTable(), fetchIndexTrendPayload(), fetchIndustryStrengthAnalysis(), fetchMarketRegimeSnapshot(), fetchMarketStats(), fetchOpenSwingSymbols(), finalizeSwingCandidates() (+8 more)
 
 ### Community 24 - "Community 24 (resolveSwingTrade())"
-Cohesion: 0.09
-Nodes (26): addLevel(), aggregateCandles(), build1DStrategySignal(), buildSupportResistanceContext(), candleClosesInEntryWindow(), findEntrySignalMatch(), getCandleCloseDateIST(), getConfirmedCandles() (+18 more)
+Cohesion: 0.13
+Nodes (18): addLevel(), aggregateCandles(), buildSupportResistanceContext(), getConfirmedCandles(), getISTDateAndMinuteFromIso(), getISTDateStr(), hasBullish15mStructureAtEntry(), insiderDateStringFromMs() (+10 more)
 
 ### Community 25 - "Community 25 (components.json)"
 Cohesion: 0.11
@@ -322,8 +320,8 @@ Cohesion: 0.22
 Nodes (9): SwingTrackerResponse, SwingTrackerSummary, SwingTrackerTrade, SwingTrackerTradeDirection, SwingTrackerTradeIndexTrendDirection, SwingTrackerTradeInsiderActivity, SwingTrackerTradeTechnicalAdxTrend, SwingTrackerTradeTechnicalMacdTrend (+1 more)
 
 ### Community 33 - "Community 33 (fetchAngelDailyCandles())"
-Cohesion: 0.20
-Nodes (12): buildCandleData(), fetchAngelCandles(), fetchAngelDailyCandles(), fetchCandles(), fetchMoneycontrolCandles(), getAngelScripMap(), getAngelSmartApi(), getCachedCandleData() (+4 more)
+Cohesion: 0.09
+Nodes (25): buildCandleData(), buildTechnicalIndicatorMap(), createSwingScanJobId(), dedupeOpenSwingTrades(), fetchAngelCandles(), fetchAngelDailyCandles(), fetchCandles(), fetchDailyCandles() (+17 more)
 
 ### Community 34 - "Community 34 (use-toast.ts)"
 Cohesion: 0.12
@@ -674,12 +672,8 @@ Cohesion: 0.67
 Nodes (4): industryLookupKey(), industryStrengthForSector(), industryStrengthLookup(), sectorIndustryLookupNames()
 
 ### Community 134 - "Community 134"
-Cohesion: 0.50
-Nodes (3): AccordionContent, AccordionItem, AccordionTrigger
-
-### Community 137 - "Community 137"
-Cohesion: 0.15
-Nodes (13): buildTechnicalIndicatorMap(), createSwingScanJobId(), dedupeOpenSwingTrades(), fetchDailyCandles(), fetchMoneycontrolDailyCandles(), fetchSwingUniverse(), fetchTechnicalIndicatorMap(), fetchTechnicalIndicatorRows() (+5 more)
+Cohesion: 0.40
+Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
 
 ### Community 138 - "Community 138"
 Cohesion: 0.25
@@ -688,10 +682,6 @@ Nodes (7): SelectContent, SelectItem, SelectLabel, SelectScrollDownButton, Selec
 ### Community 139 - "Community 139"
 Cohesion: 0.33
 Nodes (5): ToggleGroup, ToggleGroupContext, ToggleGroupItem, Toggle, toggleVariants
-
-### Community 140 - "Community 140"
-Cohesion: 0.50
-Nodes (3): Avatar, AvatarFallback, AvatarImage
 
 ### Community 144 - "Community 144 (SmartAPI)"
 Cohesion: 0.50
@@ -709,7 +699,7 @@ Nodes (3): SENTINEL Stock Screener, artifacts/stock-screener/public/favicon.svg,
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `React` connect `Community 12 (swing.tsx)` to `Community 1 (React)`, `Community 3 (devDependencies)`, `Community 4 (api.ts)`, `Community 5 (api.schemas.ts)`, `Community 134`, `Community 8 (dashboard.tsx)`, `Community 10 (sidebar.tsx)`, `Community 11 (sidebar.tsx)`, `Community 140`, `Community 138`, `Community 139`, `Community 16 (customFetch())`, `Community 17 (swingPick.ts)`, `Community 19 (index.ts)`, `Community 20 (swingTrackerTrade.ts)`, `Community 25 (components.json)`, `Community 26 (stockItem.ts)`, `Community 27 (menubar.tsx)`, `Community 34 (use-toast.ts)`, `Community 35 (use-toast.ts)`, `Community 37 (package.json)`, `Community 40 (carousel.tsx)`, `Community 41 (Drizzle ORM)`, `Community 43 (item.tsx)`, `Community 44 (item.tsx)`, `Community 49 (form.tsx)`, `Community 50 (field.tsx)`, `Community 51 (form.tsx)`, `Community 52 (normalizeEquitySymbol())`, `Community 53 (chart.tsx)`, `Community 57 (notifications.ts)`, `Community 58 (package.json)`, `Community 59 (compilerOptions)`, `Community 64 (toast.tsx)`, `Community 65 (command.tsx)`, `Community 68 (toast.tsx)`, `Community 70 (package.json)`, `Community 71 (package.json)`, `Community 81 (alert-dialog.tsx)`, `Community 82 (input-group.tsx)`, `Community 83 (pagination.tsx)`, `Community 88 (pagination.tsx)`, `Community 89 (sheet.tsx)`, `Community 90 (table.tsx)`, `Community 91 (tsconfig.json)`, `Community 92 (package.json)`, `Community 93 (package.json)`, `Community 94 (Express)`, `Community 95 (breadcrumb.tsx)`, `Community 97 (empty.tsx)`, `Community 98 (navigation-menu.tsx)`, `Community 99 (select.tsx)`, `Community 104 (select.tsx)`, `Community 105 (MarketCards.tsx)`, `Community 120 (dependencies)`?**
+- **Why does `React` connect `Community 12 (swing.tsx)` to `Community 1 (React)`, `Community 3 (devDependencies)`, `Community 4 (api.ts)`, `Community 5 (api.schemas.ts)`, `Community 134`, `Community 8 (dashboard.tsx)`, `Community 10 (sidebar.tsx)`, `Community 11 (sidebar.tsx)`, `Community 138`, `Community 139`, `Community 16 (customFetch())`, `Community 17 (swingPick.ts)`, `Community 19 (index.ts)`, `Community 20 (swingTrackerTrade.ts)`, `Community 25 (components.json)`, `Community 26 (stockItem.ts)`, `Community 27 (menubar.tsx)`, `Community 34 (use-toast.ts)`, `Community 35 (use-toast.ts)`, `Community 37 (package.json)`, `Community 40 (carousel.tsx)`, `Community 41 (Drizzle ORM)`, `Community 43 (item.tsx)`, `Community 44 (item.tsx)`, `Community 49 (form.tsx)`, `Community 50 (field.tsx)`, `Community 51 (form.tsx)`, `Community 52 (normalizeEquitySymbol())`, `Community 53 (chart.tsx)`, `Community 57 (notifications.ts)`, `Community 58 (package.json)`, `Community 59 (compilerOptions)`, `Community 64 (toast.tsx)`, `Community 65 (command.tsx)`, `Community 68 (toast.tsx)`, `Community 70 (package.json)`, `Community 71 (package.json)`, `Community 81 (alert-dialog.tsx)`, `Community 82 (input-group.tsx)`, `Community 83 (pagination.tsx)`, `Community 88 (pagination.tsx)`, `Community 89 (sheet.tsx)`, `Community 90 (table.tsx)`, `Community 91 (tsconfig.json)`, `Community 92 (package.json)`, `Community 93 (package.json)`, `Community 94 (Express)`, `Community 95 (breadcrumb.tsx)`, `Community 97 (empty.tsx)`, `Community 98 (navigation-menu.tsx)`, `Community 99 (select.tsx)`, `Community 104 (select.tsx)`, `Community 105 (MarketCards.tsx)`, `Community 120 (dependencies)`?**
   _High betweenness centrality (0.553) - this node is a cross-community bridge._
 - **Why does `Drizzle ORM` connect `Community 41 (Drizzle ORM)` to `Community 0 (stocks.ts)`, `Community 56 (package.json)`, `Community 63 (dropdown-menu.tsx)`?**
   _High betweenness centrality (0.285) - this node is a cross-community bridge._
@@ -720,6 +710,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Community 0 (stocks.ts)` be split into smaller, more focused modules?**
   _Cohesion score 0.024897400820793433 - nodes in this community are weakly interconnected._
 - **Should `Community 1 (React)` be split into smaller, more focused modules?**
-  _Cohesion score 0.06050420168067227 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05547652916073969 - nodes in this community are weakly interconnected._
 - **Should `Community 2 (devDependencies)` be split into smaller, more focused modules?**
   _Cohesion score 0.04249871991807476 - nodes in this community are weakly interconnected._
