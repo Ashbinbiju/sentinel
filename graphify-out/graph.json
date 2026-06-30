@@ -1743,7 +1743,7 @@
       "source_location": "L716",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_getistminuteofday",
-      "community": 14,
+      "community": 24,
       "norm_label": "getistminuteofday()"
     },
     {
@@ -1763,7 +1763,7 @@
       "source_location": "L726",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_getcandleclosedateist",
-      "community": 14,
+      "community": 24,
       "norm_label": "getcandleclosedateist()"
     },
     {
@@ -1783,7 +1783,7 @@
       "source_location": "L734",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_candleclosesinentrywindow",
-      "community": 14,
+      "community": 24,
       "norm_label": "candleclosesinentrywindow()"
     },
     {
@@ -1793,7 +1793,7 @@
       "source_location": "L740",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_issignaltimeinentrywindowist",
-      "community": 14,
+      "community": 24,
       "norm_label": "issignaltimeinentrywindowist()"
     },
     {
@@ -1823,7 +1823,7 @@
       "source_location": "L767",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_iscurrentstrategysignaltime",
-      "community": 14,
+      "community": 24,
       "norm_label": "iscurrentstrategysignaltime()"
     },
     {
@@ -1833,7 +1833,7 @@
       "source_location": "L772",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_iscurrentstrategyentrysignal",
-      "community": 14,
+      "community": 24,
       "norm_label": "iscurrentstrategyentrysignal()"
     },
     {
@@ -2183,7 +2183,7 @@
       "source_location": "L1333",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_build1dstrategysignal",
-      "community": 14,
+      "community": 24,
       "norm_label": "build1dstrategysignal()"
     },
     {
@@ -2203,7 +2203,7 @@
       "source_location": "L1392",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_findentrysignalmatch",
-      "community": 14,
+      "community": 24,
       "norm_label": "findentrysignalmatch()"
     },
     {
@@ -2333,7 +2333,7 @@
       "source_location": "L1934",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchmoneycontroldailycandles",
-      "community": 24,
+      "community": 137,
       "norm_label": "fetchmoneycontroldailycandles()"
     },
     {
@@ -2343,7 +2343,7 @@
       "source_location": "L1967",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchdailycandles",
-      "community": 24,
+      "community": 137,
       "norm_label": "fetchdailycandles()"
     },
     {
@@ -3830,7 +3830,7 @@
       "label": "getCachedCandleData()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5528",
+      "source_location": "L5535",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
       "community": 33,
@@ -3840,7 +3840,7 @@
       "label": "getTradeExitCandles()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5541",
+      "source_location": "L5548",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_gettradeexitcandles",
       "community": 14,
@@ -3850,7 +3850,7 @@
       "label": "resolveHistoricalTradeOutcome()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5551",
+      "source_location": "L5558",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "community": 14,
@@ -6053,7 +6053,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion",
-      "community": 1,
+      "community": 134,
       "norm_label": "accordion.tsx"
     },
     {
@@ -6063,7 +6063,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion_accordionitem",
-      "community": 1,
+      "community": 134,
       "norm_label": "accordionitem"
     },
     {
@@ -6073,7 +6073,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion_accordiontrigger",
-      "community": 1,
+      "community": 134,
       "norm_label": "accordiontrigger"
     },
     {
@@ -6083,7 +6083,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion_accordioncontent",
-      "community": 1,
+      "community": 134,
       "norm_label": "accordioncontent"
     },
     {
@@ -6183,7 +6183,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert",
-      "community": 134,
+      "community": 1,
       "norm_label": "alert.tsx"
     },
     {
@@ -6193,7 +6193,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alertvariants",
-      "community": 134,
+      "community": 1,
       "norm_label": "alertvariants"
     },
     {
@@ -6203,7 +6203,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alert",
-      "community": 134,
+      "community": 1,
       "norm_label": "alert"
     },
     {
@@ -6213,7 +6213,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alerttitle",
-      "community": 134,
+      "community": 1,
       "norm_label": "alerttitle"
     },
     {
@@ -6223,7 +6223,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alertdescription",
-      "community": 134,
+      "community": 1,
       "norm_label": "alertdescription"
     },
     {
@@ -6243,7 +6243,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar",
-      "community": 1,
+      "community": 140,
       "norm_label": "avatar.tsx"
     },
     {
@@ -6253,7 +6253,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar_avatar",
-      "community": 1,
+      "community": 140,
       "norm_label": "avatar"
     },
     {
@@ -6263,7 +6263,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar_avatarimage",
-      "community": 1,
+      "community": 140,
       "norm_label": "avatarimage"
     },
     {
@@ -6273,7 +6273,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar_avatarfallback",
-      "community": 1,
+      "community": 140,
       "norm_label": "avatarfallback"
     },
     {
@@ -22945,7 +22945,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5528",
+      "source_location": "L5535",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks",
       "target": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
@@ -23055,7 +23055,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5541",
+      "source_location": "L5548",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks",
       "target": "artifacts_api_server_src_routes_stocks_gettradeexitcandles",
@@ -24025,7 +24025,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5551",
+      "source_location": "L5558",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks",
       "target": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
@@ -25221,7 +25221,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5588",
+      "source_location": "L5595",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_getcandleclosetimeist",
@@ -25353,7 +25353,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5601",
+      "source_location": "L5608",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_gettodayistdatestr",
@@ -25397,7 +25397,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5602",
+      "source_location": "L5609",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_isintradaysquareofftimeist",
@@ -25870,7 +25870,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5532",
+      "source_location": "L5539",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
       "target": "artifacts_api_server_src_routes_stocks_fetchcandles",
@@ -26068,7 +26068,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5560",
+      "source_location": "L5567",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_infertradedirectionfromprices",
@@ -26090,7 +26090,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5610",
+      "source_location": "L5617",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_plpctforexit",
@@ -27685,7 +27685,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5570",
+      "source_location": "L5577",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_getcachedcandledata",
@@ -27696,7 +27696,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/routes/stocks.ts",
-      "source_location": "L5575",
+      "source_location": "L5582",
       "weight": 1.0,
       "source": "artifacts_api_server_src_routes_stocks_resolvehistoricaltradeoutcome",
       "target": "artifacts_api_server_src_routes_stocks_gettradeexitcandles",
@@ -54081,5 +54081,5 @@
       "source_file": "render.yaml"
     }
   ],
-  "built_at_commit": "d9809e54937f8ebc6c040a2f7b5993d14cbcfc85"
+  "built_at_commit": "b5fac7860fd307b68787cfa2ab86389ba88131b9"
 }

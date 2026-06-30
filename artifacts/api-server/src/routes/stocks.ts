@@ -5324,7 +5324,14 @@ router.get("/momentum-picks", async (req, res) => {
             const candleData = await fetchCandles(stock.symbol);
             if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) continue;
 
-            const prevDayCandles = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
+            const prevDayCandlesAll = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
+            if (prevDayCandlesAll.length === 0) continue;
+            
+            const prevDates = Array.from(new Set(prevDayCandlesAll.map(c => getCandleCloseDateIST(c)))).sort();
+            const lastPrevDate = prevDates.at(-1);
+            if (!lastPrevDate) continue;
+
+            const prevDayCandles = prevDayCandlesAll.filter(c => getCandleCloseDateIST(c) === lastPrevDate);
             if (prevDayCandles.length === 0) continue;
             
             const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
