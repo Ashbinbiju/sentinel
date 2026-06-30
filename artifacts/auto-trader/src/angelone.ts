@@ -214,15 +214,9 @@ export class AngelOneBroker {
     const req = {
       correlationID: "sub-" + Date.now(),
       action: 1, // 1 for subscribe
-      params: {
-        mode: 1, // 1 for LTP mode
-        tokenList: [
-          {
-            exchangeType: 1, // NSE
-            tokens: tokens
-          }
-        ]
-      }
+      mode: 1, // 1 for LTP mode
+      exchangeType: 1, // NSE
+      tokens: tokens
     };
     
     this.ws.fetchData(req);
@@ -235,15 +229,9 @@ export class AngelOneBroker {
     const req = {
       correlationID: "unsub-" + Date.now(),
       action: 0, // 0 for unsubscribe
-      params: {
-        mode: 1,
-        tokenList: [
-          {
-            exchangeType: 1,
-            tokens: tokens
-          }
-        ]
-      }
+      mode: 1, // 1 for LTP mode
+      exchangeType: 1, // NSE
+      tokens: tokens
     };
     
     this.ws.fetchData(req);
