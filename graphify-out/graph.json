@@ -1743,7 +1743,7 @@
       "source_location": "L716",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_getistminuteofday",
-      "community": 24,
+      "community": 14,
       "norm_label": "getistminuteofday()"
     },
     {
@@ -1763,7 +1763,7 @@
       "source_location": "L726",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_getcandleclosedateist",
-      "community": 24,
+      "community": 14,
       "norm_label": "getcandleclosedateist()"
     },
     {
@@ -1783,7 +1783,7 @@
       "source_location": "L734",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_candleclosesinentrywindow",
-      "community": 24,
+      "community": 14,
       "norm_label": "candleclosesinentrywindow()"
     },
     {
@@ -1793,7 +1793,7 @@
       "source_location": "L740",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_issignaltimeinentrywindowist",
-      "community": 24,
+      "community": 14,
       "norm_label": "issignaltimeinentrywindowist()"
     },
     {
@@ -1823,7 +1823,7 @@
       "source_location": "L767",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_iscurrentstrategysignaltime",
-      "community": 24,
+      "community": 14,
       "norm_label": "iscurrentstrategysignaltime()"
     },
     {
@@ -1833,7 +1833,7 @@
       "source_location": "L772",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_iscurrentstrategyentrysignal",
-      "community": 24,
+      "community": 14,
       "norm_label": "iscurrentstrategyentrysignal()"
     },
     {
@@ -2183,7 +2183,7 @@
       "source_location": "L1333",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_build1dstrategysignal",
-      "community": 24,
+      "community": 14,
       "norm_label": "build1dstrategysignal()"
     },
     {
@@ -2203,7 +2203,7 @@
       "source_location": "L1392",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_findentrysignalmatch",
-      "community": 24,
+      "community": 14,
       "norm_label": "findentrysignalmatch()"
     },
     {
@@ -2333,7 +2333,7 @@
       "source_location": "L1934",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchmoneycontroldailycandles",
-      "community": 137,
+      "community": 33,
       "norm_label": "fetchmoneycontroldailycandles()"
     },
     {
@@ -2343,7 +2343,7 @@
       "source_location": "L1967",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchdailycandles",
-      "community": 137,
+      "community": 33,
       "norm_label": "fetchdailycandles()"
     },
     {
@@ -2353,7 +2353,7 @@
       "source_location": "L1985",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_normalizeequitysymbol",
-      "community": 137,
+      "community": 33,
       "norm_label": "normalizeequitysymbol()"
     },
     {
@@ -2413,7 +2413,7 @@
       "source_location": "L2086",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchtechnicalindicatorrows",
-      "community": 137,
+      "community": 33,
       "norm_label": "fetchtechnicalindicatorrows()"
     },
     {
@@ -2523,7 +2523,7 @@
       "source_location": "L2262",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_buildtechnicalindicatormap",
-      "community": 137,
+      "community": 33,
       "norm_label": "buildtechnicalindicatormap()"
     },
     {
@@ -2533,7 +2533,7 @@
       "source_location": "L2272",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchtechnicalindicatormap",
-      "community": 137,
+      "community": 33,
       "norm_label": "fetchtechnicalindicatormap()"
     },
     {
@@ -3633,7 +3633,7 @@
       "source_location": "L4438",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_fetchswinguniverse",
-      "community": 137,
+      "community": 33,
       "norm_label": "fetchswinguniverse()"
     },
     {
@@ -3643,7 +3643,7 @@
       "source_location": "L4460",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_isopenswingtradestatus",
-      "community": 137,
+      "community": 33,
       "norm_label": "isopenswingtradestatus()"
     },
     {
@@ -3683,7 +3683,7 @@
       "source_location": "L4492",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_preferredopenswingtrade",
-      "community": 137,
+      "community": 33,
       "norm_label": "preferredopenswingtrade()"
     },
     {
@@ -3693,7 +3693,7 @@
       "source_location": "L4505",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_dedupeopenswingtrades",
-      "community": 137,
+      "community": 33,
       "norm_label": "dedupeopenswingtrades()"
     },
     {
@@ -3713,7 +3713,7 @@
       "source_location": "L4531",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_createswingscanjobid",
-      "community": 137,
+      "community": 33,
       "norm_label": "createswingscanjobid()"
     },
     {
@@ -3723,7 +3723,7 @@
       "source_location": "L4535",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_pruneswingscanjobs",
-      "community": 137,
+      "community": 33,
       "norm_label": "pruneswingscanjobs()"
     },
     {
@@ -3753,7 +3753,7 @@
       "source_location": "L4672",
       "_origin": "ast",
       "id": "artifacts_api_server_src_routes_stocks_startswingscanjob",
-      "community": 137,
+      "community": 33,
       "norm_label": "startswingscanjob()"
     },
     {
@@ -4570,7 +4570,7 @@
       "label": "closeTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L422",
+      "source_location": "L440",
       "_origin": "ast",
       "id": "artifacts_auto_trader_src_index_closetrade",
       "community": 48,
@@ -6053,7 +6053,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion",
-      "community": 134,
+      "community": 1,
       "norm_label": "accordion.tsx"
     },
     {
@@ -6063,7 +6063,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion_accordionitem",
-      "community": 134,
+      "community": 1,
       "norm_label": "accordionitem"
     },
     {
@@ -6073,7 +6073,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion_accordiontrigger",
-      "community": 134,
+      "community": 1,
       "norm_label": "accordiontrigger"
     },
     {
@@ -6083,7 +6083,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_accordion_accordioncontent",
-      "community": 134,
+      "community": 1,
       "norm_label": "accordioncontent"
     },
     {
@@ -6183,7 +6183,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert",
-      "community": 1,
+      "community": 134,
       "norm_label": "alert.tsx"
     },
     {
@@ -6193,7 +6193,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alertvariants",
-      "community": 1,
+      "community": 134,
       "norm_label": "alertvariants"
     },
     {
@@ -6203,7 +6203,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alert",
-      "community": 1,
+      "community": 134,
       "norm_label": "alert"
     },
     {
@@ -6213,7 +6213,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alerttitle",
-      "community": 1,
+      "community": 134,
       "norm_label": "alerttitle"
     },
     {
@@ -6223,7 +6223,7 @@
       "source_location": "L47",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_alert_alertdescription",
-      "community": 1,
+      "community": 134,
       "norm_label": "alertdescription"
     },
     {
@@ -6243,7 +6243,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar",
-      "community": 140,
+      "community": 1,
       "norm_label": "avatar.tsx"
     },
     {
@@ -6253,7 +6253,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar_avatar",
-      "community": 140,
+      "community": 1,
       "norm_label": "avatar"
     },
     {
@@ -6263,7 +6263,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar_avatarimage",
-      "community": 140,
+      "community": 1,
       "norm_label": "avatarimage"
     },
     {
@@ -6273,7 +6273,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_avatar_avatarfallback",
-      "community": 140,
+      "community": 1,
       "norm_label": "avatarfallback"
     },
     {
@@ -28528,7 +28528,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L422",
+      "source_location": "L440",
       "weight": 1.0,
       "source": "artifacts_auto_trader_src_index",
       "target": "artifacts_auto_trader_src_index_closetrade",
@@ -28653,7 +28653,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L434",
+      "source_location": "L452",
       "weight": 1.0,
       "source": "artifacts_auto_trader_src_index_closetrade",
       "target": "artifacts_auto_trader_src_index_sendtelegramalert",
@@ -28675,7 +28675,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L246",
+      "source_location": "L264",
       "weight": 1.0,
       "source": "artifacts_auto_trader_src_index_main",
       "target": "artifacts_auto_trader_src_index_normalizesymbol",
@@ -28708,7 +28708,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L274",
+      "source_location": "L292",
       "weight": 1.0,
       "source": "artifacts_auto_trader_src_index_main",
       "target": "artifacts_auto_trader_src_scrip_master_gettoken",
@@ -29848,7 +29848,7 @@
       "weight": 1.0,
       "context": "import",
       "source": "artifacts_mockup_sandbox_package_devdependencies_sonner",
-      "target": "artifacts_mockup_sandbox_src_components_ui_sonner",
+      "target": "artifacts_stock_screener_src_components_ui_sonner",
       "confidence_score": 1.0
     },
     {
@@ -35770,29 +35770,7 @@
       "source_location": "L4",
       "weight": 1.0,
       "source": "artifacts_mockup_sandbox_src_components_ui_sonner",
-      "target": "artifacts_mockup_sandbox_src_components_ui_sonner",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/stock-screener/package.json",
-      "source_location": "L66",
-      "weight": 1.0,
-      "context": "import",
-      "source": "artifacts_stock_screener_package_devdependencies_sonner",
-      "target": "artifacts_mockup_sandbox_src_components_ui_sonner",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/stock-screener/src/components/ui/sonner.tsx",
-      "source_location": "L4",
-      "weight": 1.0,
-      "source": "artifacts_stock_screener_src_components_ui_sonner",
-      "target": "artifacts_mockup_sandbox_src_components_ui_sonner",
+      "target": "artifacts_stock_screener_src_components_ui_sonner",
       "confidence_score": 1.0
     },
     {
@@ -37793,6 +37771,17 @@
       "context": "import",
       "source": "artifacts_stock_screener_package_devdependencies_react",
       "target": "react",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/stock-screener/package.json",
+      "source_location": "L66",
+      "weight": 1.0,
+      "context": "import",
+      "source": "artifacts_stock_screener_package_devdependencies_sonner",
+      "target": "artifacts_stock_screener_src_components_ui_sonner",
       "confidence_score": 1.0
     },
     {
@@ -44320,6 +44309,17 @@
       "weight": 1.0,
       "source": "artifacts_stock_screener_src_components_ui_sonner",
       "target": "artifacts_stock_screener_src_components_ui_sonner_toasterprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/stock-screener/src/components/ui/sonner.tsx",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "artifacts_stock_screener_src_components_ui_sonner",
+      "target": "artifacts_stock_screener_src_components_ui_sonner",
       "confidence_score": 1.0
     },
     {
@@ -54081,5 +54081,5 @@
       "source_file": "render.yaml"
     }
   ],
-  "built_at_commit": "b5fac7860fd307b68787cfa2ab86389ba88131b9"
+  "built_at_commit": "2e59d7f1c2ce20baa0eebb951cac32ab3b9e13c0"
 }

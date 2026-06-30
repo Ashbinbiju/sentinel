@@ -202,17 +202,35 @@ async function main() {
       }
 
       if (tradesToday >= MAX_DAILY_TRADES) {
-        console.log(`[BOT] Reached max daily trades (${MAX_DAILY_TRADES}). Shutting down loop for today.`);
-        break; // Or just sleep for 24h
+        const activeTrades = TradeDB.getOpenTrades();
+        if (activeTrades.length > 0) {
+          console.log(`[BOT] Daily trade limit reached (${tradesToday}/${MAX_DAILY_TRADES}). ${activeTrades.length} open position(s) active. Monitoring...`);
+        } else {
+          console.log(`[BOT] Daily trade limit reached (${tradesToday}/${MAX_DAILY_TRADES}). No open positions. Monitoring...`);
+        }
+        await sleep(60 * 1000); // Sleep for 1 minute to keep process alive without hot-looping or spamming logs
+        continue;
       }
 
       if (process.env.DRY_RUN !== "true") {
         const { realizedPnl, closedLosingTrades } = await broker.getRiskMetrics();
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
-          const msg = `🚨 KILL SWITCH ENGAGED 🚨\nMax loss reached!\nP&L: INR ${realizedPnl}\nLosing Trades: ${closedLosingTrades}\nHalting bot for the day.`;
-          console.error(`[KILL SWITCH ENGAGED] Max loss reached (P&L: INR ${realizedPnl}, Losing Trades: ${closedLosingTrades}). Halting bot for the day.`);
+          const msg = `🚨 KILL SWITCH ENGAGED 🚨\nMax loss reached!\nP&L: INR ${realizedPnl}\nLosing Trades: ${closedLosingTrades}.\nSquaring off open positions and halting bot for the day.`;
+          console.error(`[KILL SWITCH ENGAGED] Max loss reached (P&L: INR ${realizedPnl}, Losing Trades: ${closedLosingTrades}). Squaring off open positions and halting bot for the day.`);
           await sendTelegramAlert(msg);
-          break; // Permanently stop polling
+
+          const activeTrades = TradeDB.getOpenTrades();
+          if (activeTrades.length > 0) {
+            console.log(`[BOT] [KILL SWITCH] Squaring off ${activeTrades.length} open positions.`);
+            for (const trade of activeTrades) {
+              await closeTrade(broker, trade, "KILL SWITCH SQUARE-OFF", trade.highest_ltp || trade.entry_price);
+            }
+          }
+
+          // Halt loop but keep process alive
+          while (true) {
+            await sleep(60 * 60 * 1000);
+          }
         }
       }
 
