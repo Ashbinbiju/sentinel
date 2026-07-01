@@ -5245,6 +5245,7 @@ router.get("/momentum-picks", async (req, res) => {
 
     const topPickCandidates: any[] = [];
     const TOUCH_BUFFER_PCT = 0.0075;
+    const MAX_CHASE_PCT = 0.015; // 1.5% maximum entry distance from breakout/breakdown level
 
     await Promise.all(
       topSectors.map(async (sector) => {
@@ -5297,8 +5298,13 @@ router.get("/momentum-picks", async (req, res) => {
 
             if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
               if (c.c > prevHigh) {
-                setup = "HIGH BREAKOUT"; direction = "LONG";
-                sl = Math.min(c.l, prevHigh * 0.999);
+                // Anti-Chasing Filter: Skip if entry price has spiked > 1.5% above breakout point
+                if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
+                  setup = "HIGH BREAKOUT"; direction = "LONG";
+                  sl = Math.min(c.l, prevHigh * 0.999);
+                } else {
+                  req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
+                }
               } else if (c.c < c.o) {
                 setup = "HIGH REJECTION"; direction = "SHORT";
                 sl = Math.max(c.h, prevHigh * 1.001);
@@ -5306,8 +5312,13 @@ router.get("/momentum-picks", async (req, res) => {
               if (direction) entryPrice = c.c;
             } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
               if (c.c < prevLow) {
-                setup = "LOW BREAKDOWN"; direction = "SHORT";
-                sl = Math.max(c.h, prevLow * 1.001);
+                // Anti-Chasing Filter: Skip if entry price has dropped > 1.5% below breakdown point
+                if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
+                  setup = "LOW BREAKDOWN"; direction = "SHORT";
+                  sl = Math.max(c.h, prevLow * 1.001);
+                } else {
+                  req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
+                }
               } else if (c.c > c.o) {
                 setup = "LOW SUPPORT"; direction = "LONG";
                 sl = Math.min(c.l, prevLow * 0.999);
