@@ -465,14 +465,45 @@ async function main() {
 
 async function closeTrade(broker: AngelOneBroker, trade: ActiveTrade, reason: string, exitPrice: number) {
   try {
+    const positions = await broker.getPositions();
+    let exitQuantity = trade.quantity;
+
+    if (positions !== null) {
+      const position = positions.find((p: any) => 
+        p.symboltoken === trade.token || 
+        p.tradingsymbol?.toUpperCase().replace(/-EQ$/i, "").trim() === trade.symbol.toUpperCase().trim()
+      );
+      
+      let netQty = 0;
+      if (position) {
+        netQty = Number(position.netqty || 0);
+      }
+
+      const isAlreadyClosed = (trade.side === "BUY" && netQty <= 0) || (trade.side === "SELL" && netQty >= 0);
+
+      if (isAlreadyClosed) {
+        console.log(`[BOT] Position for ${trade.symbol} already closed manually on broker (Net Qty: ${netQty}). Skipping exit order.`);
+        await TradeDB.markTradeClosed(trade.id, `${reason} (MANUAL/EXTERNAL EXIT)`);
+        broker.unsubscribeFromTokens([trade.token]);
+        
+        await sendTelegramAlert(
+          `ℹ️ POSITION CLOSED EXTERNALLY\nSymbol: ${trade.symbol}\nBot skipped exit order because position was already squared off on the broker (Broker Net Qty: ${netQty}).`
+        );
+        return;
+      }
+
+      // Adjust quantity if partial manual exit occurred
+      exitQuantity = Math.min(trade.quantity, Math.abs(netQty));
+    }
+
     const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
-    const orderId = await broker.placeMarketBuy(trade.symbol, trade.token, trade.quantity, exitSide);
+    const orderId = await broker.placeMarketBuy(trade.symbol, trade.token, exitQuantity, exitSide);
     
     await TradeDB.markTradeClosed(trade.id, reason);
     broker.unsubscribeFromTokens([trade.token]);
     
     const pnl = trade.side === "BUY" ? exitPrice - trade.entry_price : trade.entry_price - exitPrice;
-    const totalPnl = pnl * trade.quantity;
+    const totalPnl = pnl * exitQuantity;
     const icon = totalPnl >= 0 ? "✅" : "❌";
 
     await sendTelegramAlert(

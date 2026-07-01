@@ -304,6 +304,24 @@ export class AngelOneBroker {
     }
   }
 
+  async getPositions(): Promise<any[] | null> {
+    try {
+      const response: any = await smartApiLimiters.getPositionApi.schedule(() =>
+        this.smartApi.getPosition()
+      );
+      if (response && response.status && Array.isArray(response.data)) {
+        return response.data;
+      }
+      if (response && (response.message === "No Data Found" || response.message === "SUCCESS" && !response.data)) {
+        return [];
+      }
+      return null;
+    } catch (err: any) {
+      console.error("[BROKER] Failed to fetch positions:", err.message);
+      return null;
+    }
+  }
+
   async placeMarketBuy(
     symbol: string,
     token: string,
