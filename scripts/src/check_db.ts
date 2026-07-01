@@ -2,7 +2,16 @@ import { db, tradesTable, swingTradesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 async function main() {
-  const todayStr = "2026-06-29";
+  const now = new Date();
+  const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+  let year = "", month = "", day = "";
+  for (const p of parts) {
+    if (p.type === 'year') year = p.value;
+    if (p.type === 'month') month = p.value;
+    if (p.type === 'day') day = p.value;
+  }
+  const todayStr = `${year}-${month}-${day}`;
   console.log(`Checking database for date: ${todayStr}\n`);
 
   try {
