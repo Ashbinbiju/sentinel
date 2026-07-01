@@ -55,7 +55,7 @@ interface AngelOrderBookOrder {
 }
 
 export class AngelOneBroker {
-  private smartApi: any;
+  public smartApi: any;
   private ws: any = null;
   private jwtToken: string | null = null;
   private refreshToken: string | null = null;

@@ -108,26 +108,44 @@ async function main() {
 
     // Handle incoming ticks for Trailing SL / Target Exits
     broker.onTick(async (data: any) => {
-      // Data usually contains { token, last_traded_price, ... } depending on mode
-      // SmartAPI tick format for LTP mode (mode 1) usually sends { tk: "token", ltp: 123.45 }
-      if (!data || !data.tk || !data.ltp) return;
+      // SmartAPI WebSocket V2 returns keys 'token' (with literal double quotes) and 'last_traded_price' (in paise)
+      if (!data || !data.token || !data.last_traded_price) return;
       
-      const token = data.tk.toString();
-      const ltp = Number(data.ltp);
+      // Strip literal double quotes: e.g. '"3812"' -> '3812'
+      const token = data.token.toString().replace(/"/g, "").trim();
+      
+      // Convert paise to Rupees
+      const ltp = Number(data.last_traded_price) / 100;
 
       const activeTrades = TradeDB.getOpenTrades();
       const trade = activeTrades.find(t => t.token === token);
       
       if (trade) {
-        // Track highest LTP for trailing SL
-        if (ltp > trade.highest_ltp && trade.side === "BUY") {
-          await TradeDB.updateHighestLTP(trade.id, ltp);
+        // Trailing SL Logic
+        if (trade.side === "BUY") {
+          // Track highest LTP for trailing SL
+          if (ltp > trade.highest_ltp) {
+            await TradeDB.updateHighestLTP(trade.id, ltp);
+            
+            // Trailing SL: If LTP reaches 1:1 RR (risk amount above entry), trail to breakeven
+            const risk = trade.entry_price - trade.current_sl;
+            if (risk > 0 && ltp >= trade.entry_price + risk && trade.current_sl < trade.entry_price) {
+              await TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
+              console.log(`[BOT] Trailing SL moved to breakeven for ${trade.symbol}`);
+              sendTelegramAlert(`🚀 TRAILING SL UPDATED\nSymbol: ${trade.symbol}\nNew SL: ₹${trade.entry_price} (Risk Free!)`);
+            }
+          }
+        } else if (trade.side === "SELL") {
+          // Track lowest LTP (best price for short)
+          if (ltp < trade.highest_ltp || trade.highest_ltp === 0) {
+            await TradeDB.updateHighestLTP(trade.id, ltp);
+          }
           
-          // Trailing SL Logic: If LTP reaches halfway to target (1:1 RR), trail SL to breakeven
-          const risk = trade.entry_price - trade.current_sl;
-          if (risk > 0 && ltp >= trade.entry_price + risk && trade.current_sl < trade.entry_price) {
+          // Trailing SL: If LTP drops by the risk amount, trail to breakeven
+          const risk = trade.current_sl - trade.entry_price;
+          if (risk > 0 && ltp <= trade.entry_price - risk && trade.current_sl > trade.entry_price) {
             await TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
-            console.log(`[BOT] Trailing SL moved to breakeven for ${trade.symbol}`);
+            console.log(`[BOT] Trailing SL moved to breakeven for short ${trade.symbol}`);
             sendTelegramAlert(`🚀 TRAILING SL UPDATED\nSymbol: ${trade.symbol}\nNew SL: ₹${trade.entry_price} (Risk Free!)`);
           }
         }
@@ -139,6 +157,14 @@ async function main() {
             await closeTrade(broker, trade, "STOP LOSS", ltp);
           } else if (ltp >= trade.target) {
             console.log(`[BOT] TARGET HIT for ${trade.symbol} at ${ltp}`);
+            await closeTrade(broker, trade, "TARGET", ltp);
+          }
+        } else if (trade.side === "SELL") {
+          if (ltp >= trade.current_sl) {
+            console.log(`[BOT] STOP LOSS HIT for short ${trade.symbol} at ${ltp}`);
+            await closeTrade(broker, trade, "STOP LOSS", ltp);
+          } else if (ltp <= trade.target) {
+            console.log(`[BOT] TARGET HIT for short ${trade.symbol} at ${ltp}`);
             await closeTrade(broker, trade, "TARGET", ltp);
           }
         }
