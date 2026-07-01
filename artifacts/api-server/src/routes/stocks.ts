@@ -1054,15 +1054,23 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
       msg.includes("Session Expired") ||
       msg.includes("AG8001")
     ) {
-      console.warn("[DATA] Invalid token error from Angel One during candle fetch. Clearing cached session file.");
-      angelSmartApi = null;
-      angelSessionExpiresAt = 0;
+      console.warn("[DATA] Invalid token error from Angel One during candle fetch.");
       try {
         const sessionFilePath = getSessionFilePath();
         if (fs.existsSync(sessionFilePath)) {
-          fs.unlinkSync(sessionFilePath);
+          const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
+          if (sessionData.jwtToken === smartApi.access_token) {
+            console.log("[DATA] Clearing cached session file as it contains the failed token.");
+            fs.unlinkSync(sessionFilePath);
+          } else {
+            console.log("[DATA] Session file has already been updated by another process. Retaining it.");
+          }
         }
-      } catch {}
+      } catch (err: any) {
+        console.warn("[DATA] Failed to process session file on invalid token error:", err.message);
+      }
+      angelSmartApi = null;
+      angelSessionExpiresAt = 0;
     }
     throw err;
   }

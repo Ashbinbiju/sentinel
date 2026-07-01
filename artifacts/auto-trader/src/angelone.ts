@@ -166,8 +166,25 @@ export class AngelOneBroker {
   }
 
   async connectWebSocket(): Promise<void> {
+    try {
+      // Refresh / load the shared session from file
+      await this.login();
+    } catch (err: any) {
+      console.error("[BROKER] Failed to refresh login session during WebSocket connect:", err.message);
+    }
+
     if (!this.jwtToken || !this.feedToken) {
       throw new Error("Cannot connect WebSocket: Not authenticated.");
+    }
+
+    // Clean up existing WebSocket if any to clear its internal intervals and close connection
+    if (this.ws) {
+      try {
+        console.log("[BROKER] Closing old WebSocket connection and clearing intervals...");
+        this.ws.close();
+      } catch (err: any) {
+        console.warn("[BROKER] Error closing old WebSocket instance:", err.message);
+      }
     }
     
     this.ws = new WebSocketV2({
