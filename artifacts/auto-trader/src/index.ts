@@ -179,6 +179,21 @@ async function main() {
 
   console.log("=== INITIALIZATION COMPLETE. STARTING POLLING LOOP ===");
 
+  function getISTDateStr(): string {
+    const now = new Date();
+    const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+    let year = "", month = "", day = "";
+    for (const p of parts) {
+      if (p.type === 'year') year = p.value;
+      if (p.type === 'month') month = p.value;
+      if (p.type === 'day') day = p.value;
+    }
+    return `${year}-${month}-${day}`;
+  }
+
+  let currentTradingDay = getISTDateStr();
+
   function getISTMinutes(): number {
     const now = new Date();
     const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric' } as const;
@@ -206,6 +221,20 @@ async function main() {
 
   while (true) {
     try {
+      // Daily State Reset
+      const todayStr = getISTDateStr();
+      if (todayStr !== currentTradingDay) {
+        console.log(`[BOT] New trading day detected: ${todayStr}. Resetting daily trade state.`);
+        currentTradingDay = todayStr;
+        executedSymbols.clear();
+        tradesToday = 0;
+        try {
+          await hydrateTradeStateFromBroker(broker);
+        } catch (e: any) {
+          console.error(`[BOT] Failed to hydrate trades for the new day: ${e.message}`);
+        }
+      }
+
       if (!isMarketOpenIST() && process.env.DRY_RUN !== "true") {
         console.log("[BOT] Outside market hours (IST). Sleeping for 5 minutes...");
         await sleep(5 * 60 * 1000); // Check again in 5 minutes
