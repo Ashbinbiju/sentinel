@@ -5244,7 +5244,7 @@ router.get("/momentum-picks", async (req, res) => {
       .slice(0, 2);
 
     const topPickCandidates: any[] = [];
-    const TOUCH_BUFFER_PCT = 0.0075;
+    const TOUCH_BUFFER_PCT = 0.0015;
     const MAX_CHASE_PCT = 0.015; // 1.5% maximum entry distance from breakout/breakdown level
 
     await Promise.all(
