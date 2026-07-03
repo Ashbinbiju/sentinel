@@ -4266,8 +4266,8 @@ function finalizeSwingCandidates(
       const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
       const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
       const technicalImpact = technicalIndicatorsBySymbol.get(candidate.symbol) ?? null;
-      if (blocksSwingMarketTrendGate(candidate.sector, indexTrend)) return null;
-      if (!passesSwingTechnicalLeadershipGate(candidate, technicalImpact, technicalIndicatorsBySymbol.size > 0)) return null;
+      // if (blocksSwingMarketTrendGate(candidate.sector, indexTrend)) return null;
+      // if (!passesSwingTechnicalLeadershipGate(candidate, technicalImpact, technicalIndicatorsBySymbol.size > 0)) return null;
       const technicalAdjustment = technicalImpact?.scoreAdjustment ?? 0;
       const rawScore =
         (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
@@ -4354,7 +4354,7 @@ function finalizeSwingCandidates(
         insiderCategory: insiderActivity?.category ?? null,
         reason: `${candidate.reason}; Risk ${r2(candidate.riskPct)}%; RR ${r2(candidate.rewardRisk)}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryStrengthContext.text ? `; ${industryStrengthContext.text}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
       };
-      if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
+      // if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
       return finalized;
     })
     .filter((candidate): candidate is SwingCandidate => candidate !== null)
