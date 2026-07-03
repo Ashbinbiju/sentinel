@@ -5246,6 +5246,7 @@ router.get("/momentum-picks", async (req, res) => {
     const topPickCandidates: any[] = [];
     const TOUCH_BUFFER_PCT = 0.0015;
     const MAX_CHASE_PCT = 0.015; // 1.5% maximum entry distance from breakout/breakdown level
+    const MAX_CANDLE_SIZE_PCT = 0.012; // 1.2% maximum candle size to avoid exhaustion breakouts
 
     await Promise.all(
       topSectors.map(async (sector) => {
@@ -5296,12 +5297,19 @@ router.get("/momentum-picks", async (req, res) => {
             let sl = 0;
             let entryPrice = c.c;
 
+            const candleSizePct = (c.h - c.l) / c.l;
+
             if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
               if (c.c > prevHigh) {
                 // Anti-Chasing Filter: Skip if entry price has spiked > 1.5% above breakout point
                 if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
-                  setup = "HIGH BREAKOUT"; direction = "LONG";
-                  sl = Math.min(c.l, prevHigh * 0.999);
+                  // Exhaustion Filter: Skip if the breakout candle itself is massive (> 1.2%)
+                  if (candleSizePct <= MAX_CANDLE_SIZE_PCT) {
+                    setup = "HIGH BREAKOUT"; direction = "LONG";
+                    sl = Math.min(c.l, prevHigh * 0.999);
+                  } else {
+                    req.log.info({ symbol: stock.symbol, candleSizePct }, "Skipped HIGH BREAKOUT pick: Breakout candle too large (Exhaustion Risk)");
+                  }
                 } else {
                   req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
                 }
@@ -5314,8 +5322,13 @@ router.get("/momentum-picks", async (req, res) => {
               if (c.c < prevLow) {
                 // Anti-Chasing Filter: Skip if entry price has dropped > 1.5% below breakdown point
                 if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
-                  setup = "LOW BREAKDOWN"; direction = "SHORT";
-                  sl = Math.max(c.h, prevLow * 1.001);
+                  // Exhaustion Filter: Skip if the breakdown candle itself is massive (> 1.2%)
+                  if (candleSizePct <= MAX_CANDLE_SIZE_PCT) {
+                    setup = "LOW BREAKDOWN"; direction = "SHORT";
+                    sl = Math.max(c.h, prevLow * 1.001);
+                  } else {
+                    req.log.info({ symbol: stock.symbol, candleSizePct }, "Skipped LOW BREAKDOWN pick: Breakdown candle too large (Exhaustion Risk)");
+                  }
                 } else {
                   req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
                 }
