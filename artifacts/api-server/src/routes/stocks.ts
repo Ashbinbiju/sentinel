@@ -4113,14 +4113,12 @@ function analyzeSwingCandidate(
   const trendPersistence = calculateTrendPersistenceScore(validCandles);
   const freshAge = freshBreakoutAge(validCandles);
   const consolidationCandles = countEntryConsolidationCandles(validCandles, freshAge);
-  const return20Pct = percentChangeOverLookback(closes, 20);
-  const return40Pct = percentChangeOverLookback(closes, 40);
-  if (isLateExtendedBreakout(freshAge, return20Pct, return40Pct, ema20DistancePct, consolidationCandles)) {
-    return null;
-  }
-  if (isOverextendedSwingSetup(return20Pct, return40Pct, ema20DistancePct, consolidationCandles, latestMovePct)) {
-    return null;
-  }
+  // if (isLateExtendedBreakout(freshAge, return20Pct, return40Pct, ema20DistancePct, consolidationCandles)) {
+  //   return null;
+  // }
+  // if (isOverextendedSwingSetup(return20Pct, return40Pct, ema20DistancePct, consolidationCandles, latestMovePct)) {
+  //   return null;
+  // }
   const liquidityScore = liquidityAdjustment(avgTurnover);
   const quality = breakoutQualityDetails(freshAge, consolidationCandles, rvol, trendPersistence, liquidityScore);
   const entryType: SwingCandidate["entryType"] = recommendation.entryType === "Breakout" ? "BREAKOUT" : "PULLBACK";
