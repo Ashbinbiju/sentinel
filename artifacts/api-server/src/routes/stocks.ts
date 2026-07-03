@@ -255,7 +255,7 @@ class SmartApiRateLimiter {
   private nextAvailableAt = 0;
   private tail: Promise<void> = Promise.resolve();
 
-  constructor(private readonly minIntervalMs: number) {}
+  constructor(private readonly minIntervalMs: number) { }
 
   schedule<T>(task: () => Promise<T>): Promise<T> {
     const run = this.tail.then(async () => {
@@ -827,9 +827,9 @@ function r2(n: number): number {
 function hasAngelMarketDataCredentials(): boolean {
   return Boolean(
     process.env.ANGEL_API_KEY &&
-      process.env.ANGEL_CLIENT_CODE &&
-      process.env.ANGEL_PASSWORD &&
-      process.env.ANGEL_TOTP_SECRET,
+    process.env.ANGEL_CLIENT_CODE &&
+    process.env.ANGEL_PASSWORD &&
+    process.env.ANGEL_TOTP_SECRET,
   );
 }
 
@@ -1345,14 +1345,14 @@ function build1DStrategySignal(
   sl: number,
 ): PriceActionSignal | null {
   const entry = candle.c;
-  
-  const risk = Math.max(Math.abs(entry - sl), entry * 0.001); 
+
+  const risk = Math.max(Math.abs(entry - sl), entry * 0.001);
   const dir = direction === "LONG" ? 1 : -1;
   const target = entry + (risk * 2 * dir);
-  
+
   const rewardRisk = 2.0;
   const riskPct = r2((risk / entry) * 100);
-  
+
   const action = direction === "LONG" ? "BUY" : "SELL";
   const smartExit =
     `${action} . Entry Rs ${entry.toFixed(2)}. ` +
@@ -1416,7 +1416,7 @@ function findEntrySignalMatch(
     new Set(historicalCandles.map((c) => getISTDateStr(c.t))),
   );
   if (tradingDates.length < 2) return null;
-  
+
   const prevDate = tradingDates[tradingDates.length - 2];
   const prevCandles = historicalCandles.filter((c) => getISTDateStr(c.t) === prevDate);
   if (prevCandles.length === 0) return null;
@@ -1435,7 +1435,7 @@ function findEntrySignalMatch(
     let setup = "";
     let sl = 0;
 
-if (i === 0) {
+    if (i === 0) {
       if (candle.o < prevDayLow * 0.999) {
         direction = "SHORT";
         setup = "1D LOW GAP DOWN";
@@ -1447,7 +1447,7 @@ if (i === 0) {
       }
     }
 
-if (!direction) {
+    if (!direction) {
       const TOUCH_BUFFER_PCT = 0.0075; // 0.75% buffer for touches
       if (candle.h >= prevDayHigh * (1 - TOUCH_BUFFER_PCT)) {
         if (candle.c > prevDayHigh) {
@@ -1871,7 +1871,8 @@ function ensureSwingTradesTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS insider_transaction_value NUMERIC,
         ADD COLUMN IF NOT EXISTS insider_transaction_date TEXT,
         ADD COLUMN IF NOT EXISTS insider_category TEXT
-      `);})().catch((err: any) => {
+      `);
+    })().catch((err: any) => {
       swingTradesTableReady = null;
       throw err;
     });
@@ -4102,7 +4103,6 @@ function analyzeSwingCandidate(
     target > entryPrice &&
     entryDistancePct <= 8
   )) return null;
-
   const avgTurnover = avgVolume * currentPrice;
   const rvol = last.v / avgVolume;
   const recentReturn = percentChange(currentPrice, closes.at(-5));
@@ -4240,8 +4240,6 @@ function finalizeSwingCandidates(
     .map((candidate) => {
       const sectorPerf = sectorPerformance.get(candidate.sector) ?? 0;
       if (candidate.entryDistancePct > DD_MAX_RANKED_ENTRY_GAP_PERCENT) return null;
-      if (candidate.riskPct > SWING_MAX_RISK_PCT) return null;
-      if (candidate.rewardRisk < SWING_MIN_REWARD_RISK) return null;
 
       const weakLiquidity = candidate.avgTurnover < SWING_MIN_AVG_TURNOVER;
       const weakSector = candidate.sectorRelativeStrength < SWING_MIN_SECTOR_RELATIVE_STRENGTH;
@@ -5257,7 +5255,7 @@ router.get("/momentum-picks", async (req, res) => {
             ...(constituentData.indexConstituents ?? []),
             ...(constituentData.nonIndexConstituents ?? []),
           ];
-          
+
           // Get top 5 stocks by momentum in this sector (relative strength)
           const topStocks = allStocks
             .filter((s) => s.ltp > 100 && s.changePct < 15)
@@ -5270,17 +5268,17 @@ router.get("/momentum-picks", async (req, res) => {
 
             const prevDayCandlesAll = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
             if (prevDayCandlesAll.length === 0) continue;
-            
+
             const prevDates = Array.from(new Set(prevDayCandlesAll.map(c => getCandleCloseDateIST(c)))).sort();
             const lastPrevDate = prevDates.at(-1);
             if (!lastPrevDate) continue;
 
             const prevDayCandles = prevDayCandlesAll.filter(c => getCandleCloseDateIST(c) === lastPrevDate);
             if (prevDayCandles.length === 0) continue;
-            
+
             const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
             const prevLow = Math.min(...prevDayCandles.map((c) => c.l));
-            
+
             const confirmedSession = getConfirmedCandles(candleData.sessionCandles);
             if (confirmedSession.length === 0) continue;
 
@@ -5327,7 +5325,7 @@ router.get("/momentum-picks", async (req, res) => {
             if (direction) {
               const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
               const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
-              
+
               topPickCandidates.push({
                 symbol: stock.symbol,
                 direction,
@@ -5403,10 +5401,10 @@ router.get("/trades/today", async (req, res) => {
 
       const candleData = await fetchCandles(trade.symbol);
       if (!candleData) return forceSquareOff ? (await squareOffOpenTrade()) ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
-      
+
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) return forceSquareOff ? (await squareOffOpenTrade()) ?? { ...trade, hitTime: null } : { ...trade, hitTime: null };
-      
+
       const confirmedSessionCandles = getConfirmedCandles(candleData.sessionCandles);
       const statusCandles = forceSquareOff
         ? confirmedSessionCandles.filter(candleClosesBySquareOff)
@@ -5414,9 +5412,9 @@ router.get("/trades/today", async (req, res) => {
       // Look at session candles that closed after the signal time (candle length is 5 mins = 300s)
       const postSignalCandles = statusCandles
         .filter(c => (c.t + CANDLE_INTERVAL_SECS) * 1000 > signalTimeMs);
-      
+
       let hitTime: string | null = null;
-      
+
       const target = Number(trade.target);
       const entryPrice = Number(trade.entryPrice);
       const originalSl = Number(trade.sl);
@@ -5425,9 +5423,9 @@ router.get("/trades/today", async (req, res) => {
         direction === "LONG" ? c.h >= targetVal : c.l <= targetVal;
       const hitsStop = (c: Candle, stop: number) =>
         direction === "LONG" ? c.l <= stop : c.h >= stop;
-      
+
       let newStatus: TradeStatus = "ACTIVE";
-      
+
       for (const c of postSignalCandles) {
         if (hitsStop(c, originalSl)) {
           newStatus = "SL HIT";
@@ -5441,7 +5439,7 @@ router.get("/trades/today", async (req, res) => {
           break;
         }
       }
-      
+
       if (forceSquareOff && newStatus === "ACTIVE") {
         newStatus = "SQUARED OFF";
         const lastCandle = postSignalCandles[postSignalCandles.length - 1];
@@ -5451,12 +5449,12 @@ router.get("/trades/today", async (req, res) => {
           hitTime = "15:15";
         }
       }
-      
+
       if (newStatus !== trade.status) {
         const persisted = await persistTradeStatus(newStatus);
         if (!persisted) return { ...trade, hitTime: null };
       }
-      
+
       return { ...trade, status: newStatus, direction, hitTime };
     }));
 
@@ -5516,7 +5514,7 @@ router.get("/trades/history", async (req, res) => {
       plPct: number | null;
     }> {
       const entry = Number(trade.entryPrice);
-      const sl    = Number(trade.sl);
+      const sl = Number(trade.sl);
       const target = Number(trade.target);
       const direction = inferTradeDirectionFromPrices(entry, sl, target);
       if (!entry || !Number.isFinite(sl) || !Number.isFinite(target)) {
@@ -5601,11 +5599,11 @@ router.get("/trades/history", async (req, res) => {
           plPct: outcome.plPct,
         };
       }));
-      const terminal  = enriched.filter((t) => t.plPct !== null);
-      const winners   = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
-      const losers    = terminal.filter((t) => (t.plPct ?? 0) < 0).length;
+      const terminal = enriched.filter((t) => t.plPct !== null);
+      const winners = terminal.filter((t) => (t.plPct ?? 0) > 0).length;
+      const losers = terminal.filter((t) => (t.plPct ?? 0) < 0).length;
       const breakeven = terminal.filter((t) => t.plPct === 0).length;
-      const pending   = enriched.filter((t) => t.plPct === null).length;
+      const pending = enriched.filter((t) => t.plPct === null).length;
       return {
         date,
         trades: enriched,
