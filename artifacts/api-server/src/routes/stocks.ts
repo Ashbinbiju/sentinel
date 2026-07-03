@@ -4100,9 +4100,7 @@ function analyzeSwingCandidate(
   if (!(
     entryPrice > sl &&
     target > entryPrice &&
-    entryDistancePct <= 8 &&
-    riskPct <= SWING_MAX_RISK_PCT &&
-    rewardRisk >= SWING_MIN_REWARD_RISK
+    entryDistancePct <= 8
   )) return null;
 
   const avgTurnover = avgVolume * currentPrice;
