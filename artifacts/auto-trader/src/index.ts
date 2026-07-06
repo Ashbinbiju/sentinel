@@ -20,6 +20,8 @@ const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 // Keep track of broker-executed symbols today to prevent duplicate orders.
 // Hydrated from Angel One order book on startup so DB-only signals are not treated as executed.
 const executedSymbols = new Set<string>();
+// Separate in-memory skip-list for broker rejections (e.g. Cautionary lists) to prevent retry loops without polluting execution hydration
+const blockedSymbolsToday = new Set<string>();
 let tradesToday = 0;
 
 async function sleep(ms: number) {
@@ -317,7 +319,8 @@ async function main() {
       // 5. Look for fresh entry signals
       for (const pick of picks) {
         const symbol = normalizeSymbol(pick.symbol);
-        if (symbol && !executedSymbols.has(symbol)) {
+        if (symbol && !executedSymbols.has(symbol) && !blockedSymbolsToday.has(symbol)) {
+          console.log(`[BOT] Evaluating ${pick.symbol} (${pick.setup}) - Entry: ${pick.entry}, Target: ${pick.target}, SL: ${pick.sl}`);
           const side = pick.direction === "SHORT" ? "SELL" : "BUY";
           console.log(`[BOT] NEW ${side} SIGNAL DETECTED: ${pick.symbol} at INR ${pick.entry}`);
 
@@ -365,7 +368,7 @@ async function main() {
 
           if (quantity <= 0) {
             console.warn(`[BOT] Cannot afford 1 share of ${pick.symbol}. Skipping.`);
-            executedSymbols.add(symbol); // Add here too to prevent loop
+            blockedSymbolsToday.add(symbol); // Add to skip-list instead of executedSymbols
             continue;
           }
 
@@ -374,13 +377,13 @@ async function main() {
           let retries = 0;
           const MAX_RETRIES = 3;
           let estimatedMarginUsed = 0;
-
-          // Add to executed list immediately to PREVENT infinite polling loops on API rejections
-          executedSymbols.add(symbol);
+          let tradeExecuted = false;
 
           while (retries < MAX_RETRIES) {
             try {
               orderId = await broker.placeMarketBuy(symbol, token, quantity, side);
+              tradeExecuted = true;
+              executedSymbols.add(symbol);
               
               tradesToday++;
               estimatedMarginUsed = broker.estimateMarginUsed(quantity, pick.entry, LEVERAGE);
@@ -429,7 +432,7 @@ async function main() {
               
               if (errMsg.toLowerCase().includes("cautionary") || errMsg.toLowerCase().includes("surveillance")) {
                 console.warn(`[BOT] Skipping ${pick.symbol} - Blocked by Exchange Cautionary/Surveillance List.`);
-                executedSymbols.add(symbol); // Add to executed symbols so we don't try again today
+                blockedSymbolsToday.add(symbol); // Add to separate skip-list so we don't pollute hydration
                 break;
               }
 
@@ -455,6 +458,10 @@ async function main() {
                 break;
               }
             }
+          }
+
+          if (!tradeExecuted) {
+            blockedSymbolsToday.add(symbol);
           }
         }
       }
