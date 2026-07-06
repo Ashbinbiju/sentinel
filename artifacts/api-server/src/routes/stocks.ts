@@ -276,7 +276,7 @@ class SmartApiRateLimiter {
 
 const smartApiLimiters = {
   loginByPassword: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
-  getCandleData: new SmartApiRateLimiter(360), // Angel limit: 3/sec and 180/min
+  getCandleData: new SmartApiRateLimiter(400), // Angel limit: 3/sec and 180/min
 };
 
 interface PriceActionSignal {
@@ -1047,67 +1047,78 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
   const now = new Date();
   const from = new Date(now.getTime() - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
   const smartApi = await getAngelSmartApi();
-  try {
-    const response: any = await smartApiLimiters.getCandleData.schedule(() =>
-      smartApi.getCandleData({
-        exchange: "NSE",
-        symboltoken: token,
-        interval: "FIVE_MINUTE",
-        fromdate: formatAngelDate(from),
-        todate: formatAngelDate(now),
-      })
-    );
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response: any = await smartApiLimiters.getCandleData.schedule(() =>
+        smartApi.getCandleData({
+          exchange: "NSE",
+          symboltoken: token,
+          interval: "FIVE_MINUTE",
+          fromdate: formatAngelDate(from),
+          todate: formatAngelDate(now),
+        })
+      );
 
-    if (!response?.status || !Array.isArray(response.data)) {
-      throw new Error(response?.message || "Angel One returned no candle data");
-    }
+      if (!response?.status || !Array.isArray(response.data)) {
+        throw new Error(response?.message || "Angel One returned no candle data");
+      }
 
-    const candles: Candle[] = [];
-    for (const row of response.data as AngelCandleRow[]) {
-      const epochSecs = parseAngelEpochSecs(row[0]);
-      if (epochSecs === null) continue;
+      const candles: Candle[] = [];
+      for (const row of response.data as AngelCandleRow[]) {
+        const epochSecs = parseAngelEpochSecs(row[0]);
+        if (epochSecs === null) continue;
 
-      candles.push({
-        t: epochSecs,
-        o: Number(row[1]),
-        h: Number(row[2]),
-        l: Number(row[3]),
-        c: Number(row[4]),
-        v: Number(row[5]),
-      });
-    }
+        candles.push({
+          t: epochSecs,
+          o: Number(row[1]),
+          h: Number(row[2]),
+          l: Number(row[3]),
+          c: Number(row[4]),
+          v: Number(row[5]),
+        });
+      }
 
-    return buildCandleData(candles);
-  } catch (err: any) {
-    const msg = err.message || "";
-    if (
-      msg.includes("Invalid Token") ||
-      msg.includes("Token Expired") ||
-      msg.includes("Session Expired") ||
-      msg.includes("AG8001")
-    ) {
-      console.warn("[DATA] Invalid token error from Angel One during candle fetch.");
-      try {
-        const sessionFilePath = getSessionFilePath();
-        if (fs.existsSync(sessionFilePath)) {
-          const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
-          if (sessionData.jwtToken === smartApi.access_token) {
-            console.log("[DATA] Clearing cached session file as it contains the failed token.");
-            fs.unlinkSync(sessionFilePath);
-          } else {
-            console.log("[DATA] Session file has already been updated by another process. Retaining it.");
+      return buildCandleData(candles);
+    } catch (err: any) {
+      const msg = err.message || "";
+      
+      if (
+        msg.includes("Invalid Token") ||
+        msg.includes("Token Expired") ||
+        msg.includes("Session Expired") ||
+        msg.includes("AG8001")
+      ) {
+        console.warn("[DATA] Invalid token error from Angel One during candle fetch.");
+        try {
+          const sessionFilePath = getSessionFilePath();
+          if (fs.existsSync(sessionFilePath)) {
+            const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
+            if (sessionData.jwtToken === smartApi.access_token) {
+              console.log("[DATA] Clearing cached session file as it contains the failed token.");
+              fs.unlinkSync(sessionFilePath);
+            } else {
+              console.log("[DATA] Session file has already been updated by another process. Retaining it.");
+            }
           }
+        } catch (err: any) {
+          console.warn("[DATA] Failed to process session file on invalid token error:", err.message);
         }
-      } catch (err: any) {
-        console.warn("[DATA] Failed to process session file on invalid token error:", err.message);
+        
+        if (angelSmartApi === smartApi) {
+          angelSmartApi = null;
+          angelSessionExpiresAt = 0;
+        }
+        throw err;
       }
       
-      if (angelSmartApi === smartApi) {
-        angelSmartApi = null;
-        angelSessionExpiresAt = 0;
+      if (attempt < 3 && (msg.includes("Too many requests") || msg.includes("socket hang up") || msg.includes("AG8002"))) {
+        console.warn(`[DATA] ${symbol}: Transient error (${msg}), retrying attempt ${attempt}/3 in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
       }
+      
+      throw err;
     }
-    throw err;
   }
 }
 
