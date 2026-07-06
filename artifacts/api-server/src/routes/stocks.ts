@@ -1120,6 +1120,8 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
       throw err;
     }
   }
+
+  return null;
 }
 
 async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {
