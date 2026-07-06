@@ -276,7 +276,7 @@ class SmartApiRateLimiter {
 
 const smartApiLimiters = {
   loginByPassword: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
-  getCandleData: new SmartApiRateLimiter(400), // Angel limit: 3/sec and 180/min
+  getCandleData: new SmartApiRateLimiter(500), // Bumping to 500ms (2/sec) to prevent intermittent empty data
 };
 
 interface PriceActionSignal {

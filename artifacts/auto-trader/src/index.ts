@@ -426,6 +426,13 @@ async function main() {
               break; // Success, break out of retry loop
             } catch (err: any) {
               const errMsg = err.message || "";
+              
+              if (errMsg.toLowerCase().includes("cautionary") || errMsg.toLowerCase().includes("surveillance")) {
+                console.warn(`[BOT] Skipping ${pick.symbol} - Blocked by Exchange Cautionary/Surveillance List.`);
+                executedSymbols.add(symbol); // Add to executed symbols so we don't try again today
+                break;
+              }
+
               console.error(`[BOT] Failed to execute trade for ${pick.symbol} (Attempt ${retries + 1}/${MAX_RETRIES})`, err);
               
               if (errMsg.toLowerCase().includes("margin") || errMsg.toLowerCase().includes("insufficient")) {
