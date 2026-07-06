@@ -34,7 +34,11 @@ process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  const steps = Math.ceil(ms / 1000);
+  for (let i = 0; i < steps; i++) {
+    if (isShuttingDown) break;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
 }
 
 async function sendTelegramAlert(message: string) {
