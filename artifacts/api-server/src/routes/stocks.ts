@@ -1156,7 +1156,7 @@ async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | nu
   return buildCandleData(all);
 }
 
-async function fetchCandles(symbol: string): Promise<CandleData | null> {
+export async function fetchCandles(symbol: string): Promise<CandleData | null> {
   try {
     const angelCandles = await fetchAngelCandles(symbol);
     if (angelCandles) {
@@ -5263,6 +5263,7 @@ router.get("/sectors", async (req, res) => {
 
 router.get("/momentum-picks", async (req, res) => {
   try {
+    /* --- OLD INTRADAYSCREENER LOGIC (COMMENTED OUT) ---
     const sectorResponse = await fetch(
       "https://intradayscreener.com/api/indices/sectorData/1",
       { headers: HEADERS },
@@ -5285,10 +5286,6 @@ router.get("/momentum-picks", async (req, res) => {
       .sort((a, b) => b.changePct - a.changePct)
       .slice(0, 2);
 
-    const topPickCandidates: any[] = [];
-    const TOUCH_BUFFER_PCT = 0.0015;
-    const MAX_CHASE_PCT = 0.008; // 0.8% maximum entry distance from breakout/breakdown level
-
     await Promise.all(
       topSectors.map(async (sector) => {
         try {
@@ -5309,29 +5306,56 @@ router.get("/momentum-picks", async (req, res) => {
             .slice(0, 5);
 
           for (const stock of topStocks) {
+    */
+
+    const topPickCandidates: any[] = [];
+    const TOUCH_BUFFER_PCT = 0.0015;
+    const MAX_CHASE_PCT = 0.008;
+
+    let volumeShockers: any[] = [];
+    try {
+      const seUrl = "https://api.stockedge.com/Api/trendingstocksapi/GetVolumeShockers?page=1&pageSize=10&relevantListings=10&lang=en";
+      const seRes = await fetch(seUrl, { headers: HEADERS });
+      if (seRes.ok) {
+        const shockers = await seRes.json() as any[];
+        volumeShockers = shockers.map((s: any) => ({
+          symbol: s.Symbol,
+          ltp: s.C,
+          changePct: s.CZG
+        })).filter(s => s.ltp > 100 && s.changePct < 15);
+      } else {
+        req.log.warn(`StockEdge API responded with ${seRes.status}`);
+      }
+    } catch (err: any) {
+      req.log.error({ err }, "Failed to fetch StockEdge Volume Shockers");
+    }
+
+    await Promise.all(
+      volumeShockers.map(async (stock) => {
+        try {
             const candleData = await fetchCandles(stock.symbol);
-            if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) continue;
+            if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) return;
 
             const prevDayCandlesAll = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
-            if (prevDayCandlesAll.length === 0) continue;
+            if (prevDayCandlesAll.length === 0) return;
 
             const prevDates = Array.from(new Set(prevDayCandlesAll.map(c => getCandleCloseDateIST(c)))).sort();
             const lastPrevDate = prevDates.at(-1);
-            if (!lastPrevDate) continue;
+            if (!lastPrevDate) return;
 
             const prevDayCandles = prevDayCandlesAll.filter(c => getCandleCloseDateIST(c) === lastPrevDate);
-            if (prevDayCandles.length === 0) continue;
+            if (prevDayCandles.length === 0) return;
 
             const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
             const prevLow = Math.min(...prevDayCandles.map((c) => c.l));
 
             const confirmedSession = getConfirmedCandles(candleData.sessionCandles);
-            if (confirmedSession.length === 0) continue;
+            if (confirmedSession.length === 0) return;
 
             const c = confirmedSession[confirmedSession.length - 1]; // latest confirmed 5m candle
             const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
 
-            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) continue; // Prime Time only
+            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) return; // Prime Time only
 
             let setup = "";
             let direction: "LONG" | "SHORT" | null = null;
@@ -5391,9 +5415,16 @@ router.get("/momentum-picks", async (req, res) => {
                 }
               });
             }
+    /* --- OLD INTRADAYSCREENER LOGIC END (COMMENTED OUT) ---
           }
         } catch (err) {
           req.log.warn({ err, sector: sector.name }, "Momentum scanner sector warning");
+        }
+      })
+    );
+    */
+        } catch (err) {
+          req.log.warn({ err, symbol: stock.symbol }, "Momentum scanner stock warning");
         }
       })
     );
