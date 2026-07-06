@@ -229,6 +229,7 @@ async function main() {
         console.log(`[BOT] New trading day detected: ${todayStr}. Resetting daily trade state.`);
         currentTradingDay = todayStr;
         executedSymbols.clear();
+        blockedSymbolsToday.clear();
         tradesToday = 0;
         try {
           await hydrateTradeStateFromBroker(broker);
@@ -432,6 +433,7 @@ async function main() {
               
               if (errMsg.toLowerCase().includes("cautionary") || errMsg.toLowerCase().includes("surveillance")) {
                 console.warn(`[BOT] Skipping ${pick.symbol} - Blocked by Exchange Cautionary/Surveillance List.`);
+                await sendTelegramAlert(`❌ TRADE BLOCKED\nSymbol: ${pick.symbol}\nReason: Exchange Cautionary/Surveillance List`);
                 blockedSymbolsToday.add(symbol); // Add to separate skip-list so we don't pollute hydration
                 break;
               }
