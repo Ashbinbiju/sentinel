@@ -276,7 +276,7 @@ class SmartApiRateLimiter {
 
 const smartApiLimiters = {
   loginByPassword: new SmartApiRateLimiter(1100), // Angel limit: 1 request/sec
-  getCandleData: new SmartApiRateLimiter(500), // Bumping to 500ms (2/sec) to prevent intermittent empty data
+  getCandleData: new SmartApiRateLimiter(333), // Exact 3 requests/sec documented limit
 };
 
 interface PriceActionSignal {
@@ -1156,25 +1156,16 @@ async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | nu
   return buildCandleData(all);
 }
 
-export async function fetchCandles(symbol: string): Promise<CandleData | null> {
-  try {
-    const angelCandles = await fetchAngelCandles(symbol);
-    if (angelCandles) {
-      console.log(`[DATA] ${symbol}: using Angel One SmartAPI candles.`);
-      return angelCandles;
-    }
-  } catch (err) {
-    console.warn(
-      `[DATA] ${symbol}: Angel One candle fetch failed, falling back to Moneycontrol.`,
-      err,
-    );
+export async function fetchCandles(symbol: string): Promise<CandleData> {
+  // Use ONLY Angel One. Moneycontrol has been observed to have incorrect intraday data,
+  // causing the bot to take mathematically invalid trades and realize losses.
+  // We prefer dropping a signal over trading on bad data.
+  const candles = await fetchAngelCandles(symbol);
+  if (!candles) {
+    throw new Error(`[DATA] ${symbol}: Angel One candle fetch failed.`);
   }
-
-  const fallbackCandles = await fetchMoneycontrolCandles(symbol);
-  if (fallbackCandles) {
-    console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
-  }
-  return fallbackCandles;
+  console.log(`[DATA] ${symbol}: using Angel One SmartAPI candles.`);
+  return candles;
 }
 
 function calculateVWAP(candles: Candle[]): number | null {

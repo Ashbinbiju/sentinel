@@ -23,6 +23,15 @@ const executedSymbols = new Set<string>();
 // Separate in-memory skip-list for broker rejections (e.g. Cautionary lists) to prevent retry loops without polluting execution hydration
 const blockedSymbolsToday = new Set<string>();
 let tradesToday = 0;
+let isShuttingDown = false;
+
+// Graceful shutdown handler
+const shutdown = () => {
+  console.log("[BOT] Shutdown signal received. Will exit gracefully at the end of the current polling cycle...");
+  isShuttingDown = true;
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -223,6 +232,11 @@ async function main() {
 
   while (true) {
     try {
+      if (isShuttingDown) {
+        console.log("[BOT] Graceful shutdown sequence executing...");
+        break; // Exit the loop cleanly
+      }
+
       // Daily State Reset
       const todayStr = getISTDateStr();
       if (todayStr !== currentTradingDay) {
