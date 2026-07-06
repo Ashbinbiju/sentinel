@@ -54,6 +54,44 @@ interface AngelOrderBookOrder {
   filledshares?: string | number;
 }
 
+function safeReadSession(path: string): any | null {
+  try {
+    if (!fs.existsSync(path)) return null;
+    return JSON.parse(fs.readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function acquireLoginLock(lockPath: string, timeoutMs = 20000, staleMs = 25000): Promise<() => void> {
+  const start = Date.now();
+  while (true) {
+    try {
+      const fd = fs.openSync(lockPath, 'wx');
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      return () => {
+        try { fs.unlinkSync(lockPath); } catch (e) {}
+      };
+    } catch (err: any) {
+      if (err.code !== 'EEXIST') throw err;
+
+      try {
+        const stat = fs.statSync(lockPath);
+        if (Date.now() - stat.mtimeMs > staleMs) {
+          fs.unlinkSync(lockPath);
+          continue;
+        }
+      } catch (e) {
+        continue;
+      }
+
+      if (Date.now() - start > timeoutMs) throw new Error('Could not acquire Angel login lock');
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+    }
+  }
+}
+
 export class AngelOneBroker {
   public smartApi: any;
   private ws: any = null;
@@ -91,30 +129,27 @@ export class AngelOneBroker {
     }
 
     const sessionFilePath = this.getSessionFilePath();
+    const lockPath = sessionFilePath + '.lock';
+    const release = await acquireLoginLock(lockPath);
+
     try {
-      if (fs.existsSync(sessionFilePath)) {
-        const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
-        if (sessionData.jwtToken && sessionData.expiresAt > Date.now() + 5 * 60 * 1000) {
-          this.jwtToken = sessionData.jwtToken;
-          this.refreshToken = sessionData.refreshToken;
-          this.feedToken = sessionData.feedToken;
-          this.smartApi.access_token = sessionData.jwtToken;
-          this.smartApi.refresh_token = sessionData.refreshToken;
-          console.log("[BROKER] Loaded valid shared session from file.");
-          return;
-        }
+      const sessionData = safeReadSession(sessionFilePath);
+      if (sessionData?.jwtToken && sessionData.expiresAt > Date.now() + 5 * 60 * 1000) {
+        this.jwtToken = sessionData.jwtToken;
+        this.refreshToken = sessionData.refreshToken;
+        this.feedToken = sessionData.feedToken;
+        this.smartApi.access_token = sessionData.jwtToken;
+        this.smartApi.refresh_token = sessionData.refreshToken;
+        console.log("[BROKER] Adopting fresh shared session from disk.");
+        return;
       }
-    } catch (err: any) {
-      console.warn("[BROKER] Failed to read shared session file:", err.message);
-    }
 
-    // Generate TOTP
-    const totpInfo = await TOTP.generate(totpSecret);
-    const totp = typeof totpInfo === 'string' ? totpInfo : totpInfo.otp;
+      // Generate TOTP
+      const totpInfo = await TOTP.generate(totpSecret);
+      const totp = typeof totpInfo === 'string' ? totpInfo : totpInfo.otp;
 
-    console.log(`[BROKER] Attempting login for client ${clientCode}...`);
-    
-    try {
+      console.log(`[BROKER] Attempting login for client ${clientCode}...`);
+      
       const data: any = await smartApiLimiters.loginByPassword.schedule(() =>
         this.smartApi.generateSession(clientCode, password, totp)
       );
@@ -124,16 +159,17 @@ export class AngelOneBroker {
         this.refreshToken = data.data.refreshToken;
         this.feedToken = data.data.feedToken;
 
-        // Save session data to file
-        const sessionData = {
+        const newSessionData = {
           jwtToken: this.jwtToken,
           refreshToken: this.refreshToken,
           feedToken: this.feedToken,
           expiresAt: Date.now() + 7 * 60 * 60 * 1000 // 7 hours expiry
         };
         try {
-          fs.writeFileSync(sessionFilePath, JSON.stringify(sessionData, null, 2), "utf8");
-          console.log("[BROKER] Saved new shared session to file.");
+          const tempFile = sessionFilePath + '.tmp';
+          fs.writeFileSync(tempFile, JSON.stringify(newSessionData, null, 2), "utf8");
+          fs.renameSync(tempFile, sessionFilePath);
+          console.log("[BROKER] Saved new shared session to file atomically.");
         } catch (err: any) {
           console.warn("[BROKER] Failed to write shared session file:", err.message);
         }
@@ -145,6 +181,8 @@ export class AngelOneBroker {
     } catch (err: any) {
       console.error("[BROKER] Exception during login:", err);
       throw err;
+    } finally {
+      release();
     }
   }
 

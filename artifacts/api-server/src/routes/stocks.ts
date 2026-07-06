@@ -916,83 +916,115 @@ function getSessionFilePath(): string {
   return path.resolve(process.cwd(), "../../.angel_session.json");
 }
 
+function safeReadSession(path: string): any | null {
+  try {
+    if (!fs.existsSync(path)) return null;
+    return JSON.parse(fs.readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function acquireLoginLock(lockPath: string, timeoutMs = 20000, staleMs = 25000): Promise<() => void> {
+  const start = Date.now();
+  while (true) {
+    try {
+      const fd = fs.openSync(lockPath, 'wx');
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      return () => {
+        try { fs.unlinkSync(lockPath); } catch (e) {}
+      };
+    } catch (err: any) {
+      if (err.code !== 'EEXIST') throw err;
+
+      try {
+        const stat = fs.statSync(lockPath);
+        if (Date.now() - stat.mtimeMs > staleMs) {
+          fs.unlinkSync(lockPath);
+          continue;
+        }
+      } catch (e) {
+        continue;
+      }
+
+      if (Date.now() - start > timeoutMs) throw new Error('Could not acquire Angel login lock');
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 200));
+    }
+  }
+}
+
 async function getAngelSmartApi(): Promise<any> {
   const now = Date.now();
   if (angelSmartApi && now < angelSessionExpiresAt) return angelSmartApi;
-  if (angelLoginPromise) {
-    if (!angelSmartApi || now < angelSessionExpiresAt) return angelLoginPromise;
-    angelLoginPromise = null;
-  }
 
-  angelSmartApi = null;
-  angelSessionExpiresAt = 0;
+  if (!angelLoginPromise) {
+    angelLoginPromise = (async () => {
+      const clientCode = process.env.ANGEL_CLIENT_CODE;
+      const password = process.env.ANGEL_PASSWORD;
+      const totpSecret = process.env.ANGEL_TOTP_SECRET;
+      const apiKey = process.env.ANGEL_API_KEY;
 
-  angelLoginPromise = (async () => {
-    const clientCode = process.env.ANGEL_CLIENT_CODE;
-    const password = process.env.ANGEL_PASSWORD;
-    const totpSecret = process.env.ANGEL_TOTP_SECRET;
-    const apiKey = process.env.ANGEL_API_KEY;
+      if (!clientCode || !password || !totpSecret || !apiKey) {
+        throw new Error("Missing Angel One credentials");
+      }
 
-    if (!clientCode || !password || !totpSecret || !apiKey) {
-      throw new Error("Missing Angel One credentials");
-    }
+      const sessionFilePath = getSessionFilePath();
+      const lockPath = sessionFilePath + '.lock';
+      const release = await acquireLoginLock(lockPath);
 
-    const sessionFilePath = getSessionFilePath();
-    try {
-      if (fs.existsSync(sessionFilePath)) {
-        const sessionData = JSON.parse(fs.readFileSync(sessionFilePath, "utf8"));
-        if (sessionData.jwtToken && sessionData.expiresAt > Date.now() + 5 * 60 * 1000) {
+      try {
+        const sessionData = safeReadSession(sessionFilePath);
+        if (sessionData?.jwtToken && sessionData.expiresAt > Date.now() + 5 * 60 * 1000) {
           const smartApi = new SmartAPI({ api_key: apiKey });
           smartApi.access_token = sessionData.jwtToken;
           smartApi.refresh_token = sessionData.refreshToken;
 
           angelSmartApi = smartApi;
           angelSessionExpiresAt = sessionData.expiresAt;
-          console.log("[DATA] Loaded valid shared Angel One session from file.");
+          console.log("[DATA] Adopting fresh Angel One session from disk.");
           return smartApi;
         }
+
+        const smartApi = new SmartAPI({ api_key: apiKey });
+        const totpInfo = await TOTP.generate(totpSecret);
+        const totp = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
+        const session: any = await smartApiLimiters.loginByPassword.schedule(() =>
+          smartApi.generateSession(clientCode, password, totp)
+        );
+
+        if (!session?.status) {
+          throw new Error(session?.message || "Angel One login failed");
+        }
+
+        const expiresAt = Date.now() + 7 * 60 * 60 * 1000;
+        const newSessionData = {
+          jwtToken: session.data.jwtToken,
+          refreshToken: session.data.refreshToken,
+          feedToken: session.data.feedToken,
+          expiresAt: expiresAt
+        };
+        
+        try {
+          const tempFile = sessionFilePath + '.tmp';
+          fs.writeFileSync(tempFile, JSON.stringify(newSessionData, null, 2), "utf8");
+          fs.renameSync(tempFile, sessionFilePath);
+          console.log("[DATA] Saved new shared session to file atomically.");
+        } catch (err: any) {
+          console.warn("[DATA] Failed to write shared session file:", err.message);
+        }
+
+        angelSmartApi = smartApi;
+        angelSessionExpiresAt = expiresAt;
+        console.log("[DATA] Angel One SmartAPI market-data login successful.");
+        return smartApi;
+      } finally {
+        release();
       }
-    } catch (err: any) {
-      console.warn("[DATA] Failed to read shared session file:", err.message);
-    }
-
-    const smartApi = new SmartAPI({ api_key: apiKey });
-    const totpInfo = await TOTP.generate(totpSecret);
-    const totp = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
-    const session: any = await smartApiLimiters.loginByPassword.schedule(() =>
-      smartApi.generateSession(clientCode, password, totp)
-    );
-
-    if (!session?.status) {
-      throw new Error(session?.message || "Angel One login failed");
-    }
-
-    const expiresAt = Date.now() + 7 * 60 * 60 * 1000;
-    const sessionData = {
-      jwtToken: session.data.jwtToken,
-      refreshToken: session.data.refreshToken,
-      feedToken: session.data.feedToken,
-      expiresAt: expiresAt
-    };
-    try {
-      fs.writeFileSync(sessionFilePath, JSON.stringify(sessionData, null, 2), "utf8");
-      console.log("[DATA] Saved new shared session to file.");
-    } catch (err: any) {
-      console.warn("[DATA] Failed to write shared session file:", err.message);
-    }
-
-    angelSmartApi = smartApi;
-    angelSessionExpiresAt = expiresAt;
-    console.log("[DATA] Angel One SmartAPI market-data login successful.");
-    return smartApi;
-  })();
-
-  angelLoginPromise = angelLoginPromise.catch((err) => {
-    angelSmartApi = null;
-    angelSessionExpiresAt = 0;
-    angelLoginPromise = null;
-    throw err;
-  });
+    })().finally(() => {
+      angelLoginPromise = null;
+    });
+  }
 
   return angelLoginPromise;
 }
@@ -1069,8 +1101,11 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
       } catch (err: any) {
         console.warn("[DATA] Failed to process session file on invalid token error:", err.message);
       }
-      angelSmartApi = null;
-      angelSessionExpiresAt = 0;
+      
+      if (angelSmartApi === smartApi) {
+        angelSmartApi = null;
+        angelSessionExpiresAt = 0;
+      }
     }
     throw err;
   }
