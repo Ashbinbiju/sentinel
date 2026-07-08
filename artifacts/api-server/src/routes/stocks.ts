@@ -5277,6 +5277,10 @@ router.get("/momentum-picks", async (req, res) => {
       .sort((a, b) => b.changePct - a.changePct)
       .slice(0, 2);
 
+    const topPickCandidates: any[] = [];
+    const TOUCH_BUFFER_PCT = 0.0015;
+    const MAX_CHASE_PCT = 0.008; // 0.8% maximum entry distance from breakout/breakdown level
+
     await Promise.all(
       topSectors.map(async (sector) => {
         try {
@@ -5585,18 +5589,33 @@ router.get("/trades/history", async (req, res) => {
       const sl = Number(trade.sl);
       const target = Number(trade.target);
       const direction = inferTradeDirectionFromPrices(entry, sl, target);
+
+      // If the trade is already in a final state and we have cached the outcomes, return them immediately
+      if (
+        ["TARGET HIT", "SL HIT", "SQUARED OFF", "ENTRY INVALID"].includes(trade.status) &&
+        trade.hitTime !== null &&
+        trade.plPct !== null
+      ) {
+        return {
+          status: trade.status as TradeStatus,
+          direction,
+          hitTime: trade.hitTime,
+          plPct: Number(trade.plPct),
+        };
+      }
+
       if (!entry || !Number.isFinite(sl) || !Number.isFinite(target)) {
-        return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
+        return { status: trade.status as TradeStatus, direction, hitTime: trade.hitTime, plPct: trade.plPct ? Number(trade.plPct) : null };
       }
 
       const signalTimeMs = new Date(trade.signalTime).getTime();
       if (Number.isNaN(signalTimeMs)) {
-        return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
+        return { status: trade.status as TradeStatus, direction, hitTime: trade.hitTime, plPct: trade.plPct ? Number(trade.plPct) : null };
       }
 
       const candleData = await getCachedCandleData(trade.symbol);
       if (!candleData) {
-        return { status: trade.status as TradeStatus, direction, hitTime: null, plPct: null };
+        return { status: trade.status as TradeStatus, direction, hitTime: trade.hitTime, plPct: trade.plPct ? Number(trade.plPct) : null };
       }
 
       const postSignalCandles = getTradeExitCandles(candleData, trade, signalTimeMs);
@@ -5636,10 +5655,22 @@ router.get("/trades/history", async (req, res) => {
 
       const plPct = exitPrice !== null ? plPctForExit(entry, exitPrice, direction) : null;
 
-      if (status !== trade.status) {
+      const isFinalStatus = ["TARGET HIT", "SL HIT", "SQUARED OFF", "ENTRY INVALID"].includes(status);
+      const isStatusChanged = status !== trade.status;
+      const isHitTimeChanged = trade.hitTime !== hitTime;
+      // DB stores numeric as string, so we need to compare safely
+      const isPlPctChanged = trade.plPct === null ? plPct !== null : Number(trade.plPct) !== plPct;
+
+      if (isStatusChanged || (isFinalStatus && (isHitTimeChanged || isPlPctChanged))) {
         try {
+          const updateData: any = { status };
+          if (isFinalStatus) {
+            updateData.hitTime = hitTime;
+            updateData.plPct = plPct !== null ? plPct.toString() : null;
+          }
+
           await db.update(tradesTable)
-            .set({ status })
+            .set(updateData)
             .where(eq(tradesTable.id, trade.id));
         } catch (e) {
           req.log.error({ err: e, symbol: trade.symbol, status }, "Failed to update corrected history trade status");

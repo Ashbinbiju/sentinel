@@ -23,6 +23,8 @@ export const tradesTable = pgTable("trades", {
   sl: numeric("sl").notNull(),
   target: numeric("target").notNull(),
   status: text("status", { enum: TRADE_STATUSES }).notNull().default("PENDING"),
+  hitTime: text("hit_time"),
+  plPct: numeric("pl_pct"),
 }, (table) => {
   return {
     // Ensure we only have one signal per stock per day
