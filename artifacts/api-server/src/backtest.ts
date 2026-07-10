@@ -1,16 +1,12 @@
 import { fetchCandles } from "./routes/stocks";
 import { writeFileSync } from "fs";
 
-const TARGET_DATE = "2026-07-03"; // Friday
+const TARGET_DATE = "2026-07-06"; // Today
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
 
 const testSymbols = [
-    "LODHA", "OBEROIRLTY", "ANANTRAJ", "DLF", "BRIGADE", "PHOENIXLTD", 
-    "GODREJPROP", "SOBHA", "PRESTIGE", "ABREL", "PPLPHARMA", "AUROPHARMA", 
-    "ZYDUSLIFE", "IPCALAB", "LUPIN", "MAXHEALTH", "TORNTPHARM", "APOLLOHOSP", 
-    "DRREDDY", "BIOCON", "SUNPHARMA", "MANKIND", "ALKEM", "DIVISLAB", 
-    "LAURUSLABS", "GLENMARK", "ABBOTINDIA", "CIPLA", "SYNGENE", "FORTIS"
+    "SWANCORP", "WELCORP", "AEGISVOPAK", "THELEELA", "ABDL", "ZENTEC", "HEG", "BRIGADE", "JSWHL", "GODREJIND"
 ];
 
 function getISTDateStr(epochSecs: number): string {
@@ -213,14 +209,14 @@ async function runBacktest() {
         }
     }
     
-    let md = `# Intraday Backtest Results (Pharma & Realty Edition)\n\n`;
+    let md = `# Intraday Backtest Results\n\n`;
     md += `This table shows exactly how the bot evaluated these stocks using the Prime Time window (10:15 - 14:30) and the 0.8% Anti-Chasing filter with 0.15% Touch Buffer.\n\n`;
     md += `| Symbol | Time | PDH | Setup | Dir | Entry | SL | Target | Result | Exit Time |\n`;
     md += `|---|---|---|---|---|---|---|---|---|---|\n`;
     for (const r of results) {
         md += `| ${r.Symbol} | ${r.Time} | ${r.PDH} | ${r.Setup} | ${r.Direction} | ${r.Entry} | ${r.StopLoss} | ${r.Target} | **${r.Status}** | ${r.HitTime} |\n`;
     }
-    writeFileSync("C:\\Users\\Ashbin\\.gemini\\antigravity\\brain\\b2e68859-b7cf-41ee-900c-ecde3ea4139c\\backtest_results.md", md);
+    writeFileSync("./backtest_results.md", md);
     console.log("Backtest complete.");
 }
 

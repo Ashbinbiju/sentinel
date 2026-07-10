@@ -13,7 +13,8 @@ import { TOTP } from "totp-generator";
 import * as fs from "fs";
 import * as path from "path";
 
-const { SmartAPI } = require("smartapi-javascript");
+import smartApi from "smartapi-javascript";
+const { SmartAPI } = smartApi;
 
 const router = Router();
 
@@ -244,6 +245,8 @@ const SL_ATR_BUFFER_MULT = 0.12;
 const FALLBACK_RISK_REWARD = 1.5;
 const ANGEL_SCRIP_MASTER_URL =
   "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json";
+const UPSTOX_INSTRUMENTS_URL =
+  "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz";
 
 type SignalDirection = "LONG" | "SHORT";
 
@@ -296,6 +299,7 @@ let angelLoginPromise: Promise<any> | null = null;
 let angelSessionExpiresAt = 0;
 let angelScripMapPromise: Promise<Map<string, string>> | null = null;
 let angelCredentialsWarningShown = false;
+let upstoxInstrumentMapPromise: Promise<Map<string, string>> | null = null;
 let swingTradesTableReady: Promise<void> | null = null;
 let activeSwingScanJobId: string | null = null;
 const swingScanJobs = new Map<string, SwingScanJob>();
@@ -1124,6 +1128,129 @@ async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
   return null;
 }
 
+async function getUpstoxInstrumentMap(): Promise<Map<string, string>> {
+  if (!upstoxInstrumentMapPromise) {
+    upstoxInstrumentMapPromise = (async () => {
+      const zlib = await import("zlib");
+      const response = await fetch(UPSTOX_INSTRUMENTS_URL);
+      if (!response.ok) throw new Error(`Upstox instruments responded with ${response.status}`);
+
+      const buf = Buffer.from(await response.arrayBuffer());
+      const json: string = await new Promise((resolve, reject) => {
+        zlib.gunzip(buf, (err, result) => {
+          if (err) reject(err);
+          else resolve(result.toString("utf8"));
+        });
+      });
+
+      const rows = JSON.parse(json) as Array<{
+        instrument_key: string;
+        trading_symbol: string;
+        name: string;
+        instrument_type: string;
+        exchange: string;
+      }>;
+
+      const map = new Map<string, string>();
+      for (const row of rows) {
+        if (row.instrument_type === "EQ") {
+          // Map both the trading symbol (RELIANCE-EQ → RELIANCE) and the company name
+          const sym = row.trading_symbol.replace(/-EQ$/i, "").toUpperCase().trim();
+          map.set(sym, row.instrument_key);
+          if (row.name) map.set(row.name.toUpperCase().trim(), row.instrument_key);
+        }
+      }
+      console.log(`[DATA] Loaded ${map.size} Upstox NSE equity instrument key aliases.`);
+      return map;
+    })().catch((err) => {
+      upstoxInstrumentMapPromise = null; // allow retry next call
+      throw err;
+    });
+  }
+  return upstoxInstrumentMapPromise;
+}
+
+async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
+  const token = process.env.UPSTOX_ANALYTICS_TOKEN;
+  if (!token) return null;
+
+  let instrumentKey: string | undefined;
+  try {
+    const map = await getUpstoxInstrumentMap();
+    instrumentKey = map.get(symbol.toUpperCase().trim());
+  } catch (err: any) {
+    console.warn(`[DATA] Upstox instrument map failed: ${err.message}`);
+    return null;
+  }
+
+  if (!instrumentKey) {
+    console.warn(`[DATA] ${symbol}: No Upstox instrument key found.`);
+    return null;
+  }
+
+  const encodedKey = encodeURIComponent(instrumentKey);
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+
+  const toDate = new Date();
+  const fromDate = new Date(toDate.getTime() - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  const allCandles: Candle[] = [];
+
+  try {
+    // 1. Historical candles (past N days, excludes today)
+    const histUrl = `https://api.upstox.com/v3/historical-candle/${encodedKey}/minutes/5/${fmt(toDate)}/${fmt(fromDate)}`;
+    const histResp = await fetch(histUrl, { headers });
+    if (histResp.ok) {
+      const histData = (await histResp.json()) as {
+        status: string;
+        data?: { candles?: Array<[string, number, number, number, number, number, number]> };
+      };
+      if (histData.status === "success" && Array.isArray(histData.data?.candles)) {
+        for (const row of histData.data.candles) {
+          const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
+          if (isNaN(epochSecs)) continue;
+          allCandles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
+        }
+      }
+    } else {
+      const errText = await histResp.text().catch(() => "");
+      console.warn(`[DATA] ${symbol}: Upstox historical candle HTTP ${histResp.status}: ${errText.slice(0, 200)}`);
+    }
+
+    // 2. Today's intraday candles
+    const intradayUrl = `https://api.upstox.com/v3/historical-candle/intraday/${encodedKey}/minutes/5`;
+    const intradayResp = await fetch(intradayUrl, { headers });
+    if (intradayResp.ok) {
+      const intradayData = (await intradayResp.json()) as {
+        status: string;
+        data?: { candles?: Array<[string, number, number, number, number, number, number]> };
+      };
+      if (intradayData.status === "success" && Array.isArray(intradayData.data?.candles)) {
+        for (const row of intradayData.data.candles) {
+          const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
+          if (isNaN(epochSecs)) continue;
+          allCandles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
+        }
+      }
+    } else {
+      // Non-fatal: intraday may not be available outside market hours
+      console.warn(`[DATA] ${symbol}: Upstox intraday candle HTTP ${intradayResp.status} (may be outside market hours).`);
+    }
+  } catch (err: any) {
+    console.warn(`[DATA] ${symbol}: Upstox candle fetch error: ${err.message}`);
+    return null;
+  }
+
+  if (allCandles.length === 0) return null;
+  const data = buildCandleData(allCandles);
+  if (data) console.log(`[DATA] ${symbol}: using Upstox candles (${allCandles.length} bars).`);
+  return data;
+}
+
 async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600;
@@ -1156,16 +1283,28 @@ async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | nu
   return buildCandleData(all);
 }
 
-export async function fetchCandles(symbol: string): Promise<CandleData> {
-  // Use ONLY Angel One. Moneycontrol has been observed to have incorrect intraday data,
-  // causing the bot to take mathematically invalid trades and realize losses.
-  // We prefer dropping a signal over trading on bad data.
-  const candles = await fetchAngelCandles(symbol);
-  if (!candles) {
-    throw new Error(`[DATA] ${symbol}: Angel One candle fetch failed.`);
+export async function fetchCandles(symbol: string, isSwing: boolean = false): Promise<CandleData> {
+  // Priority: Upstox (primary, no rate limits) → Angel One (fallback) → Moneycontrol (swing only)
+  const upstoxCandles = await fetchUpstoxCandles(symbol);
+  if (upstoxCandles) return upstoxCandles;
+
+  console.warn(`[DATA] ${symbol}: Upstox candle fetch failed, falling back to Angel One.`);
+  const angelCandles = await fetchAngelCandles(symbol);
+  if (angelCandles) {
+    console.log(`[DATA] ${symbol}: using Angel One SmartAPI candles (fallback).`);
+    return angelCandles;
   }
-  console.log(`[DATA] ${symbol}: using Angel One SmartAPI candles.`);
-  return candles;
+
+  if (isSwing) {
+    console.warn(`[DATA] ${symbol}: Angel One candle fetch failed, falling back to Moneycontrol (Swing ONLY).`);
+    const mcCandles = await fetchMoneycontrolCandles(symbol);
+    if (mcCandles) {
+      console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
+      return mcCandles;
+    }
+  }
+
+  throw new Error(`[DATA] ${symbol}: All candle sources failed.`);
 }
 
 function calculateVWAP(candles: Candle[]): number | null {
@@ -5001,7 +5140,7 @@ async function resolveSwingTrade(trade: PersistedSwingTrade): Promise<SwingTrack
           : candle.l <= entry;
         if (entryTouched) {
           if (intradayCandleData === undefined) {
-            intradayCandleData = await fetchCandles(trade.symbol).catch(() => null);
+            intradayCandleData = await fetchCandles(trade.symbol, true).catch(() => null);
           }
           if (!passesSwingIntradayEntryStructure(intradayCandleData, candleDate, entry, trade.entryType)) {
             continue;
