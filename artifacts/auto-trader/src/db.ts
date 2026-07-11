@@ -3,22 +3,47 @@ import path from "path";
 import { db, tradesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+export type TradeState =
+  | "SIGNAL_CREATED"
+  | "ENTRY_SUBMITTING"
+  | "ENTRY_PENDING"
+  | "ENTRY_PART_TRADED"
+  | "ENTRY_TRADED"
+  | "PROTECTION_CONFIRMED"
+  | "BREAKEVEN_REQUESTED"
+  | "BREAKEVEN_CONFIRMED"
+  | "EXITED"
+  | "REJECTED"
+  | "RECONCILIATION_REQUIRED";
+
 export interface ActiveTrade {
   id: string;
+  correlationId: string;
+  superOrderId: string;
   symbol: string;
-  token: string;
+  securityId: string;
   quantity: number;
   side: "BUY" | "SELL";
-  entry_price: number;
-  current_sl: number;
-  target: number;
-  highest_ltp: number;
-  status: "OPEN" | "CLOSED";
+  entryPrice: number;
+  stopLossPrice: number;
+  targetPrice: number;
+  trailingJump: number;
+  state: TradeState;
+  protectionConfirmed: boolean;
+  breakevenApplied: boolean;
+  createdAt: string;
+  updatedAt: string;
+  
+  // Legacy fields
+  entry_price?: number;
+  current_sl?: number;
+  target?: number;
+  highest_ltp?: number;
+  status?: "OPEN" | "CLOSED";
 }
 
 const dbPath = path.resolve(__dirname, "../../trades.json");
 
-// Read from JSON file
 function readDB(): ActiveTrade[] {
   if (!fs.existsSync(dbPath)) {
     return [];
@@ -32,7 +57,6 @@ function readDB(): ActiveTrade[] {
   }
 }
 
-// Write to JSON file
 function writeDB(trades: ActiveTrade[]) {
   try {
     fs.writeFileSync(dbPath, JSON.stringify(trades, null, 2), "utf-8");
@@ -42,8 +66,16 @@ function writeDB(trades: ActiveTrade[]) {
 }
 
 export const TradeDB = {
+  getOpenTrades: (): ActiveTrade[] => {
+    return readDB().filter(t => 
+      t.state !== "EXITED" && 
+      t.state !== "REJECTED" && 
+      t.state !== "RECONCILIATION_REQUIRED" &&
+      t.status !== "CLOSED"
+    );
+  },
+
   saveTrade: async (trade: ActiveTrade) => {
-    // 1. Save locally to JSON for safety/state recovery
     const trades = readDB();
     const existingIndex = trades.findIndex(t => t.id === trade.id);
     if (existingIndex >= 0) {
@@ -53,16 +85,15 @@ export const TradeDB = {
     }
     writeDB(trades);
 
-    // 2. Push to Supabase for API/Mobile App
     try {
       const today = new Date().toISOString().slice(0, 10);
       await db.insert(tradesTable).values({
         symbol: trade.symbol,
         date: today,
-        signalTime: new Date().toISOString(),
-        entryPrice: trade.entry_price.toString(),
-        sl: trade.current_sl.toString(),
-        target: trade.target.toString(),
+        signalTime: trade.createdAt || new Date().toISOString(),
+        entryPrice: (trade.entryPrice || trade.entry_price || 0).toString(),
+        sl: (trade.stopLossPrice || trade.current_sl || 0).toString(),
+        target: (trade.targetPrice || trade.target || 0).toString(),
         status: "ACTIVE"
       }).onConflictDoUpdate({
         target: [tradesTable.symbol, tradesTable.date],
@@ -73,10 +104,22 @@ export const TradeDB = {
     }
   },
 
+  updateState: (id: string, newState: TradeState, updates: Partial<ActiveTrade> = {}) => {
+    const trades = readDB();
+    const trade = trades.find(t => t.id === id);
+    if (trade) {
+      trade.state = newState;
+      trade.updatedAt = new Date().toISOString();
+      Object.assign(trade, updates);
+      writeDB(trades);
+    }
+  },
+
   updateTradeSL: async (id: string, newSL: number, newHighestLTP: number) => {
     const trades = readDB();
     const trade = trades.find(t => t.id === id);
     if (trade) {
+      trade.stopLossPrice = newSL;
       trade.current_sl = newSL;
       trade.highest_ltp = newHighestLTP;
       writeDB(trades);
@@ -93,14 +136,13 @@ export const TradeDB = {
   },
 
   markTradeClosed: async (id: string, reason: string = "SQUARED OFF") => {
-    // 1. Mark closed locally
     const trades = readDB();
     const trade = trades.find(t => t.id === id);
     if (trade) {
+      trade.state = "EXITED";
       trade.status = "CLOSED";
       writeDB(trades);
       
-      // 2. Update Supabase
       try {
         const statusMap: Record<string, string> = {
           "TARGET 2 HIT": "TARGET 2 HIT",
@@ -112,21 +154,12 @@ export const TradeDB = {
         };
         const dbStatus = (statusMap[reason] || "SQUARED OFF") as any;
         
-        const today = new Date().toISOString().slice(0, 10);
         await db.update(tradesTable)
           .set({ status: dbStatus })
-          .where(
-            eq(tradesTable.symbol, trade.symbol)
-            // Note: Since this is intraday, updating by symbol is usually safe for active trades
-          );
+          .where(eq(tradesTable.symbol, trade.symbol));
       } catch (e: any) {
         console.error("[DB] Failed to update Supabase status:", e.message);
       }
     }
-  },
-
-  getOpenTrades: (): ActiveTrade[] => {
-    const trades = readDB();
-    return trades.filter(t => t.status === "OPEN");
   }
 };

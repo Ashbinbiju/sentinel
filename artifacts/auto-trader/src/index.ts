@@ -1,580 +1,145 @@
-import { resolve } from "path";
-import * as fs from "fs";
-import * as path from "path";
+import { initializeScripMaster, getSecurityId } from "./scrip-master";
+import { DhanBroker } from "./dhan";
+import { TradeDB } from "./db";
+import { CandleEngine, Candle } from "./candle-engine";
+import { ExecutionEngine, WatchlistContext } from "./engine";
 import axios from "axios";
-import { initializeScripMaster, getToken } from "./scrip-master";
-import { AngelOneBroker } from "./angelone";
-import { TradeDB, ActiveTrade } from "./db";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
-
-const MAX_DAILY_TRADES = parseInt(process.env.MAX_DAILY_TRADES || "2", 10);
-const LEVERAGE = 5; // Intraday leverage for NSE Equity
-const MAX_DAILY_LOSS = -1000;
-const MAX_CONSECUTIVE_LOSSES = 3;
-const POLL_INTERVAL_MS = 60 * 1000; // 60 seconds
-const MAX_SIGNAL_AGE_MS = 60 * 1000; // 60 seconds strict timeout
-const MIN_TRADE_PRICE = 100;
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
-// Keep track of broker-executed symbols today to prevent duplicate orders.
-// Hydrated from Angel One order book on startup so DB-only signals are not treated as executed.
-const executedSymbols = new Set<string>();
-// Separate in-memory skip-list for broker rejections (e.g. Cautionary lists) to prevent retry loops without polluting execution hydration
-const blockedSymbolsToday = new Set<string>();
-let tradesToday = 0;
 let isShuttingDown = false;
-
-// Graceful shutdown handler
 const shutdown = () => {
-  console.log("[BOT] Shutdown signal received. Will exit gracefully at the end of the current polling cycle...");
+  console.log("[BOT] Shutdown signal received.");
   isShuttingDown = true;
+  process.exit(0);
 };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
 async function sleep(ms: number) {
-  const steps = Math.ceil(ms / 1000);
-  for (let i = 0; i < steps; i++) {
-    if (isShuttingDown) break;
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function sendTelegramAlert(message: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
-
-  const prefix = DRY_RUN ? "🧪 [DRY RUN]\n" : "🤖 [SENTINEL LIVE]\n";
-
+// 1. Fetch Volume Shockers
+async function getDailyWatchlist(): Promise<WatchlistContext[]> {
+  const list: WatchlistContext[] = [];
   try {
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    await axios.post(url, {
-      chat_id: chatId,
-      text: `${prefix}${message}`,
-    });
-  } catch (err: any) {
-    console.error("[BOT] Failed to send Telegram alert:", err.message);
-  }
-}
-
-function normalizeSymbol(symbol: string | null | undefined): string | null {
-  const normalized = symbol?.trim().toUpperCase();
-  return normalized ? normalized : null;
-}
-
-async function hydrateTradeStateFromBroker(broker: AngelOneBroker) {
-  try {
-    const brokerSymbols = await broker.getExecutedBuySymbolsFromOrderBook();
-
-    executedSymbols.clear();
-    for (const symbol of brokerSymbols) executedSymbols.add(symbol);
-    tradesToday = brokerSymbols.size;
-
-    console.log(
-      `[BOT] Hydrated ${tradesToday}/${MAX_DAILY_TRADES} executed broker trade(s) for today: ${[...executedSymbols].join(", ") || "none"}`,
-    );
-  } catch (err: any) {
-    if (DRY_RUN) {
-      console.warn(`[BOT] Failed to hydrate broker orders in dry run. Starting with empty in-memory state. ${err.message}`);
-      return;
+    const seUrl = "https://api.stockedge.com/Api/trendingstocksapi/GetVolumeShockers?page=1&pageSize=10&relevantListings=10&lang=en";
+    const seRes = await axios.get(seUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    
+    if (seRes.data && Array.isArray(seRes.data)) {
+      for (const s of seRes.data) {
+        const symbol = s.Symbol;
+        const ltp = s.C;
+        const changePct = s.CZG;
+        
+        if (ltp > 100 && changePct < 15) {
+          const securityId = getSecurityId(symbol);
+          if (securityId) {
+            // Fetch historical context from api-server
+            try {
+              const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${symbol}/candles`);
+              if (histRes.data && histRes.data.historicalCandles) {
+                const histCandles = histRes.data.historicalCandles as Candle[];
+                // Filter out today
+                const todaySlot = new Date().toISOString().slice(0,10);
+                const prevCandles = histCandles.filter(c => {
+                  const d = new Date(c.t * 1000);
+                  const dtStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+                  return dtStr !== todaySlot;
+                });
+                
+                if (prevCandles.length > 0) {
+                  // Find last date
+                  const dates = Array.from(new Set(prevCandles.map(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t*1000))))).sort();
+                  const lastDate = dates[dates.length - 1];
+                  const lastDayCandles = prevCandles.filter(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t*1000)) === lastDate);
+                  
+                  const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
+                  const prevLow = Math.min(...lastDayCandles.map(c => c.l));
+                  
+                  list.push({
+                    symbol,
+                    securityId,
+                    prevHigh,
+                    prevLow
+                  });
+                }
+              }
+            } catch (err: any) {
+              console.warn(`[BOT] Could not fetch history for ${symbol}: ${err.message}`);
+            }
+          }
+        }
+      }
     }
-
-    throw new Error(`Failed to hydrate today's executed broker orders: ${err.message}`);
+  } catch (err: any) {
+    console.error(`[BOT] Failed to fetch watchlist:`, err.message);
   }
+  return list;
 }
 
+// 2. Main Entry
 async function main() {
-  console.log("Starting Sentinel Auto-Trader (Active Manager)...");
+  console.log("Starting Sentinel Auto-Trader (Candle Engine Mode)...");
   
-  if (DRY_RUN) {
-    console.log("⚠️ RUNNING IN DRY-RUN MODE ⚠️");
-    console.log("No actual trades will be placed.");
-  }
+  if (DRY_RUN) console.log("⚠️ RUNNING IN DRY-RUN MODE ⚠️");
 
-  // 1. Initialize Scrip Master
   await initializeScripMaster();
 
-  // 2. Authenticate Broker
-  const broker = new AngelOneBroker();
-  try {
-    await broker.login();
-  } catch (err: any) {
-    if (!DRY_RUN) {
-      console.error("Failed to authenticate with Angel One. Exiting.", err);
-      process.exit(1);
+  const broker = new DhanBroker();
+  await broker.validateOrRenewToken();
+
+  const executionEngine = new ExecutionEngine(broker);
+  const candleEngine = new CandleEngine();
+
+  // Handle Local Candle Closure -> Evaluate Entry
+  candleEngine.on("onCandleClosed", async (securityId: string, candle: Candle, history: Candle[]) => {
+    await executionEngine.evaluateClosedCandle(securityId, candle);
+  });
+
+  // Reconnection and Startup Logic
+  const initEngine = async () => {
+    candleEngine.isContinuityValid = false;
+    console.log(`[BOT] Fetching Watchlist & Historical Context...`);
+    const watchlist = await getDailyWatchlist();
+    executionEngine.setWatchlist(watchlist);
+
+    // Backfill session candles
+    for (const item of watchlist) {
+      try {
+        const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
+        if (histRes.data && histRes.data.sessionCandles) {
+          candleEngine.backfill(item.securityId, histRes.data.sessionCandles);
+        }
+      } catch (err) {
+        // ignore
+      }
     }
-  }
 
-  let simulatedBalance: number | null = null;
-
-  // 3. Connect WebSocket & Setup Active Manager Callbacks
-  if (!DRY_RUN) {
-    await broker.connectWebSocket();
+    candleEngine.isContinuityValid = true;
+    console.log(`[BOT] CandleEngine Continuity Validated. Ready for live trading.`);
     
-    // Subscribe to existing open trades from DB
-    const openTrades = TradeDB.getOpenTrades();
-    if (openTrades.length > 0) {
-      console.log(`[BOT] Resuming management for ${openTrades.length} open trades from DB.`);
-      const openTokens = openTrades.map(t => t.token);
-      broker.subscribeToTokens(openTokens);
-    }
+    broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+  };
 
-    // Handle incoming ticks for Trailing SL / Target Exits
-    broker.onTick(async (data: any) => {
-      // SmartAPI WebSocket V2 returns keys 'token' (with literal double quotes) and 'last_traded_price' (in paise)
-      if (!data || !data.token || !data.last_traded_price) return;
-      
-      // Strip literal double quotes: e.g. '"3812"' -> '3812'
-      const token = data.token.toString().replace(/"/g, "").trim();
-      
-      // Convert paise to Rupees
-      const ltp = Number(data.last_traded_price) / 100;
-
-      const activeTrades = TradeDB.getOpenTrades();
-      const trade = activeTrades.find(t => t.token === token);
-      
-      if (trade) {
-        // Trailing SL Logic
-        if (trade.side === "BUY") {
-          // Track highest LTP for trailing SL
-          if (ltp > trade.highest_ltp) {
-            await TradeDB.updateHighestLTP(trade.id, ltp);
-            
-            // Trailing SL: If LTP reaches 1:1 RR (risk amount above entry), trail to breakeven
-            const risk = trade.entry_price - trade.current_sl;
-            if (risk > 0 && ltp >= trade.entry_price + risk && trade.current_sl < trade.entry_price) {
-              await TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
-              console.log(`[BOT] Trailing SL moved to breakeven for ${trade.symbol}`);
-              sendTelegramAlert(`🚀 TRAILING SL UPDATED\nSymbol: ${trade.symbol}\nNew SL: ₹${trade.entry_price} (Risk Free!)`);
-            }
-          }
-        } else if (trade.side === "SELL") {
-          // Track lowest LTP (best price for short)
-          if (ltp < trade.highest_ltp || trade.highest_ltp === 0) {
-            await TradeDB.updateHighestLTP(trade.id, ltp);
-          }
-          
-          // Trailing SL: If LTP drops by the risk amount, trail to breakeven
-          const risk = trade.current_sl - trade.entry_price;
-          if (risk > 0 && ltp <= trade.entry_price - risk && trade.current_sl > trade.entry_price) {
-            await TradeDB.updateTradeSL(trade.id, trade.entry_price, ltp);
-            console.log(`[BOT] Trailing SL moved to breakeven for short ${trade.symbol}`);
-            sendTelegramAlert(`🚀 TRAILING SL UPDATED\nSymbol: ${trade.symbol}\nNew SL: ₹${trade.entry_price} (Risk Free!)`);
-          }
-        }
-
-        // Exit Logic
-        if (trade.side === "BUY") {
-          if (ltp <= trade.current_sl) {
-            console.log(`[BOT] STOP LOSS HIT for ${trade.symbol} at ${ltp}`);
-            await closeTrade(broker, trade, "STOP LOSS", ltp);
-          } else if (ltp >= trade.target) {
-            console.log(`[BOT] TARGET HIT for ${trade.symbol} at ${ltp}`);
-            await closeTrade(broker, trade, "TARGET", ltp);
-          }
-        } else if (trade.side === "SELL") {
-          if (ltp >= trade.current_sl) {
-            console.log(`[BOT] STOP LOSS HIT for short ${trade.symbol} at ${ltp}`);
-            await closeTrade(broker, trade, "STOP LOSS", ltp);
-          } else if (ltp <= trade.target) {
-            console.log(`[BOT] TARGET HIT for short ${trade.symbol} at ${ltp}`);
-            await closeTrade(broker, trade, "TARGET", ltp);
-          }
-        }
-      }
-    });
-  }
-
-  // 4. Determine Initial Capital
-  await hydrateTradeStateFromBroker(broker);
-
-  await sendTelegramAlert(`✅ Auto-Trader initialized successfully!\nHydrated trades: ${tradesToday}/${MAX_DAILY_TRADES}`);
-
-  console.log("=== INITIALIZATION COMPLETE. STARTING POLLING LOOP ===");
-
-  function getISTDateStr(): string {
-    const now = new Date();
-    const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
-    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
-    let year = "", month = "", day = "";
-    for (const p of parts) {
-      if (p.type === 'year') year = p.value;
-      if (p.type === 'month') month = p.value;
-      if (p.type === 'day') day = p.value;
-    }
-    return `${year}-${month}-${day}`;
-  }
-
-  let currentTradingDay = getISTDateStr();
-
-  function getISTMinutes(): number {
-    const now = new Date();
-    const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric' } as const;
-    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
-    let hour = 0, minute = 0;
-    for (const p of parts) {
-      if (p.type === 'hour') hour = parseInt(p.value, 10);
-      if (p.type === 'minute') minute = parseInt(p.value, 10);
-    }
-    return hour * 60 + minute;
-  }
-
-  function isMarketOpenIST(): boolean {
-    const now = new Date();
-    const options = { timeZone: 'Asia/Kolkata', weekday: 'short' } as const;
-    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
-    let weekday = '';
-    for (const p of parts) {
-      if (p.type === 'weekday') weekday = p.value;
-    }
-    if (weekday === 'Sat' || weekday === 'Sun') return false;
-    const mins = getISTMinutes();
-    return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
-  }
-
-  while (true) {
-    try {
-      if (isShuttingDown) {
-        console.log("[BOT] Graceful shutdown sequence executing...");
-        break; // Exit the loop cleanly
-      }
-
-      // Daily State Reset
-      const todayStr = getISTDateStr();
-      if (todayStr !== currentTradingDay) {
-        console.log(`[BOT] New trading day detected: ${todayStr}. Resetting daily trade state.`);
-        currentTradingDay = todayStr;
-        executedSymbols.clear();
-        blockedSymbolsToday.clear();
-        tradesToday = 0;
-        try {
-          await hydrateTradeStateFromBroker(broker);
-        } catch (e: any) {
-          console.error(`[BOT] Failed to hydrate trades for the new day: ${e.message}`);
-        }
-      }
-
-      if (!isMarketOpenIST() && process.env.DRY_RUN !== "true") {
-        console.log("[BOT] Outside market hours (IST). Sleeping for 5 minutes...");
-        await sleep(5 * 60 * 1000); // Check again in 5 minutes
-        continue;
-      }
-
-      // Auto Square-Off at 3:14 PM to avoid Angel One charges
-      const currentMins = getISTMinutes();
-      if (currentMins >= 15 * 60 + 14 && currentMins <= 15 * 60 + 30) {
-        const activeTrades = TradeDB.getOpenTrades();
-        if (activeTrades.length > 0) {
-          console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM). Closing ${activeTrades.length} open positions!`);
-          for (const trade of activeTrades) {
-            await closeTrade(broker, trade, "AUTO SQUARE-OFF (3:14 PM)", trade.highest_ltp || trade.entry_price);
-          }
-        }
-        console.log("[BOT] Market closing soon. Halting new trades and sleeping until 3:30 PM...");
-        await sleep(15 * 60 * 1000);
-        continue;
-      }
-
-      if (tradesToday >= MAX_DAILY_TRADES) {
-        const activeTrades = TradeDB.getOpenTrades();
-        if (activeTrades.length > 0) {
-          console.log(`[BOT] Daily trade limit reached (${tradesToday}/${MAX_DAILY_TRADES}). ${activeTrades.length} open position(s) active. Monitoring...`);
-        } else {
-          console.log(`[BOT] Daily trade limit reached (${tradesToday}/${MAX_DAILY_TRADES}). No open positions. Monitoring...`);
-        }
-        await sleep(60 * 1000); // Sleep for 1 minute to keep process alive without hot-looping or spamming logs
-        continue;
-      }
-
-      if (process.env.DRY_RUN !== "true") {
-        const { realizedPnl, closedLosingTrades } = await broker.getRiskMetrics();
-        if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
-          const msg = `🚨 KILL SWITCH ENGAGED 🚨\nMax loss reached!\nP&L: INR ${realizedPnl}\nLosing Trades: ${closedLosingTrades}.\nSquaring off open positions and halting bot for the day.`;
-          console.error(`[KILL SWITCH ENGAGED] Max loss reached (P&L: INR ${realizedPnl}, Losing Trades: ${closedLosingTrades}). Squaring off open positions and halting bot for the day.`);
-          await sendTelegramAlert(msg);
-
-          const activeTrades = TradeDB.getOpenTrades();
-          if (activeTrades.length > 0) {
-            console.log(`[BOT] [KILL SWITCH] Squaring off ${activeTrades.length} open positions.`);
-            for (const trade of activeTrades) {
-              await closeTrade(broker, trade, "KILL SWITCH SQUARE-OFF", trade.highest_ltp || trade.entry_price);
-            }
-          }
-
-          // Halt loop but keep process alive
-          while (true) {
-            await sleep(60 * 60 * 1000);
-          }
-        }
-      }
-
-      // 4. Poll Sentinel API
-      // Uses the production Render URL if provided, otherwise falls back to local dev server
-      const apiUrl = `${API_BASE_URL}/api/stocks/momentum-picks`;
-      const { data } = await axios.get(apiUrl);
-
-      if (!data || !data.topPicks) {
-        await sleep(POLL_INTERVAL_MS);
-        continue;
-      }
-
-      const picks = data.topPicks;
-      let cycleBalance: number;
-
-      if (process.env.DRY_RUN === "true") {
-        // Use simulated capital for dry run and persist it across polling cycles.
-        if (simulatedBalance === null) {
-          simulatedBalance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
-        }
-        cycleBalance = simulatedBalance;
-        console.log(`[BOT] [DRY RUN] Using simulated capital: INR ${cycleBalance}`);
-      } else {
-        cycleBalance = await broker.getAccountBalance();
-        console.log(`[BOT] Current Available Margin: INR ${cycleBalance}`);
-      }
-
-      // 5. Look for fresh entry signals
-      for (const pick of picks) {
-        const symbol = normalizeSymbol(pick.symbol);
-        if (symbol && !executedSymbols.has(symbol) && !blockedSymbolsToday.has(symbol)) {
-          console.log(`[BOT] Evaluating ${pick.symbol} (${pick.setup}) - Entry: ${pick.entry}, Target: ${pick.target}, SL: ${pick.sl}`);
-          const side = pick.direction === "SHORT" ? "SELL" : "BUY";
-          console.log(`[BOT] NEW ${side} SIGNAL DETECTED: ${pick.symbol} at INR ${pick.entry}`);
-
-          // 5.1 Stale Signal Protection
-          if (pick.diagnostics && pick.diagnostics.candleCloseTimeMs) {
-            const ageMs = Date.now() - pick.diagnostics.candleCloseTimeMs;
-            if (ageMs > MAX_SIGNAL_AGE_MS) {
-              const ageSec = Math.floor(ageMs / 1000);
-              console.warn(`[BOT] Dropping STALE signal for ${pick.symbol}. Age: ${ageSec}s exceeds limit of ${MAX_SIGNAL_AGE_MS / 1000}s.`);
-              executedSymbols.add(symbol); // Ignore for the rest of the day
-              continue;
-            }
-          }
-
-          if (pick.entry < MIN_TRADE_PRICE) {
-            console.log(`[BOT] Skipping ${pick.symbol}. Entry INR ${pick.entry} is below minimum INR ${MIN_TRADE_PRICE}.`);
-            executedSymbols.add(symbol);
-            continue;
-          }
-
-          if (tradesToday >= MAX_DAILY_TRADES) {
-            console.log("[BOT] Skipping signal. Daily trade limit reached.");
-            break;
-          }
-
-          // 6. Map Symbol to Token
-          const token = getToken(symbol);
-          if (!token) {
-            console.log(`[BOT] Cannot trade ${pick.symbol}: No token found in Scrip Master.`);
-            executedSymbols.add(symbol); // Mark as handled so we don't spam errors
-            continue;
-          }
-
-          // 7. Check Balance & Calculate Quantity
-          if (cycleBalance < 100) {
-            console.warn("[BOT] Insufficient balance to place trade.");
-            continue;
-          }
-
-          // Allocate one daily trade slot, leaving margin for later signals.
-          const buyingPower = cycleBalance * LEVERAGE;
-          const safeBuyingPower = buyingPower * 0.99;
-          const allocationPerTrade = safeBuyingPower / MAX_DAILY_TRADES;
-          let quantity = Math.floor(allocationPerTrade / pick.entry);
-
-          if (quantity <= 0) {
-            console.warn(`[BOT] Cannot afford 1 share of ${pick.symbol}. Skipping.`);
-            blockedSymbolsToday.add(symbol); // Add to skip-list instead of executedSymbols
-            continue;
-          }
-
-          // 8. Execute Trade (Using INTRADAY Market Order) with Auto-Retry
-          let orderId: string | null = null;
-          let retries = 0;
-          const MAX_RETRIES = 3;
-          let estimatedMarginUsed = 0;
-          let tradeExecuted = false;
-
-          while (retries < MAX_RETRIES) {
-            try {
-              orderId = await broker.placeMarketBuy(symbol, token, quantity, side);
-              tradeExecuted = true;
-              executedSymbols.add(symbol);
-              
-              tradesToday++;
-              estimatedMarginUsed = broker.estimateMarginUsed(quantity, pick.entry, LEVERAGE);
-              cycleBalance = Math.max(0, cycleBalance - estimatedMarginUsed);
-              if (process.env.DRY_RUN === "true") {
-                simulatedBalance = cycleBalance;
-              }
-
-              console.log(`[BOT] Trade ${tradesToday}/${MAX_DAILY_TRADES} executed successfully.`);
-              console.log(`[BOT] Reserved estimated margin: INR ${estimatedMarginUsed.toFixed(2)} | Cycle balance left: INR ${cycleBalance.toFixed(2)}`);
-              
-              // Assume filled at signal entry (in production, we'd fetch actual fill price from order book, but API limits make that hard instantly)
-              const fillPrice = pick.entry;
-
-              // Save to DB for Active Management
-              if (!DRY_RUN) {
-                const newTrade: ActiveTrade = {
-                  id: orderId || `dry-${Date.now()}`,
-                  symbol: pick.symbol,
-                  token: token,
-                  quantity: quantity,
-                  side: side,
-                  entry_price: fillPrice,
-                  current_sl: pick.sl,
-                  target: pick.target,
-                  highest_ltp: fillPrice,
-                  status: "OPEN"
-                };
-                await TradeDB.saveTrade(newTrade);
-                broker.subscribeToTokens([token]);
-              }
-
-              const diag = pick.diagnostics;
-              let diagText = "";
-              if (diag) {
-                diagText = `\n\n📊 Diagnostics:\nPrev High: ₹${diag.prevHigh}\nPrev Low: ₹${diag.prevLow}\nCandle: O=${diag.candleOpen}, H=${diag.candleHigh}, L=${diag.candleLow}, C=${diag.candleClose}\nReason: ${diag.reason}`;
-              }
-
-              await sendTelegramAlert(
-                `🎯 NEW ACTIVE TRADE\nSymbol: ${pick.symbol}\nSide: ${side}\nSetup: ${pick.setup}\n\nQuantity: ${quantity}\nEst Entry: ₹${fillPrice}\nTarget: ₹${pick.target}\nSL: ₹${pick.sl}\n\nMargin Used: ₹${estimatedMarginUsed.toFixed(2)}\nOrder ID: ${orderId || "N/A"}${diagText}`
-              );
-
-              break; // Success, break out of retry loop
-            } catch (err: any) {
-              const errMsg = err.message || "";
-              
-              if (errMsg.toLowerCase().includes("cautionary") || errMsg.toLowerCase().includes("surveillance")) {
-                console.warn(`[BOT] Skipping ${pick.symbol} - Blocked by Exchange Cautionary/Surveillance List.`);
-                await sendTelegramAlert(`❌ TRADE BLOCKED\nSymbol: ${pick.symbol}\nReason: Exchange Cautionary/Surveillance List`);
-                blockedSymbolsToday.add(symbol); // Add to separate skip-list so we don't pollute hydration
-                break;
-              }
-
-              console.error(`[BOT] Failed to execute trade for ${pick.symbol} (Attempt ${retries + 1}/${MAX_RETRIES})`, err);
-              
-              if (errMsg.toLowerCase().includes("margin") || errMsg.toLowerCase().includes("insufficient")) {
-                retries++;
-                if (retries < MAX_RETRIES) {
-                  quantity = Math.floor(quantity * 0.8); // Reduce quantity by 20%
-                  if (quantity < 1) {
-                    await sendTelegramAlert(`❌ TRADE FAILED\nSymbol: ${pick.symbol}\nReason: Quantity reduced to 0 due to margin issues.`);
-                    break;
-                  }
-                  console.log(`[BOT] Retrying ${symbol} with reduced quantity: ${quantity}`);
-                  await sendTelegramAlert(`🔄 MARGIN RETRY\nSymbol: ${pick.symbol}\nReducing quantity to ${quantity} due to margin rejection.`);
-                  await sleep(1000); // Slight delay before retry
-                } else {
-                  await sendTelegramAlert(`❌ TRADE FAILED\nSymbol: ${pick.symbol}\nReason: Margin issues persisted after ${MAX_RETRIES} attempts.`);
-                }
-              } else {
-                // If it's not a margin error (e.g. Scrip blocked), don't retry.
-                await sendTelegramAlert(`❌ TRADE FAILED\nSymbol: ${pick.symbol}\nReason: ${errMsg}`);
-                break;
-              }
-            }
-          }
-
-          if (!tradeExecuted) {
-            blockedSymbolsToday.add(symbol);
-          }
-        }
-      }
-
-    } catch (err: any) {
-      console.error(`[BOT] Polling Error: ${err.message}`);
-      const msg = err.message || "";
-      if (
-        msg.includes("Invalid Token") ||
-        msg.includes("Token Expired") ||
-        msg.includes("Session Expired") ||
-        msg.includes("AG8001")
-      ) {
-        console.error("[BOT] Critical token error. Deleting session file and exiting process for PM2 to restart.");
-        try {
-          let dir = process.cwd();
-          let sessionFilePath = "";
-          for (let i = 0; i < 5; i++) {
-            if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
-              sessionFilePath = path.join(dir, ".angel_session.json");
-              break;
-            }
-            const parent = path.dirname(dir);
-            if (parent === dir) break;
-            dir = parent;
-          }
-          if (!sessionFilePath) {
-            sessionFilePath = path.resolve(process.cwd(), "../../.angel_session.json");
-          }
-          if (fs.existsSync(sessionFilePath)) {
-            fs.unlinkSync(sessionFilePath);
-            console.log("[BOT] Deleted shared session file.");
-          }
-        } catch (fileErr: any) {
-          console.error("[BOT] Failed to delete session file:", fileErr.message);
-        }
-        process.exit(1);
-      }
-    }
-
-    await sleep(POLL_INTERVAL_MS);
-  }
-}
-
-async function closeTrade(broker: AngelOneBroker, trade: ActiveTrade, reason: string, exitPrice: number) {
-  try {
-    const positions = await broker.getPositions();
-    let exitQuantity = trade.quantity;
-
-    if (positions !== null) {
-      const position = positions.find((p: any) => 
-        p.symboltoken === trade.token || 
-        p.tradingsymbol?.toUpperCase().replace(/-EQ$/i, "").trim() === trade.symbol.toUpperCase().trim()
-      );
-      
-      let netQty = 0;
-      if (position) {
-        netQty = Number(position.netqty || 0);
-      }
-
-      const isAlreadyClosed = (trade.side === "BUY" && netQty <= 0) || (trade.side === "SELL" && netQty >= 0);
-
-      if (isAlreadyClosed) {
-        console.log(`[BOT] Position for ${trade.symbol} already closed manually on broker (Net Qty: ${netQty}). Skipping exit order.`);
-        await TradeDB.markTradeClosed(trade.id, `${reason} (MANUAL/EXTERNAL EXIT)`);
-        broker.unsubscribeFromTokens([trade.token]);
-        
-        await sendTelegramAlert(
-          `ℹ️ POSITION CLOSED EXTERNALLY\nSymbol: ${trade.symbol}\nBot skipped exit order because position was already squared off on the broker (Broker Net Qty: ${netQty}).`
-        );
-        return;
-      }
-
-      // Adjust quantity if partial manual exit occurred
-      exitQuantity = Math.min(trade.quantity, Math.abs(netQty));
-    }
-
-    const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
-    const orderId = await broker.placeMarketBuy(trade.symbol, trade.token, exitQuantity, exitSide);
+  // Setup Live Ticks
+  broker.onTick(async (securityId: string, ltp: number) => {
+    // We assume 0 volume if we can't extract it reliably, but engine still works
+    candleEngine.processTick(securityId, ltp, 0, Date.now());
     
-    await TradeDB.markTradeClosed(trade.id, reason);
-    broker.unsubscribeFromTokens([trade.token]);
-    
-    const pnl = trade.side === "BUY" ? exitPrice - trade.entry_price : trade.entry_price - exitPrice;
-    const totalPnl = pnl * exitQuantity;
-    const icon = totalPnl >= 0 ? "✅" : "❌";
+    // Evaluate Live Tick for Exits (Breakeven rule)
+    await executionEngine.evaluateLiveTick(securityId, ltp);
+  });
 
-    await sendTelegramAlert(
-      `${icon} TRADE CLOSED (${reason})\nSymbol: ${trade.symbol}\nExit Price: ₹${exitPrice}\nGross P&L: ₹${totalPnl.toFixed(2)}\nOrder ID: ${orderId}`
-    );
-  } catch (err: any) {
-    console.error(`[BOT] Failed to close trade ${trade.symbol}:`, err.message);
-    await sendTelegramAlert(`🚨 URGENT: FAILED TO CLOSE ${trade.symbol} (${reason})\nManual intervention required!\nError: ${err.message}`);
+  // Keep process alive and monitor connectivity
+  await broker.connectWebSocket();
+  await initEngine();
+
+  while (!isShuttingDown) {
+    await sleep(60000);
+    // Ping/Pong or health checks can go here
   }
 }
 

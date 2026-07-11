@@ -1,12 +1,12 @@
 import { fetchCandles } from "./routes/stocks";
 import { writeFileSync } from "fs";
 
-const TARGET_DATE = "2026-07-06"; // Today
+const TARGET_DATE = "2026-07-10"; // Friday
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
 
 const testSymbols = [
-    "SWANCORP", "WELCORP", "AEGISVOPAK", "THELEELA", "ABDL", "ZENTEC", "HEG", "BRIGADE", "JSWHL", "GODREJIND"
+    "ELECON"
 ];
 
 function getISTDateStr(epochSecs: number): string {

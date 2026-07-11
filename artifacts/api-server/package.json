@@ -19,8 +19,9 @@
     "express-rate-limit": "^8.5.2",
     "pino": "^9",
     "pino-http": "^10",
-    "smartapi-javascript": "^1.0.27",
-    "totp-generator": "^2.0.1"
+    "totp-generator": "^2.0.1",
+    "upstox-js-sdk": "^2.29.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
@@ -30,6 +31,7 @@
     "esbuild": "^0.27.3",
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",
-    "thread-stream": "3.1.0"
+    "thread-stream": "3.1.0",
+    "tsx": "catalog:"
   }
 }

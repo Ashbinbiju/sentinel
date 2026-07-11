@@ -13,8 +13,12 @@ import { TOTP } from "totp-generator";
 import * as fs from "fs";
 import * as path from "path";
 
-import smartApi from "smartapi-javascript";
-const { SmartAPI } = smartApi;
+// Angel One removed. Stub for compilation
+class SmartAPI {
+  constructor() {}
+  generateSession() { return { status: false, message: "Disabled" }; }
+  getCandleData() { return { status: false, message: "Disabled" }; }
+}
 
 const router = Router();
 
@@ -1170,6 +1174,140 @@ async function getUpstoxInstrumentMap(): Promise<Map<string, string>> {
   return upstoxInstrumentMapPromise;
 }
 
+// DHAN MARKET DATA
+const DHAN_SCRIP_MASTER_URL = 'https://images.dhan.co/api-data/api-scrip-master.csv';
+let dhanInstrumentMapPromise: Promise<Map<string, string>> | null = null;
+async function getDhanInstrumentMap(): Promise<Map<string, string>> {
+  if (!dhanInstrumentMapPromise) {
+    dhanInstrumentMapPromise = (async () => {
+      console.log("[DATA] Fetching Dhan scrip master CSV...");
+      const response = await fetch(DHAN_SCRIP_MASTER_URL);
+      if (!response.ok) throw new Error(`Dhan scrip master responded with ${response.status}`);
+      const csvText = await response.text();
+      const map = new Map<string, string>();
+      const lines = csvText.split('\n');
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const cols = line.split(',');
+        if (cols.length < 16) continue;
+        const exchId = cols[0];
+        const segment = cols[1];
+        const securityId = cols[2];
+        const tradingSymbol = cols[5];
+        const series = cols[14];
+        if (exchId === 'NSE' && segment === 'E' && (series === 'EQ' || series === 'BE' || series === 'SM')) {
+          if (tradingSymbol && securityId) {
+            const cleanSymbol = tradingSymbol.replace(/-EQ$/i, '').replace(/-BE$/i, '').trim().toUpperCase();
+            map.set(cleanSymbol, securityId);
+          }
+        }
+      }
+      console.log(`[DATA] Loaded ${map.size} Dhan NSE equity security IDs.`);
+      return map;
+    })().catch((err) => {
+      dhanInstrumentMapPromise = null;
+      throw err;
+    });
+  }
+  return dhanInstrumentMapPromise;
+}
+
+async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
+  const clientId = process.env.DHAN_CLIENT_ID;
+  const token = process.env.DHAN_ACCESS_TOKEN;
+  if (!clientId || !token) return null;
+
+  let securityId: string | undefined;
+  try {
+    const map = await getDhanInstrumentMap();
+    securityId = map.get(symbol.toUpperCase().trim());
+  } catch (err: any) {
+    console.warn(`[DATA] Dhan instrument map failed: ${err.message}`);
+    return null;
+  }
+
+  if (!securityId) {
+    console.warn(`[DATA] ${symbol}: No Dhan security ID found.`);
+    return null;
+  }
+
+  const toDate = new Date();
+  const fromDate = new Date(toDate.getTime() - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  const payload = {
+    securityId: securityId,
+    exchangeSegment: "NSE_EQ",
+    instrument: "EQUITY",
+    expiryCode: 0,
+    interval: "5",
+    fromDate: fmt(fromDate),
+    toDate: fmt(toDate)
+  };
+
+  const headers = {
+    "access-token": token,
+    "client-id": clientId,
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  };
+
+  try {
+    const response = await fetch("https://api.dhan.co/v2/charts/intraday", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.warn(`[DATA] ${symbol}: Dhan chart HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      return null;
+    }
+
+    const data = (await response.json()) as any;
+    // Dhan returns { open: [], high: [], low: [], close: [], volume: [], timestamp: [] } directly
+    if (data && data.timestamp && Array.isArray(data.timestamp)) {
+      const allCandles: Candle[] = [];
+      const times = data.timestamp;
+      const opens = data.open;
+      const highs = data.high;
+      const lows = data.low;
+      const closes = data.close;
+      const volumes = data.volume;
+      const currentEpochSecs = Math.floor(Date.now() / 1000);
+
+      for (let i = 0; i < times.length; i++) {
+        let epochSecs = Number(times[i]);
+        if (epochSecs > 1e11) epochSecs = Math.floor(epochSecs / 1000); 
+        if (isNaN(epochSecs)) continue;
+        
+        // Exclude unclosed forming candles
+        if (currentEpochSecs < epochSecs + 300) {
+          continue;
+        }
+
+        allCandles.push({ t: epochSecs, o: opens[i], h: highs[i], l: lows[i], c: closes[i], v: volumes[i] });
+      }
+
+      allCandles.sort((a, b) => a.t - b.t);
+
+      if (allCandles.length > 0) {
+        const cdata = buildCandleData(allCandles);
+        if (cdata) {
+          console.log(`[DATA] ${symbol}: using Dhan native 5-min candles (${allCandles.length} bars).`);
+          return cdata;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[DATA] ${symbol}: Dhan candle fetch error: ${err.message}`);
+  }
+  return null;
+}
+
+
 async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
   const token = process.env.UPSTOX_ANALYTICS_TOKEN;
   if (!token) return null;
@@ -1201,6 +1339,8 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
   const allCandles: Candle[] = [];
 
   try {
+    const currentEpochSecs = Math.floor(Date.now() / 1000);
+
     // 1. Historical candles (past N days, excludes today)
     const histUrl = `https://api.upstox.com/v3/historical-candle/${encodedKey}/minutes/5/${fmt(toDate)}/${fmt(fromDate)}`;
     const histResp = await fetch(histUrl, { headers });
@@ -1213,6 +1353,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
         for (const row of histData.data.candles) {
           const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
           if (isNaN(epochSecs)) continue;
+          if (currentEpochSecs < epochSecs + 300) continue;
           allCandles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
         }
       }
@@ -1233,6 +1374,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
         for (const row of intradayData.data.candles) {
           const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
           if (isNaN(epochSecs)) continue;
+          if (currentEpochSecs < epochSecs + 300) continue;
           allCandles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
         }
       }
@@ -1271,40 +1413,55 @@ async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | nu
 
   if (data.s !== "ok" || !data.t || data.t.length === 0) return null;
 
-  const all: Candle[] = data.t.map((t, i) => ({
-    t,
-    o: data.o?.[i] ?? 0,
-    h: data.h?.[i] ?? 0,
-    l: data.l?.[i] ?? 0,
-    c: data.c?.[i] ?? 0,
-    v: data.v?.[i] ?? 0,
-  }));
+  const currentEpochSecs = Math.floor(Date.now() / 1000);
+  const all: Candle[] = [];
+  
+  for (let i = 0; i < data.t.length; i++) {
+    const epochSecs = data.t[i];
+    if (currentEpochSecs < epochSecs + 300) continue;
+    all.push({
+      t: epochSecs,
+      o: data.o?.[i] ?? 0,
+      h: data.h?.[i] ?? 0,
+      l: data.l?.[i] ?? 0,
+      c: data.c?.[i] ?? 0,
+      v: data.v?.[i] ?? 0,
+    });
+  }
 
   return buildCandleData(all);
 }
 
 export async function fetchCandles(symbol: string, isSwing: boolean = false): Promise<CandleData> {
-  // Priority: Upstox (primary, no rate limits) → Angel One (fallback) → Moneycontrol (swing only)
-  const upstoxCandles = await fetchUpstoxCandles(symbol);
-  if (upstoxCandles) return upstoxCandles;
-
-  console.warn(`[DATA] ${symbol}: Upstox candle fetch failed, falling back to Angel One.`);
-  const angelCandles = await fetchAngelCandles(symbol);
-  if (angelCandles) {
-    console.log(`[DATA] ${symbol}: using Angel One SmartAPI candles (fallback).`);
-    return angelCandles;
-  }
-
   if (isSwing) {
-    console.warn(`[DATA] ${symbol}: Angel One candle fetch failed, falling back to Moneycontrol (Swing ONLY).`);
+    // For Swing: Upstox -> Moneycontrol
+    const upstoxCandles = await fetchUpstoxCandles(symbol);
+    if (upstoxCandles) return upstoxCandles;
+
+    console.warn(`[DATA] ${symbol}: Upstox candle fetch failed, falling back to Moneycontrol (Swing).`);
     const mcCandles = await fetchMoneycontrolCandles(symbol);
     if (mcCandles) {
       console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
       return mcCandles;
     }
-  }
+    throw new Error(`[DATA] ${symbol}: All Swing candle sources failed.`);
+  } else {
+    // For Intraday: Dhan -> Upstox -> Moneycontrol
+    const dhanCandles = await fetchDhanCandles(symbol);
+    if (dhanCandles) return dhanCandles;
 
-  throw new Error(`[DATA] ${symbol}: All candle sources failed.`);
+    console.warn(`[DATA] ${symbol}: Dhan candle fetch failed, falling back to Upstox.`);
+    const upstoxCandles = await fetchUpstoxCandles(symbol);
+    if (upstoxCandles) return upstoxCandles;
+
+    console.warn(`[DATA] ${symbol}: Upstox candle fetch failed, falling back to Moneycontrol (fallback).`);
+    const mcCandles = await fetchMoneycontrolCandles(symbol);
+    if (mcCandles) {
+      console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
+      return mcCandles;
+    }
+    throw new Error(`[DATA] ${symbol}: All Intraday candle sources failed.`);
+  }
 }
 
 function calculateVWAP(candles: Candle[]): number | null {
@@ -2151,12 +2308,56 @@ async function fetchMoneycontrolDailyCandles(symbol: string): Promise<Candle[] |
     .sort((a, b) => a.t - b.t);
 }
 
+async function fetchUpstoxDailyCandles(symbol: string): Promise<Candle[] | null> {
+  const token = process.env.UPSTOX_ANALYTICS_TOKEN;
+  if (!token) return null;
+
+  let instrumentKey: string | undefined;
+  try {
+    const map = await getUpstoxInstrumentMap();
+    instrumentKey = map.get(symbol.toUpperCase().trim());
+  } catch (err: any) {
+    return null;
+  }
+  if (!instrumentKey) return null;
+
+  const encodedKey = encodeURIComponent(instrumentKey);
+  const headers = { Accept: "application/json", Authorization: `Bearer ${token}` };
+
+  const toDate = new Date();
+  const fromDate = new Date(toDate.getTime() - SWING_FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+  const url = `https://api.upstox.com/v3/historical-candle/${encodedKey}/day/${fmt(toDate)}/${fmt(fromDate)}`;
+  
+  try {
+    const resp = await fetch(url, { headers });
+    if (resp.ok) {
+      const data = (await resp.json()) as any;
+      if (data.status === "success" && Array.isArray(data.data?.candles)) {
+        const candles: Candle[] = [];
+        for (const row of data.data.candles) {
+          const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
+          if (isNaN(epochSecs)) continue;
+          candles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
+        }
+        candles.sort((a, b) => a.t - b.t);
+        console.log(`[DATA] ${symbol}: using Upstox daily candles (${candles.length} bars).`);
+        return candles;
+      }
+    }
+  } catch (err) {
+    // suppress
+  }
+  return null;
+}
+
 async function fetchDailyCandles(symbol: string): Promise<Candle[] | null> {
   try {
-    const angelCandles = await fetchAngelDailyCandles(symbol);
-    if (angelCandles?.length) return angelCandles;
+    const upstoxCandles = await fetchUpstoxDailyCandles(symbol);
+    if (upstoxCandles?.length) return upstoxCandles;
   } catch (err) {
-    console.warn(`[DATA] ${symbol}: Angel One daily candle fetch failed.`, err);
+    console.warn(`[DATA] ${symbol}: Upstox daily candle fetch failed.`, err);
   }
 
   try {

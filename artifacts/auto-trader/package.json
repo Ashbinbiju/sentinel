@@ -13,11 +13,11 @@
     "axios": "^1.16.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "catalog:",
-    "smartapi-javascript": "^1.0.27",
-    "totp-generator": "^2.0.1"
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/ws": "^8.18.1",
     "tsx": "catalog:",
     "typescript": "~5.9.3"
   }
