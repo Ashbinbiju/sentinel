@@ -293,7 +293,11 @@ export class ExecutionEngine {
 
   public async reconcileExits() {
       // Background task to mark EXITED if target/SL hit externally
-      const activeTrades = TradeDB.getOpenTrades().filter(t => t.state === "PROTECTION_CONFIRMED" || t.state === "BREAKEVEN_CONFIRMED");
+      const activeTrades = TradeDB.getOpenTrades().filter(t => 
+          t.state === "PROTECTION_CONFIRMED" || 
+          t.state === "BREAKEVEN_CONFIRMED" || 
+          (t.state === "EXIT_RECONCILIATION_REQUIRED" && !t.exitCorrelationId)
+      );
       if (activeTrades.length === 0) return;
 
       try {
@@ -305,7 +309,7 @@ export class ExecutionEngine {
               const netQty = Number(pos?.netQty || 0);
 
               const parent = superOrders.find(o => o.orderId === trade.superOrderId);
-              const targetOrSlTriggered = parent?.legDetails?.some(leg => 
+              const triggeredLeg = parent?.legDetails?.find(leg => 
                   (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
                   leg.orderStatus === "TRIGGERED" &&
                   Number(leg.triggeredQuantity) === trade.quantity
@@ -313,16 +317,20 @@ export class ExecutionEngine {
 
               const positionAbsentOrFlat = !pos || netQty === 0;
 
-              if (positionAbsentOrFlat && parent?.orderStatus === "CLOSED" && targetOrSlTriggered) {
+              if (positionAbsentOrFlat && parent?.orderStatus === "CLOSED" && triggeredLeg) {
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
-                  const trades = await this.broker.getTradesByOrderId(parent.orderId);
+                  if (!triggeredLeg) {
+                      continue;
+                  }
+                  
+                  const trades = await this.broker.getTradesByOrderId(triggeredLeg.orderId);
                   
                   let totalValue = 0;
                   let totalQty = 0;
                   for (const t of trades) {
                       if (t.transactionType !== trade.side) {
-                          totalValue += Number(t.tradedPrice || 0) * Number(t.tradedQty || 0);
-                          totalQty += Number(t.tradedQty || 0);
+                          totalValue += Number(t.tradedPrice || 0) * Number(t.tradedQuantity || 0);
+                          totalQty += Number(t.tradedQuantity || 0);
                       }
                   }
                   
@@ -422,7 +430,25 @@ export class ExecutionEngine {
             continue;
         }
 
-        if (["TRADED", "CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
+        if (exitOrder.orderStatus === "TRADED") {
+            if (
+                Number(exitOrder.filledQty) !== Number(exitOrder.quantity) ||
+                Number(exitOrder.averageTradedPrice) <= 0
+            ) {
+                continue;
+            }
+
+            const positions = await this.broker.getPositions();
+            const position = positions.find(
+                p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY"
+            );
+
+            if (Number(position?.netQty ?? 0) !== 0) {
+                continue;
+            }
+
+            TradeDB.markTradeClosed(trade.id, "SQUARED OFF", Number(exitOrder.averageTradedPrice));
+        } else if (["CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
             TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
         } else {
             console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);

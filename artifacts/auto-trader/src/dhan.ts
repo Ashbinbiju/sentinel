@@ -238,7 +238,8 @@ export class DhanBroker extends EventEmitter {
           timeout: 10_000,
         }
       );
-      return Array.isArray(response.data) ? response.data : [];
+      const data = response.data;
+      return Array.isArray(data) ? data : data ? [data] : [];
     } catch (error: any) {
       if (error?.response?.status === 404) {
         return [];

@@ -131,9 +131,9 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               }
 
               if (netQty === 0) {
-                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
-                  positionFlat = true;
-                  break;
+                  console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
+                  TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                  continue tradeLoop;
               }
 
               const exitSide = netQty > 0 ? "SELL" : "BUY";
@@ -352,7 +352,11 @@ async function main() {
         for (const t of todayTrades) {
             if (t.state === "EXITED" && t.realizedPnl !== undefined) {
                 realizedPnl += t.realizedPnl;
-                if (t.realizedPnl < 0) closedLosingTrades++;
+                if (t.realizedPnl < 0) {
+                    closedLosingTrades++;
+                } else {
+                    closedLosingTrades = 0;
+                }
             }
         }
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
