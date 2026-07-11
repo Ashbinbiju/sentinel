@@ -127,6 +127,10 @@ export class ExecutionEngine {
       const maxLeveragedQty = Math.floor((cycleBalance * 5) / entryPrice);
       if (qty > maxLeveragedQty) qty = maxLeveragedQty;
 
+      if (process.env.LIVE_CANARY === "true") {
+          qty = 1;
+      }
+
       if (qty <= 0) {
           console.warn(`[ENGINE] Insufficient balance for ${ctx.symbol}. Required: ${entryPrice}. Available: ${cycleBalance}`);
           return;
@@ -299,12 +303,6 @@ export class ExecutionEngine {
                     trade.id,
                     "REVERSAL_RECONCILIATION_REQUIRED"
                   );
-                
-                  await this.broker.placeMarketOrder(
-                    trade.securityId,
-                    Math.abs(netQty),
-                    netQty > 0 ? "SELL" : "BUY"
-                  );
               }
           }
       } catch (e) {
@@ -327,16 +325,20 @@ export class ExecutionEngine {
             const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
             if (parent) {
                 const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
-                if (slLeg && Number(slLeg.price) === Number(trade.entryPrice)) {
+                const priceMatch = slLeg && Math.abs(Number(slLeg.price) - Number(trade.entryPrice)) < 0.001;
+                const statusMatch = slLeg && slLeg.orderStatus === "PENDING";
+                
+                if (priceMatch && statusMatch) {
                     TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED", { breakevenApplied: true });
                     console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
-                } else {
-                    console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol}. Reverting to PROTECTION_CONFIRMED`);
+                } else if (!statusMatch) {
+                    console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol} (SL status: ${slLeg?.orderStatus}). Reverting to PROTECTION_CONFIRMED`);
                     TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
+                } else {
+                    console.warn(`[ENGINE] Breakeven price mismatch for ${trade.symbol}. Leaving in BREAKEVEN_REQUESTED.`);
                 }
             } else {
-                console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Reverting to PROTECTION_CONFIRMED`);
-                TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
+                console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Leaving in BREAKEVEN_REQUESTED.`);
             }
             continue;
         }
@@ -370,17 +372,25 @@ export class ExecutionEngine {
         const exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
 
         if (!exitOrder) {
-            throw new Error(`ExitReconciliationRequiredError: ${trade.exitCorrelationId} missing from broker order book`);
+            const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
+            if (notFoundCount >= 4) {
+               console.error(`[ENGINE] Exit ${trade.exitCorrelationId} repeatedly missing. Permitting new exit.`);
+               TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            } else {
+               console.warn(`[ENGINE] Exit ${trade.exitCorrelationId} missing from order book. Retrying count ${notFoundCount}`);
+               TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
+            }
+            continue;
         }
 
-        if (!["TRADED", "CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
-          console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
-          await this.broker.cancelOrder(exitOrder.orderId);
-          await this.broker.waitForOrderTerminal(exitOrder.orderId);
+        if (["TRADED", "CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
+            TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+        } else {
+            console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
+            await this.broker.cancelOrder(exitOrder.orderId);
+            await this.broker.waitForOrderTerminal(exitOrder.orderId);
+            TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
         }
-
-        // Successfully resolved to terminal. Clear ID.
-        TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "" });
       }
     } catch (e) {
       console.error("[ENGINE] Failed to run reconcileExitOrders", e);

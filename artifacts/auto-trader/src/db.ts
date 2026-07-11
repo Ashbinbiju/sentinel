@@ -22,6 +22,8 @@ export interface ActiveTrade {
   id: string;
   correlationId: string;
   exitCorrelationId?: string;
+  exitSubmittedAt?: number;
+  exitNotFoundCount?: number;
   superOrderId: string;
   symbol: string;
   securityId: string;
@@ -48,16 +50,23 @@ export interface ActiveTrade {
 
 const dbPath = path.resolve(__dirname, "../../trades.json");
 
+function fatalPersistenceError(error: unknown, msg: string): never {
+  console.error(`[FATAL] ${msg}`, error);
+  process.exit(1);
+}
+
 function readDB(): ActiveTrade[] {
   if (!fs.existsSync(dbPath)) {
+    if (process.env.DRY_RUN !== "true" && process.env.BOOTSTRAP_DB !== "true") {
+      fatalPersistenceError(new Error("trades.json missing"), "Persistence unavailable in LIVE mode.");
+    }
     return [];
   }
   try {
     const data = fs.readFileSync(dbPath, "utf-8");
     return JSON.parse(data);
   } catch (err) {
-    console.error("FATAL: Failed to read trade database:", err);
-    throw err;
+    fatalPersistenceError(err, "Failed to read trade database");
   }
 }
 
@@ -67,8 +76,7 @@ function writeDB(trades: ActiveTrade[]) {
     fs.writeFileSync(tempPath, JSON.stringify(trades, null, 2), "utf-8");
     fs.renameSync(tempPath, dbPath);
   } catch (err) {
-    console.error("FATAL: Failed to write to database:", err);
-    throw err;
+    fatalPersistenceError(err, "Failed to write to database");
   }
 }
 

@@ -6,9 +6,15 @@ import { ExecutionEngine, WatchlistContext } from "./engine";
 import axios from "axios";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
+const LIVE_CANARY = process.env.LIVE_CANARY === "true";
+
+if (DRY_RUN && LIVE_CANARY) {
+  throw new Error("DRY_RUN and LIVE_CANARY cannot both be enabled");
+}
+
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
-const MAX_DAILY_TRADES = 5;
+const MAX_DAILY_TRADES = LIVE_CANARY ? 1 : 5;
 const MAX_DAILY_LOSS = -2500;
 const MAX_CONSECUTIVE_LOSSES = 3;
 
@@ -118,11 +124,12 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
     const activeTrades = specificTrades || TradeDB.getOpenTrades();
     if (activeTrades.length === 0) return;
 
+    tradeLoop:
     for (const trade of activeTrades) {
         try {
             if (trade.exitCorrelationId) {
                 console.warn(`[BOT] Trade ${trade.symbol} has unresolved exitCorrelationId. Skipping new exit placement.`);
-                continue;
+                continue tradeLoop;
             }
 
             // Cancel active Super Order legs
@@ -134,11 +141,18 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
             if (trade.superOrderId && !trade.protectionCancelled) {
                const superOrders = await broker.getSuperOrderList();
                const parent = superOrders.find(o => o.orderId === trade.superOrderId);
-               if (parent && !["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
+               
+               if (!parent) {
+                 throw new Error(`Super Order ${trade.superOrderId} unavailable for ${trade.symbol}`);
+               }
+               
+               if (["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
+                 TradeDB.updateState(trade.id, trade.state, { protectionCancelled: true });
+               } else {
                  await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
                  await broker.waitForSuperOrderCancellation(trade.superOrderId);
+                 TradeDB.updateState(trade.id, trade.state, { protectionCancelled: true });
                }
-               TradeDB.updateState(trade.id, trade.state, { protectionCancelled: true });
             }
             
             let exitAttempts = 0;
@@ -186,9 +200,8 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 } else if (retries === 15) {
                   if (!exitOrder) {
                     console.error(`[BOT] ExitReconciliationRequiredError: ${exitCorrelationId}`);
-                    TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
-                    orderTerminal = true;
-                    break;
+                    TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitSubmittedAt: Date.now() });
+                    continue tradeLoop;
                   }
                   await broker.cancelOrder(exitOrder.orderId);
                   await broker.waitForOrderTerminal(exitOrder.orderId);
