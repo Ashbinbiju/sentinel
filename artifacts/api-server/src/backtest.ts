@@ -1,12 +1,11 @@
 import { fetchCandles } from "./routes/stocks";
 import { writeFileSync } from "fs";
 
-const TARGET_DATE = "2026-07-10"; // Friday
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
 
-const testSymbols = [
-    "ELECON"
+const testCases: { symbol: string; date: string }[] = [
+    { symbol: "LTIM", date: "2026-07-10" }
 ];
 
 function getISTDateStr(epochSecs: number): string {
@@ -28,18 +27,30 @@ function getCandleCloseDateIST(c: any): string {
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-async function fetchCandlesWithRetry(sym: string, retries = 3) {
+async function fetchCandlesWithRetry(sym: string, targetDate: string, retries = 3) {
     for (let i = 0; i < retries; i++) {
         try {
-            const data = await fetchCandles(sym);
-            // Verify we actually got data to avoid falling back to Moneycontrol blindly
+            // Try Dhan first (isSwing = false)
+            let data = await fetchCandles(sym, false);
+            let hasSufficientHistory = false;
+            
+            if (data && data.historicalCandles && data.historicalCandles.length > 0) {
+                // We need candles from the day BEFORE targetDate to calculate PDH/PDL
+                hasSufficientHistory = data.historicalCandles.some(c => getCandleCloseDateIST(c) < targetDate);
+                if (hasSufficientHistory) return data;
+            }
+
+            console.log(`[DATA] Dhan missing sufficient history for ${sym} (needs data before ${targetDate}). Falling back to Upstox...`);
+            
+            // Fallback to Upstox (isSwing = true)
+            data = await fetchCandles(sym, true);
             if (data && data.historicalCandles && data.historicalCandles.length > 0) {
                 return data;
             }
         } catch (err: any) {
             console.log(`[Attempt ${i+1}] Failed to fetch ${sym}: ${err.message}`);
         }
-        await delay(1000); // 1-second delay between retries
+        await delay(1000);
     }
     return null;
 }
@@ -47,13 +58,12 @@ async function fetchCandlesWithRetry(sym: string, retries = 3) {
 async function runBacktest() {
     const results = [];
 
-    for (const sym of testSymbols) {
-        console.log(`Fetching candles for ${sym}...`);
+    for (const { symbol: sym, date: TARGET_DATE } of testCases) {
+        console.log(`Fetching candles for ${sym} (${TARGET_DATE})...`);
         
-        // Respect rate limit: pause for 1 second before fetching the next stock
-        await delay(1000);
+        await delay(1500);
         
-        const candleData = await fetchCandlesWithRetry(sym, 3);
+        const candleData = await fetchCandlesWithRetry(sym, TARGET_DATE, 3);
         if (!candleData || !candleData.historicalCandles || candleData.historicalCandles.length === 0) {
             console.log(`Failed to fetch accurate data for ${sym} after retries. Skipping.`);
             continue;
@@ -65,21 +75,28 @@ async function runBacktest() {
         )).sort();
         
         const lastPrevDate = prevDates.at(-1);
-        if (!lastPrevDate) continue;
+        if (!lastPrevDate) {
+            results.push({ Symbol: sym, Date: TARGET_DATE, Time: "-", PDH: "-", PDL: "-", Setup: "-", Direction: "-", Entry: "-", StopLoss: "-", Target: "-", Status: "⚠️ No prev-day data (date too old for API window)", HitTime: "-" });
+            continue;
+        }
 
         const prevDayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === lastPrevDate);
-        if (prevDayCandles.length === 0) continue;
+        if (prevDayCandles.length === 0) {
+            results.push({ Symbol: sym, Date: TARGET_DATE, Time: "-", PDH: "-", PDL: "-", Setup: "-", Direction: "-", Entry: "-", StopLoss: "-", Target: "-", Status: "⚠️ No prev-day candles found", HitTime: "-" });
+            continue;
+        }
 
         const prevHigh = Math.max(...prevDayCandles.map((c: any) => c.h));
         const prevLow = Math.min(...prevDayCandles.map((c: any) => c.l));
 
-        const fridayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === TARGET_DATE);
+        const targetDayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === TARGET_DATE);
 
-
-        
         let tradeTaken = false;
         
-        for (const c of fridayCandles) {
+        for (let i = 0; i < targetDayCandles.length; i++) {
+            const c = targetDayCandles[i];
+            const prevC = i > 0 ? targetDayCandles[i-1] : prevDayCandles[prevDayCandles.length - 1];
+            const prevPrevC = i > 1 ? targetDayCandles[i-2] : (i === 1 ? prevDayCandles[prevDayCandles.length - 1] : (prevDayCandles[prevDayCandles.length - 2] || prevDayCandles[prevDayCandles.length - 1]));
             const mins = getISTMinuteOfDay(c.t + 300); 
             
             if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
@@ -92,41 +109,62 @@ async function runBacktest() {
             let entryPrice = c.c;
             let skippedReason = "";
 
-            if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
-                if (c.c > prevHigh) {
-                    if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
-                        setup = "HIGH BREAKOUT"; direction = "LONG";
-                        sl = Math.min(c.l, prevHigh * 0.999);
-                    } else {
-                        skippedReason = "Anti-Chasing Filter";
-                    }
-                } else if (c.c < c.o) {
-                    setup = "HIGH REJECTION"; direction = "SHORT";
-                    sl = Math.max(c.h, prevHigh * 1.001);
+            // Breakout rules
+            const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
+            const touchedHighZone = c.l <= prevHigh * (1 + TOUCH_BUFFER_PCT) && c.h >= prevHigh;
+            const chasePctHigh = (c.c - prevHigh) / prevHigh;
+            const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
+
+            const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
+            const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
+            const chasePctLow = (prevLow - c.c) / prevLow;
+            const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
+
+            // Rejection rules (must touch zone and reverse, approaching from the correct side)
+            const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
+            const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
+            const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
+            const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
+
+            const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
+            const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
+            const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
+
+            const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
+            const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
+            const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
+
+            if (freshHighBreakout) {
+                if (touchedHighZone && chaseAllowedHigh) {
+                    setup = "HIGH BREAKOUT"; direction = "LONG";
+                    sl = Math.min(c.l, prevHigh * 0.999);
+                } else {
+                    skippedReason = "Anti-Chasing / Touch Filter";
                 }
-                if (direction) entryPrice = c.c;
-            } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
-                if (c.c < prevLow) {
-                    if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
-                        setup = "LOW BREAKDOWN"; direction = "SHORT";
-                        sl = Math.max(c.h, prevLow * 1.001);
-                    } else {
-                        skippedReason = "Anti-Chasing Filter";
-                    }
-                } else if (c.c > c.o) {
-                    setup = "LOW SUPPORT"; direction = "LONG";
-                    sl = Math.min(c.l, prevLow * 0.999);
+            } else if (freshLowBreakdown) {
+                if (touchedLowZone && chaseAllowedLow) {
+                    setup = "LOW BREAKDOWN"; direction = "SHORT";
+                    sl = Math.max(c.h, prevLow * 1.001);
+                } else {
+                    skippedReason = "Anti-Chasing / Touch Filter";
                 }
-                if (direction) entryPrice = c.c;
+            } else if (validHighRejection) {
+                setup = "HIGH REJECTION"; direction = "SHORT";
+                sl = Math.max(c.h, zoneTopH) * 1.001;
+            } else if (validLowSupport) {
+                setup = "LOW SUPPORT"; direction = "LONG";
+                sl = Math.min(c.l, zoneBotL) * 0.999;
             }
+
+            if (direction) entryPrice = c.c;
 
             if (direction) {
                 const hrMins = Math.floor(mins / 60).toString().padStart(2, '0') + ":" + (mins % 60).toString().padStart(2, '0');
                 const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
                 const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
                 
-                const entryIndex = fridayCandles.indexOf(c);
-                const remainingCandles = fridayCandles.slice(entryIndex + 1);
+                const entryIndex = targetDayCandles.indexOf(c);
+                const remainingCandles = targetDayCandles.slice(entryIndex + 1);
                 let exitStatus = "OPEN (End of Day)";
                 let hitTime = "-";
 
@@ -136,37 +174,42 @@ async function runBacktest() {
                     
                     if (direction === "LONG") {
                         if (rc.l <= sl) {
-                            exitStatus = "❌ STOP LOSS HIT";
+                            exitStatus = sl === entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
                             hitTime = rcTime;
                             break;
                         } else if (rc.h >= target) {
                             exitStatus = "✅ TARGET HIT";
                             hitTime = rcTime;
                             break;
+                        } else if (rc.h >= entryPrice + risk && sl < entryPrice) {
+                            sl = entryPrice;
                         }
                     } else { 
                         if (rc.h >= sl) {
-                            exitStatus = "❌ STOP LOSS HIT";
+                            exitStatus = sl === entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
                             hitTime = rcTime;
                             break;
                         } else if (rc.l <= target) {
                             exitStatus = "✅ TARGET HIT";
                             hitTime = rcTime;
                             break;
+                        } else if (rc.l <= entryPrice - risk && sl > entryPrice) {
+                            sl = entryPrice;
                         }
                     }
                 }
 
                 results.push({
                     Symbol: sym,
+                    Date: TARGET_DATE,
                     Time: hrMins,
                     PDH: prevHigh.toFixed(2),
+                    PDL: prevLow.toFixed(2),
                     Setup: setup,
                     Direction: direction,
                     Entry: entryPrice.toFixed(2),
                     StopLoss: sl.toFixed(2),
                     Target: target.toFixed(2),
-                    CloseDistance: `${((c.c / prevHigh - 1) * 100).toFixed(2)}%`,
                     Status: exitStatus,
                     HitTime: hitTime
                 });
@@ -176,14 +219,15 @@ async function runBacktest() {
                 const hrMins = Math.floor(mins / 60).toString().padStart(2, '0') + ":" + (mins % 60).toString().padStart(2, '0');
                 results.push({
                     Symbol: sym,
+                    Date: TARGET_DATE,
                     Time: hrMins,
                     PDH: prevHigh.toFixed(2),
+                    PDL: prevLow.toFixed(2),
                     Setup: "SKIPPED",
                     Direction: "-",
                     Entry: c.c.toFixed(2),
                     StopLoss: "-",
                     Target: "-",
-                    CloseDistance: `${((c.c / prevHigh - 1) * 100).toFixed(2)}%`,
                     Status: skippedReason,
                     HitTime: "-"
                 });
@@ -195,14 +239,15 @@ async function runBacktest() {
         if (!tradeTaken) {
             results.push({
                     Symbol: sym,
+                    Date: TARGET_DATE,
                     Time: "-",
                     PDH: prevHigh.toFixed(2),
+                    PDL: prevLow.toFixed(2),
                     Setup: "-",
                     Direction: "-",
                     Entry: "-",
                     StopLoss: "-",
                     Target: "-",
-                    CloseDistance: "-",
                     Status: "No prime time entry",
                     HitTime: "-"
             });
@@ -210,11 +255,11 @@ async function runBacktest() {
     }
     
     let md = `# Intraday Backtest Results\n\n`;
-    md += `This table shows exactly how the bot evaluated these stocks using the Prime Time window (10:15 - 14:30) and the 0.8% Anti-Chasing filter with 0.15% Touch Buffer.\n\n`;
-    md += `| Symbol | Time | PDH | Setup | Dir | Entry | SL | Target | Result | Exit Time |\n`;
-    md += `|---|---|---|---|---|---|---|---|---|---|\n`;
+    md += `Prime Time: 10:15–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2\n\n`;
+    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | Exit Time |\n`;
+    md += `|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
     for (const r of results) {
-        md += `| ${r.Symbol} | ${r.Time} | ${r.PDH} | ${r.Setup} | ${r.Direction} | ${r.Entry} | ${r.StopLoss} | ${r.Target} | **${r.Status}** | ${r.HitTime} |\n`;
+        md += `| ${r.Symbol} | ${r.Date} | ${r.Time} | ${r.PDH} | ${r.PDL} | ${r.Setup} | ${r.Direction} | ${r.Entry} | ${r.StopLoss} | ${r.Target} | **${r.Status}** | ${r.HitTime} |\n`;
     }
     writeFileSync("./backtest_results.md", md);
     console.log("Backtest complete.");

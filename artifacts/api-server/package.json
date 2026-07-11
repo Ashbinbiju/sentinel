@@ -7,7 +7,8 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --max-old-space-size=250 --env-file=../../.env --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "backtest": "node --env-file=../../.env --import tsx/esm src/backtest.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

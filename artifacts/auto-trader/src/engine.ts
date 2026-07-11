@@ -38,7 +38,7 @@ export class ExecutionEngine {
 
   private evaluationQueue: Promise<void> = Promise.resolve();
 
-  public async evaluateClosedCandle(securityId: string, candle: Candle) {
+  public async evaluateClosedCandle(securityId: string, candle: Candle, history: Candle[]) {
     const evaluateTask = async () => {
       try {
         const ctx = this.watchlist.get(securityId);
@@ -60,35 +60,56 @@ export class ExecutionEngine {
         const prevHigh = ctx.prevHigh;
         const prevLow = ctx.prevLow;
         const c = candle;
+        const prevC = history.length > 1 ? history[history.length - 2] : history[history.length - 1];
+        const prevPrevC = history.length > 2 ? history[history.length - 3] : prevC;
 
         let setup = "";
         let direction: "BUY" | "SELL" | null = null;
         let sl = 0;
         let entryPrice = c.c;
 
-        if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
-          if (c.c > prevHigh) {
-            if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
-              setup = "HIGH BREAKOUT"; direction = "BUY";
-              sl = Math.min(c.l, prevHigh * 0.999);
+        const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
+        const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
+        const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
+        const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
+
+        const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
+        const touchedHighZone = c.l <= zoneTopH && c.h >= prevHigh;
+        const chasePctHigh = (c.c - prevHigh) / prevHigh;
+        const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
+
+        const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
+        const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
+        const chasePctLow = (prevLow - c.c) / prevLow;
+        const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
+
+        const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
+        const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
+        const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
+
+        const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
+        const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
+        const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
+
+        if (freshHighBreakout) {
+            if (touchedHighZone && chaseAllowedHigh) {
+                setup = "HIGH BREAKOUT"; direction = "BUY";
+                sl = Math.min(c.l, prevHigh * 0.999);
             }
-          } else if (c.c < c.o) {
+        } else if (freshLowBreakdown) {
+            if (touchedLowZone && chaseAllowedLow) {
+                setup = "LOW BREAKDOWN"; direction = "SELL";
+                sl = Math.max(c.h, prevLow * 1.001);
+            }
+        } else if (validHighRejection) {
             setup = "HIGH REJECTION"; direction = "SELL";
-            sl = Math.max(c.h, prevHigh * 1.001);
-          }
-          if (direction) entryPrice = c.c;
-        } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
-          if (c.c < prevLow) {
-            if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
-              setup = "LOW BREAKDOWN"; direction = "SELL";
-              sl = Math.max(c.h, prevLow * 1.001);
-            }
-          } else if (c.c > c.o) {
+            sl = Math.max(c.h, zoneTopH) * 1.001;
+        } else if (validLowSupport) {
             setup = "LOW SUPPORT"; direction = "BUY";
-            sl = Math.min(c.l, prevLow * 0.999);
-          }
-          if (direction) entryPrice = c.c;
+            sl = Math.min(c.l, zoneBotL) * 0.999;
         }
+
+        if (direction) entryPrice = c.c;
 
         if (direction) {
           console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);

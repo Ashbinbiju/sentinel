@@ -236,7 +236,7 @@ async function main() {
   let watchlist: WatchlistContext[] = [];
 
   candleEngine.on("onCandleClosed", async (securityId: string, candle: Candle, history: Candle[]) => {
-    await executionEngine.evaluateClosedCandle(securityId, candle);
+    await executionEngine.evaluateClosedCandle(securityId, candle, history);
   });
 
   const initAndRecover = async () => {
