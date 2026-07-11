@@ -283,11 +283,28 @@ export class ExecutionEngine {
               if (!pos) continue;
 
               const netQty = Number(pos.netQty || 0);
-              const isClosed = (trade.side === "BUY" && netQty <= 0) || (trade.side === "SELL" && netQty >= 0);
 
-              if (isClosed) {
+              if (netQty === 0) {
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
-                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+                  TradeDB.markTradeClosed(trade.id, "BROKER EXIT");
+              } else if (
+                (trade.side === "BUY" && netQty < 0) ||
+                (trade.side === "SELL" && netQty > 0)
+              ) {
+                  console.error(
+                    `[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`
+                  );
+                
+                  TradeDB.updateState(
+                    trade.id,
+                    "RECONCILIATION_REQUIRED"
+                  );
+                
+                  await this.broker.placeMarketOrder(
+                    trade.securityId,
+                    Math.abs(netQty),
+                    netQty > 0 ? "SELL" : "BUY"
+                  );
               }
           }
       } catch (e) {

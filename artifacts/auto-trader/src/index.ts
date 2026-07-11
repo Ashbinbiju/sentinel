@@ -121,13 +121,19 @@ async function closeAllOpenTrades(broker: DhanBroker) {
     for (const trade of activeTrades) {
         try {
             // Cancel active Super Order legs
+            if (["ENTRY_SUBMITTING", "RECONCILIATION_REQUIRED"].includes(trade.state) && !trade.superOrderId) {
+                TradeDB.updateState(trade.id, "RECONCILIATION_REQUIRED");
+                throw new Error(`Cannot square off unresolved order ${trade.correlationId}`);
+            }
+
             if (trade.superOrderId) {
                await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
                await broker.waitForSuperOrderCancellation(trade.superOrderId);
             }
             
             let exitAttempts = 0;
-            while (exitAttempts < 3) {
+            let fullyFilled = false;
+            while (exitAttempts < 3 && !fullyFilled) {
               exitAttempts++;
               
               const refreshedPositions = await broker.getPositions();
@@ -140,6 +146,7 @@ async function closeAllOpenTrades(broker: DhanBroker) {
 
               if (netQty === 0) {
                   TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+                  fullyFilled = true;
                   break;
               }
 
@@ -150,20 +157,31 @@ async function closeAllOpenTrades(broker: DhanBroker) {
               
               // Poll order until TRADED and fully filled
               let retries = 0;
-              let fullyFilled = false;
               while (retries < 15 && !fullyFilled) {
                 retries++;
                 await sleep(1000);
                 const orders = await broker.getOrderBook();
                 const exitOrder = orders.find(o => o.orderId === exitOrderId);
+                
                 if (exitOrder && exitOrder.orderStatus === "TRADED" && Number(exitOrder.tradedQty ?? 0) >= qtyToExit) {
                   fullyFilled = true;
+                } else if (exitOrder && exitOrder.orderStatus === "PART_TRADED" && retries === 15) {
+                  const remaining = Number(exitOrder.remainingQuantity ?? 0);
+                  if (remaining > 0) {
+                    await broker.cancelOrder(exitOrder.orderId);
+                    await broker.waitForOrderTerminal(exitOrder.orderId);
+                  }
                 }
               }
               
               if (!fullyFilled) {
                 console.warn(`[BOT] Exit order ${exitOrderId} did not fully fill. Refreshing position and retrying...`);
               }
+            }
+            
+            if (!fullyFilled) {
+                console.error(`[BOT] CRITICAL: Failed to square off ${trade.symbol} after 3 attempts.`);
+                TradeDB.updateState(trade.id, "RECONCILIATION_REQUIRED");
             }
         } catch (e) {
             console.error(`[BOT] Failed to close trade ${trade.id}`, e);
@@ -292,13 +310,19 @@ async function main() {
       // Auto Square-Off at 3:14 PM
       const currentMins = getISTMinutes();
       if (currentMins >= 15 * 60 + 14 && currentMins <= 15 * 60 + 30) {
-        const activeTrades = TradeDB.getOpenTrades();
+        let activeTrades = TradeDB.getOpenTrades();
         if (activeTrades.length > 0) {
           console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM).`);
           await closeAllOpenTrades(broker);
+          activeTrades = TradeDB.getOpenTrades();
         }
-        await sleep(15 * 60 * 1000);
-        continue;
+        
+        if (activeTrades.length === 0) {
+          await sleep(15 * 60 * 1000);
+          continue;
+        } else {
+          console.error(`[BOT] CRITICAL: Square-off failed for ${activeTrades.length} trades. Will retry in safety loop.`);
+        }
       }
 
       // Kill Switch Validation

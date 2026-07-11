@@ -309,6 +309,34 @@ export class DhanBroker extends EventEmitter {
     throw new Error(`Super Order ${orderId} cancellation was not confirmed`);
   }
 
+  async cancelOrder(orderId: string): Promise<void> {
+    if (process.env.DRY_RUN === "true") return;
+    try {
+      await axios.delete(`${DHAN_BASE_URL}/orders/${orderId}`, {
+        headers: this.getHeaders(), timeout: 10000
+      });
+    } catch (err: any) {
+      console.error(`[BROKER] Exception cancelling order ${orderId}:`, err?.response?.data || err.message);
+      throw err;
+    }
+  }
+
+  async waitForOrderTerminal(orderId: string): Promise<void> {
+    if (process.env.DRY_RUN === "true") return;
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      await new Promise(r => setTimeout(r, 1000));
+      const orders = await this.getOrderBook();
+      const order = orders.find(o => o.orderId === orderId);
+      if (
+        order &&
+        ["CANCELLED", "CLOSED", "REJECTED", "TRADED"].includes(order.orderStatus)
+      ) {
+        return;
+      }
+    }
+    throw new Error(`Order ${orderId} terminal state was not confirmed`);
+  }
+
   async placeMarketOrder(
     securityId: string,
     quantity: number,
@@ -335,7 +363,8 @@ export class DhanBroker extends EventEmitter {
       };
       
       const response = await axios.post(`${DHAN_BASE_URL}/orders`, payload, {
-        headers: this.getHeaders()
+        headers: this.getHeaders(),
+        timeout: 10000
       });
       
       if (response.data && response.data.orderId) {
