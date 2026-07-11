@@ -9,6 +9,11 @@ import axios from "axios";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
 const LIVE_CANARY = process.env.LIVE_CANARY === "true";
+const FULL_LIVE = process.env.FULL_LIVE === "true";
+
+if (!DRY_RUN && !LIVE_CANARY && !FULL_LIVE) {
+  throw new Error("Live execution requires LIVE_CANARY=true or explicit FULL_LIVE=true");
+}
 
 if (DRY_RUN && LIVE_CANARY) {
   throw new Error("DRY_RUN and LIVE_CANARY cannot both be enabled");
@@ -176,6 +181,14 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               const completedExit = await broker.getOrderByCorrelationId(exitCorrelationId);
               
               if (completedExit?.orderStatus === "TRADED") {
+                  continue tradeLoop;
+              }
+              
+              if (
+                  !completedExit ||
+                  ["TRANSIT", "PENDING", "PART_TRADED"].includes(completedExit.orderStatus)
+              ) {
+                  TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
                   continue tradeLoop;
               }
               

@@ -431,7 +431,7 @@ export class ExecutionEngine {
 
         if (!exitOrder) {
             const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
-            console.error(`[ENGINE] Exit ${trade.exitCorrelationId} missing from broker (count ${notFoundCount}). Retaining lock indefinitely.`);
+            console.error(`[EMERGENCY] Exit ${trade.exitCorrelationId} missing from broker (count ${notFoundCount}). MANUAL OPERATOR RESOLUTION REQUIRED to avoid unflattened exposure.`);
             TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
             continue;
         }

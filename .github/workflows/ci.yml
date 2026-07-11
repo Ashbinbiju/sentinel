@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        
+    - name: Install pnpm
+      run: npm install -g pnpm
+      
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+      
+    - name: Typecheck auto-trader
+      run: cd artifacts/auto-trader && pnpm run typecheck
+      
+    - name: Typecheck api-server
+      run: cd artifacts/api-server && pnpm run typecheck
