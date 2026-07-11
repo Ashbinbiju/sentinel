@@ -437,9 +437,14 @@ export class ExecutionEngine {
         }
 
         if (exitOrder.orderStatus === "TRADED") {
+            const exitPrice = Number(exitOrder.averageTradedPrice);
+            const filledQty = Number(exitOrder.filledQty);
+
             if (
-                Number(exitOrder.filledQty) !== Number(exitOrder.quantity) ||
-                Number(exitOrder.averageTradedPrice) <= 0
+                !Number.isFinite(exitPrice) ||
+                exitPrice <= 0 ||
+                !Number.isFinite(filledQty) ||
+                filledQty !== Number(exitOrder.quantity)
             ) {
                 continue;
             }
@@ -453,14 +458,42 @@ export class ExecutionEngine {
                 continue;
             }
 
-            TradeDB.markTradeClosed(trade.id, "SQUARED OFF", Number(exitOrder.averageTradedPrice));
-        } else if (["CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
+            TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
+        } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
             TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
         } else {
             console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
             await this.broker.cancelOrder(exitOrder.orderId);
             await this.broker.waitForOrderTerminal(exitOrder.orderId);
-            TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            
+            const finalOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId!);
+            
+            if (finalOrder?.orderStatus === "TRADED") {
+                const finalExitPrice = Number(finalOrder.averageTradedPrice);
+                const finalFilledQty = Number(finalOrder.filledQty);
+
+                if (
+                    !Number.isFinite(finalExitPrice) ||
+                    finalExitPrice <= 0 ||
+                    !Number.isFinite(finalFilledQty) ||
+                    finalFilledQty !== Number(finalOrder.quantity)
+                ) {
+                    continue;
+                }
+
+                const positions = await this.broker.getPositions();
+                const position = positions.find(
+                    p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY"
+                );
+
+                if (Number(position?.netQty ?? 0) !== 0) {
+                    continue;
+                }
+
+                TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
+            } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(finalOrder?.orderStatus ?? "")) {
+                TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            }
         }
       }
     } catch (e) {

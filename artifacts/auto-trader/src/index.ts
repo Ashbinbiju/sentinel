@@ -173,27 +173,27 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 }
               }
               
+              const completedExit = await broker.getOrderByCorrelationId(exitCorrelationId);
+              
+              if (completedExit?.orderStatus === "TRADED") {
+                  continue tradeLoop;
+              }
+              
+              if (["CANCELLED", "REJECTED", "EXPIRED"].includes(completedExit?.orderStatus ?? "")) {
+                  TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "" });
+              }
+
               const finalPositions = await broker.getPositions();
               const finalPosition = finalPositions.find(p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY");
               
               positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
               
-              if (positionFlat) {
-                  const completedExit = await broker.getOrderByCorrelationId(exitCorrelationId);
-
-                  if (completedExit?.orderStatus !== "TRADED" || Number(completedExit.filledQty) !== qtyToExit) {
-                    continue tradeLoop;
-                  }
-
-                  const exitPrice = Number(completedExit.averageTradedPrice);
-
-                  if (!Number.isFinite(exitPrice) || exitPrice <= 0) {
-                      continue tradeLoop;
-                  }
-
-                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
-              } else {
+              if (!positionFlat) {
                 console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
+              } else {
+                  console.log(`[BOT] Position flat after terminal non-traded status. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
+                  TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                  continue tradeLoop;
               }
             }
             
