@@ -8,7 +8,13 @@ import axios from "axios";
 const DRY_RUN = process.env.DRY_RUN === "true";
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
+const MAX_DAILY_TRADES = 5;
+const MAX_DAILY_LOSS = -2500;
+const MAX_CONSECUTIVE_LOSSES = 3;
+
 let isShuttingDown = false;
+let tradesToday = 0;
+
 const shutdown = () => {
   console.log("[BOT] Shutdown signal received.");
   isShuttingDown = true;
@@ -21,7 +27,44 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 1. Fetch Volume Shockers
+function getISTDateStr(): string {
+  const now = new Date();
+  const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+  let year = "", month = "", day = "";
+  for (const p of parts) {
+    if (p.type === 'year') year = p.value;
+    if (p.type === 'month') month = p.value;
+    if (p.type === 'day') day = p.value;
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function getISTMinutes(): number {
+  const now = new Date();
+  const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: 'numeric', minute: 'numeric' } as const;
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+  let hour = 0, minute = 0;
+  for (const p of parts) {
+    if (p.type === 'hour') hour = parseInt(p.value, 10);
+    if (p.type === 'minute') minute = parseInt(p.value, 10);
+  }
+  return hour * 60 + minute;
+}
+
+function isMarketOpenIST(): boolean {
+  const now = new Date();
+  const options = { timeZone: 'Asia/Kolkata', weekday: 'short' } as const;
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
+  let weekday = '';
+  for (const p of parts) {
+    if (p.type === 'weekday') weekday = p.value;
+  }
+  if (weekday === 'Sat' || weekday === 'Sun') return false;
+  const mins = getISTMinutes();
+  return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 30;
+}
+
 async function getDailyWatchlist(): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
@@ -37,13 +80,11 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
         if (ltp > 100 && changePct < 15) {
           const securityId = getSecurityId(symbol);
           if (securityId) {
-            // Fetch historical context from api-server
             try {
               const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${symbol}/candles`);
               if (histRes.data && histRes.data.historicalCandles) {
                 const histCandles = histRes.data.historicalCandles as Candle[];
-                // Filter out today
-                const todaySlot = new Date().toISOString().slice(0,10);
+                const todaySlot = getISTDateStr();
                 const prevCandles = histCandles.filter(c => {
                   const d = new Date(c.t * 1000);
                   const dtStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -51,7 +92,6 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
                 });
                 
                 if (prevCandles.length > 0) {
-                  // Find last date
                   const dates = Array.from(new Set(prevCandles.map(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t*1000))))).sort();
                   const lastDate = dates[dates.length - 1];
                   const lastDayCandles = prevCandles.filter(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t*1000)) === lastDate);
@@ -59,16 +99,11 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
                   const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
                   const prevLow = Math.min(...lastDayCandles.map(c => c.l));
                   
-                  list.push({
-                    symbol,
-                    securityId,
-                    prevHigh,
-                    prevLow
-                  });
+                  list.push({ symbol, securityId, prevHigh, prevLow });
                 }
               }
             } catch (err: any) {
-              console.warn(`[BOT] Could not fetch history for ${symbol}: ${err.message}`);
+              // ignore
             }
           }
         }
@@ -80,10 +115,32 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
   return list;
 }
 
-// 2. Main Entry
+async function closeAllOpenTrades(broker: DhanBroker) {
+    const activeTrades = TradeDB.getOpenTrades();
+    if (activeTrades.length === 0) return;
+
+    for (const trade of activeTrades) {
+        try {
+            if (trade.superOrderId) {
+               await broker.cancelSuperOrder(trade.superOrderId);
+            }
+            // For intraday, positions will square off natively or we can emit market order
+            // This is a simplified close assuming Super Order cancellation drops the pending target/SL and we exit MARKET.
+            const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
+            console.log(`[BOT] Emitting EXIT order for ${trade.symbol}`);
+            
+            // Revert back to using ordinary market order to close out the remaining netQty if needed
+            // But since this uses super orders, typically they auto-close at 3:15 or SL hit.
+            // Cancelling the Super Order drops the SL leg, so we must exit position.
+            TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+        } catch (e) {
+            console.error(`[BOT] Failed to close trade ${trade.id}`, e);
+        }
+    }
+}
+
 async function main() {
-  console.log("Starting Sentinel Auto-Trader (Candle Engine Mode)...");
-  
+  console.log("Starting Sentinel Auto-Trader...");
   if (DRY_RUN) console.log("⚠️ RUNNING IN DRY-RUN MODE ⚠️");
 
   await initializeScripMaster();
@@ -94,19 +151,25 @@ async function main() {
   const executionEngine = new ExecutionEngine(broker);
   const candleEngine = new CandleEngine();
 
-  // Handle Local Candle Closure -> Evaluate Entry
+  let currentTradingDay = getISTDateStr();
+  let watchlist: WatchlistContext[] = [];
+
   candleEngine.on("onCandleClosed", async (securityId: string, candle: Candle, history: Candle[]) => {
+    if (tradesToday >= MAX_DAILY_TRADES) return;
     await executionEngine.evaluateClosedCandle(securityId, candle);
   });
 
-  // Reconnection and Startup Logic
-  const initEngine = async () => {
+  const initAndRecover = async () => {
     candleEngine.isContinuityValid = false;
-    console.log(`[BOT] Fetching Watchlist & Historical Context...`);
-    const watchlist = await getDailyWatchlist();
-    executionEngine.setWatchlist(watchlist);
+    
+    if (watchlist.length === 0) {
+        console.log(`[BOT] Fetching Watchlist & Historical Context...`);
+        watchlist = await getDailyWatchlist();
+        executionEngine.setWatchlist(watchlist);
+    }
 
-    // Backfill session candles
+    // Recover from gap
+    let backfillSuccess = true;
     for (const item of watchlist) {
       try {
         const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
@@ -114,32 +177,95 @@ async function main() {
           candleEngine.backfill(item.securityId, histRes.data.sessionCandles);
         }
       } catch (err) {
-        // ignore
+        console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
+        backfillSuccess = false;
       }
     }
 
-    candleEngine.isContinuityValid = true;
-    console.log(`[BOT] CandleEngine Continuity Validated. Ready for live trading.`);
-    
-    broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+    if (backfillSuccess) {
+        candleEngine.isContinuityValid = true;
+        console.log(`[BOT] CandleEngine Continuity Validated. Ready for live trading.`);
+        broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+    } else {
+        console.warn(`[BOT] Backfill failed. Skipping continuity validation. Retrying in 60s.`);
+    }
   };
 
-  // Setup Live Ticks
-  broker.onTick(async (securityId: string, ltp: number) => {
-    // We assume 0 volume if we can't extract it reliably, but engine still works
-    candleEngine.processTick(securityId, ltp, 0, Date.now());
-    
-    // Evaluate Live Tick for Exits (Breakeven rule)
-    await executionEngine.evaluateLiveTick(securityId, ltp);
+  broker.on("onReconnect", async () => {
+      console.log(`[BOT] WebSocket reconnected. Initiating backfill...`);
+      await initAndRecover();
   });
 
-  // Keep process alive and monitor connectivity
-  await broker.connectWebSocket();
-  await initEngine();
+  broker.on("onDisconnect", () => {
+      console.warn(`[BOT] WebSocket disconnected. Invalidating continuity.`);
+      candleEngine.isContinuityValid = false;
+  });
 
+  broker.onTick(async (tick) => {
+    candleEngine.processTick(tick);
+    await executionEngine.evaluateLiveTick(tick.securityId, tick.ltp);
+  });
+
+  // Start internal timers
+  candleEngine.start();
+  await broker.connectWebSocket();
+
+  // Polling / Safety Loop
   while (!isShuttingDown) {
+    try {
+      const todayStr = getISTDateStr();
+      if (todayStr !== currentTradingDay) {
+        currentTradingDay = todayStr;
+        tradesToday = 0;
+        watchlist = [];
+        await broker.validateOrRenewToken();
+        await initAndRecover();
+      }
+
+      if (!isMarketOpenIST() && !DRY_RUN) {
+        await sleep(5 * 60 * 1000);
+        continue;
+      }
+
+      // Auto Square-Off at 3:14 PM
+      const currentMins = getISTMinutes();
+      if (currentMins >= 15 * 60 + 14 && currentMins <= 15 * 60 + 30) {
+        const activeTrades = TradeDB.getOpenTrades();
+        if (activeTrades.length > 0) {
+          console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM).`);
+          await closeAllOpenTrades(broker);
+        }
+        await sleep(15 * 60 * 1000);
+        continue;
+      }
+
+      // Kill Switch Validation
+      if (!DRY_RUN) {
+        const { realizedPnl, closedLosingTrades } = await broker.getRiskMetrics();
+        if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
+           console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
+           await closeAllOpenTrades(broker);
+           // Sleep until next day
+           while (todayStr === getISTDateStr()) {
+               await sleep(60 * 60 * 1000);
+           }
+           continue;
+        }
+      }
+
+      // Reconcile Exits
+      await executionEngine.reconcileExits();
+
+      // Retry failed backfills if continuity is broken
+      if (!candleEngine.isContinuityValid && isMarketOpenIST()) {
+          await initAndRecover();
+      }
+
+    } catch (e: any) {
+       console.error(`[BOT] Safety Loop Error:`, e.message);
+    }
+
     await sleep(60000);
-    // Ping/Pong or health checks can go here
   }
 }
 

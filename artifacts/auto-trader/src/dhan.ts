@@ -1,5 +1,6 @@
 import axios from "axios";
 import { WebSocket } from "ws";
+import { EventEmitter } from "events";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
 
@@ -43,15 +44,32 @@ export interface DhanOrder {
   quantity: number;
   tradedQty: number;
   price: number;
+  correlationId?: string;
+  legName?: string;
 }
 
-export class DhanBroker {
+export interface DhanMarketTick {
+  securityId: string;
+  exchangeSegment: number;
+  ltp: number;
+  lastTradedQuantity: number;
+  exchangeTimestampMs: number;
+  cumulativeVolume: number;
+}
+
+const DHAN_HEADER_SIZE = 8;
+const DHAN_QUOTE_PACKET_SIZE = 50;
+const DHAN_TICKER_PACKET_SIZE = 16;
+const DHAN_FULL_PACKET_SIZE = 162;
+
+export class DhanBroker extends EventEmitter {
   private clientId: string;
   private accessToken: string;
   private ws: WebSocket | null = null;
-  private wsCallbacks: ((securityId: string, ltp: number) => void)[] = [];
+  private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
   
   constructor() {
+    super();
     const clientId = process.env.DHAN_CLIENT_ID?.trim();
     const accessToken = process.env.DHAN_ACCESS_TOKEN?.trim();
     
@@ -79,13 +97,19 @@ export class DhanBroker {
       if (err.response && err.response.status === 401) {
         console.warn("[BROKER] Token seems invalid or expired. Attempting to renew...");
         try {
-          await axios.post(`${DHAN_BASE_URL}/RenewToken`, {}, {
+          const response = await axios.post(`${DHAN_BASE_URL}/RenewToken`, {}, {
             headers: {
               ...this.getHeaders(),
               "dhanClientId": this.clientId
             }
           });
-          console.log("[BROKER] Token renewed successfully.");
+          
+          if (response.data && response.data.accessToken) {
+             this.accessToken = response.data.accessToken;
+             console.log("[BROKER] Token renewed successfully.");
+          } else {
+             throw new Error("No new token returned");
+          }
         } catch (renewErr: any) {
           console.error("[BROKER] Failed to renew token:", renewErr?.response?.data || renewErr.message);
           throw new Error("Dhan token expired and renewal failed. Please generate a new one from the portal.");
@@ -128,6 +152,18 @@ export class DhanBroker {
       return Array.isArray(response.data) ? response.data : [];
     } catch (err: any) {
       console.error("[BROKER] Failed to fetch order book:", err?.response?.data || err.message);
+      return [];
+    }
+  }
+  
+  async getSuperOrderList(): Promise<DhanOrder[]> {
+    try {
+      const response = await axios.get(`${DHAN_BASE_URL}/super/orders`, {
+        headers: this.getHeaders()
+      });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (err: any) {
+      console.error("[BROKER] Failed to fetch super order book:", err?.response?.data || err.message);
       return [];
     }
   }
@@ -181,7 +217,7 @@ export class DhanBroker {
         productType: "INTRADAY",
         orderType: "MARKET",
         securityId: input.securityId,
-        quantity: input.quantity.toString(),
+        quantity: Math.floor(input.quantity),
         price: 0,
         targetPrice: input.targetPrice,
         stopLossPrice: input.stopLossPrice,
@@ -232,14 +268,15 @@ export class DhanBroker {
     }
   }
 
-  async cancelOrder(orderId: string): Promise<void> {
+  async cancelSuperOrder(orderId: string): Promise<void> {
     try {
-      await axios.delete(`${DHAN_BASE_URL}/orders/${orderId}`, {
+      // Typically, to cancel a Super Order, we may need to specify the legName. But Dhan provides a direct cancellation route or we cancel the pending leg.
+      await axios.delete(`${DHAN_BASE_URL}/super/orders/${orderId}`, {
         headers: this.getHeaders()
       });
-      console.log(`[BROKER] Cancelled order ${orderId} successfully.`);
+      console.log(`[BROKER] Cancelled super order ${orderId} successfully.`);
     } catch (err: any) {
-      console.error(`[BROKER] Exception cancelling order ${orderId}:`, err?.response?.data || err.message);
+      console.error(`[BROKER] Exception cancelling super order ${orderId}:`, err?.response?.data || err.message);
       throw err;
     }
   }
@@ -297,14 +334,16 @@ export class DhanBroker {
     
     this.ws.on("open", () => {
       console.log("[BROKER] Dhan WebSocket Connected.");
+      this.emit("onReconnect");
     });
     
     this.ws.on("message", (data: Buffer) => {
-      this.parseBinaryTick(data);
+      this.parseBinaryMessage(data);
     });
     
     this.ws.on("close", () => {
       console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 5s...");
+      this.emit("onDisconnect");
       setTimeout(() => this.connectWebSocket(), 5000);
     });
     
@@ -313,38 +352,171 @@ export class DhanBroker {
     });
   }
 
-  onTick(callback: (securityId: string, ltp: number) => void) {
+  onTick(callback: (tick: DhanMarketTick) => void) {
     this.wsCallbacks.push(callback);
   }
 
-  private parseBinaryTick(buf: Buffer) {
-    try {
-      let offset = 0;
-      while (offset < buf.length) {
-        if (offset + 8 > buf.length) break; // Incomplete header
-        
-        const responseCode = buf.readUInt8(offset);        // byte 0 is Feed Response Code
-        const packetLength = buf.readUInt16LE(offset + 2); // bytes 2-3 are Message Length
-        const securityId = buf.readUInt32LE(offset + 4).toString(); // bytes 4-7 are Security ID
-        
-        // Ensure we don't read out of bounds
-        if (packetLength > 0 && offset + packetLength <= buf.length) {
-          if (responseCode === 2 && offset + 13 <= buf.length) {
-            const ltp = buf.readFloatLE(offset + 8);
-            this.wsCallbacks.forEach(cb => cb(securityId, ltp));
-          } 
-          else if ((responseCode === 4 || responseCode === 8) && offset + 13 <= buf.length) {
-            const ltp = buf.readFloatLE(offset + 8);
-            this.wsCallbacks.forEach(cb => cb(securityId, ltp));
-          }
-          offset += packetLength;
-        } else {
-          // Fallback to avoid infinite loops
+  private emitTick(tick: DhanMarketTick) {
+    this.wsCallbacks.forEach(cb => cb(tick));
+  }
+
+  private parseTickerPacket(buffer: Buffer, offset: number, packetLength: number): DhanMarketTick | null {
+    if (packetLength < DHAN_TICKER_PACKET_SIZE) return null;
+    
+    const exchangeSegment = buffer.readUInt8(offset + 3);
+    const securityId = buffer.readUInt32LE(offset + 4).toString();
+    const ltp = buffer.readFloatLE(offset + 8);
+    const lttSeconds = buffer.readInt32LE(offset + 12);
+    
+    if (!Number.isFinite(ltp) || ltp <= 0 || lttSeconds <= 0) return null;
+
+    return {
+      securityId,
+      exchangeSegment,
+      ltp,
+      lastTradedQuantity: 0,
+      exchangeTimestampMs: lttSeconds * 1000,
+      cumulativeVolume: 0
+    };
+  }
+
+  private parseQuotePacket(
+    buffer: Buffer,
+    offset: number,
+    packetLength: number,
+  ): DhanMarketTick | null {
+    if (packetLength < DHAN_QUOTE_PACKET_SIZE) {
+      console.warn(`[DHAN] Invalid Quote packet length: ${packetLength}`);
+      return null;
+    }
+
+    if (offset + packetLength > buffer.length) {
+      console.warn("[DHAN] Incomplete Quote packet received");
+      return null;
+    }
+
+    const responseCode = buffer.readUInt8(offset);
+    if (responseCode !== 4) return null;
+
+    const exchangeSegment = buffer.readUInt8(offset + 3);
+    const securityId = buffer.readUInt32LE(offset + 4).toString();
+
+    const ltp = buffer.readFloatLE(offset + 8);
+    const lastTradedQuantity = buffer.readUInt16LE(offset + 12);
+    const exchangeEpochSeconds = buffer.readInt32LE(offset + 14);
+    const cumulativeVolume = buffer.readInt32LE(offset + 22);
+
+    if (
+      !Number.isFinite(ltp) ||
+      ltp <= 0 ||
+      exchangeEpochSeconds <= 0 ||
+      cumulativeVolume < 0
+    ) {
+      return null;
+    }
+
+    return {
+      securityId,
+      exchangeSegment,
+      ltp,
+      lastTradedQuantity,
+      exchangeTimestampMs: exchangeEpochSeconds * 1000,
+      cumulativeVolume,
+    };
+  }
+
+  private parseFullPacket(buffer: Buffer, offset: number, packetLength: number): DhanMarketTick | null {
+    if (packetLength < DHAN_FULL_PACKET_SIZE) return null;
+
+    const exchangeSegment = buffer.readUInt8(offset + 3);
+    const securityId = buffer.readUInt32LE(offset + 4).toString();
+    const ltp = buffer.readFloatLE(offset + 8);
+    const lastTradedQuantity = buffer.readUInt16LE(offset + 12);
+    const lttSeconds = buffer.readInt32LE(offset + 14);
+    const averageTradePrice = buffer.readFloatLE(offset + 18);
+    const volume = buffer.readInt32LE(offset + 22);
+
+    if (!Number.isFinite(ltp) || ltp <= 0 || lttSeconds <= 0 || volume < 0) return null;
+
+    return {
+      securityId,
+      exchangeSegment,
+      ltp,
+      lastTradedQuantity,
+      exchangeTimestampMs: lttSeconds * 1000,
+      cumulativeVolume: volume,
+    };
+  }
+
+  private parseDisconnectPacket(buffer: Buffer, offset: number, packetLength: number): void {
+      console.warn(`[DHAN] Server signaled disconnect packet (Response Code 50)`);
+  }
+
+  private parseBinaryMessage(buffer: Buffer): void {
+    let offset = 0;
+
+    while (offset + DHAN_HEADER_SIZE <= buffer.length) {
+      const responseCode = buffer.readUInt8(offset);
+      const packetLength = buffer.readUInt16LE(offset + 1);
+
+      if (
+        packetLength < DHAN_HEADER_SIZE ||
+        offset + packetLength > buffer.length
+      ) {
+        console.warn(
+          `[DHAN] Invalid packet boundary: code=${responseCode}, ` +
+          `length=${packetLength}, remaining=${buffer.length - offset}`,
+        );
+        break;
+      }
+
+      switch (responseCode) {
+        case 2: {
+          const tick = this.parseTickerPacket(
+            buffer,
+            offset,
+            packetLength,
+          );
+
+          if (tick) this.emitTick(tick);
           break;
         }
+
+        case 4: {
+          const tick = this.parseQuotePacket(
+            buffer,
+            offset,
+            packetLength,
+          );
+
+          if (tick) this.emitTick(tick);
+          break;
+        }
+
+        case 8: {
+          const tick = this.parseFullPacket(
+            buffer,
+            offset,
+            packetLength,
+          );
+
+          if (tick) this.emitTick(tick);
+          break;
+        }
+
+        case 50:
+          this.parseDisconnectPacket(
+            buffer,
+            offset,
+            packetLength,
+          );
+          break;
+
+        default:
+          break;
       }
-    } catch (err: any) {
-      // silent catch for parsing errors to prevent crashing
+
+      offset += packetLength;
     }
   }
 
@@ -355,13 +527,12 @@ export class DhanBroker {
     }
     if (securityIds.length === 0) return;
 
-    // Send max 100 instruments per request as per Dhan docs
     const chunkSize = 100;
     for (let i = 0; i < securityIds.length; i += chunkSize) {
       const chunk = securityIds.slice(i, i + chunkSize);
       
       const payload = {
-        RequestCode: 17, // Subscribe to Quote (for volume data)
+        RequestCode: 17, // Subscribe to Quote
         InstrumentCount: chunk.length,
         InstrumentList: chunk.map(id => ({
           ExchangeSegment: "NSE_EQ",
@@ -372,7 +543,7 @@ export class DhanBroker {
       this.ws.send(JSON.stringify(payload));
     }
     
-    console.log(`[BROKER] Subscribed to ${securityIds.length} securityIds for LTP streaming.`);
+    console.log(`[BROKER] Subscribed to ${securityIds.length} securityIds for Quote stream.`);
   }
 
   unsubscribeFromSecurityIds(securityIds: string[]) {
@@ -384,7 +555,7 @@ export class DhanBroker {
       const chunk = securityIds.slice(i, i + chunkSize);
       
       const payload = {
-        RequestCode: 16, // Unsubscribe
+        RequestCode: 18, // Unsubscribe from Quote
         InstrumentCount: chunk.length,
         InstrumentList: chunk.map(id => ({
           ExchangeSegment: "NSE_EQ",
