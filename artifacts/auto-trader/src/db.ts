@@ -14,7 +14,6 @@ export type TradeState =
   | "BREAKEVEN_CONFIRMED"
   | "EXITED"
   | "REJECTED"
-  | "RECONCILIATION_REQUIRED"
   | "ENTRY_RECONCILIATION_REQUIRED"
   | "EXIT_RECONCILIATION_REQUIRED"
   | "REVERSAL_RECONCILIATION_REQUIRED";
@@ -34,6 +33,7 @@ export interface ActiveTrade {
   trailingJump: number;
   state: TradeState;
   protectionConfirmed: boolean;
+  protectionCancelled?: boolean;
   breakevenApplied: boolean;
   createdAt: string;
   updatedAt: string;

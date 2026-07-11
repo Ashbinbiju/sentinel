@@ -175,7 +175,7 @@ export class ExecutionEngine {
         TradeDB.updateState(newTrade.id, "ENTRY_PENDING", { superOrderId });
       } catch (err: any) {
         console.error(`[ENGINE] Failed to POST Super Order for ${ctx.symbol}:`, err.message);
-        TradeDB.updateState(newTrade.id, "RECONCILIATION_REQUIRED");
+        TradeDB.updateState(newTrade.id, "ENTRY_RECONCILIATION_REQUIRED");
         return;
       }
 
@@ -235,7 +235,7 @@ export class ExecutionEngine {
 
       if (!confirmed) {
           console.warn(`[ENGINE] Failed to verify protection for ${tradeId} after 20s.`);
-          TradeDB.updateState(tradeId, "RECONCILIATION_REQUIRED");
+          TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
       }
   }
 
@@ -314,7 +314,7 @@ export class ExecutionEngine {
 
   public async reconcileUnknownOrders(): Promise<void> {
     const unknownTrades = TradeDB.getOpenTrades().filter(trade =>
-      ["ENTRY_SUBMITTING", "RECONCILIATION_REQUIRED", "ENTRY_RECONCILIATION_REQUIRED", "BREAKEVEN_REQUESTED"].includes(trade.state)
+      ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "BREAKEVEN_REQUESTED"].includes(trade.state)
     );
 
     if (unknownTrades.length === 0) return;
@@ -347,6 +347,30 @@ export class ExecutionEngine {
       }
     } catch (e) {
       console.error("[ENGINE] Failed to run reconcileUnknownOrders", e);
+    }
+  }
+
+  public async reconcileExitOrders(): Promise<void> {
+    const exitTrades = TradeDB.getOpenTrades().filter(trade => 
+      trade.state === "EXIT_RECONCILIATION_REQUIRED" && trade.exitCorrelationId
+    );
+
+    if (exitTrades.length === 0) return;
+
+    try {
+      const orders = await this.broker.getOrderBook();
+
+      for (const trade of exitTrades) {
+        const exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
+
+        if (exitOrder && !["TRADED", "CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
+          console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
+          await this.broker.cancelOrder(exitOrder.orderId);
+          await this.broker.waitForOrderTerminal(exitOrder.orderId);
+        }
+      }
+    } catch (e) {
+      console.error("[ENGINE] Failed to run reconcileExitOrders", e);
     }
   }
 }
