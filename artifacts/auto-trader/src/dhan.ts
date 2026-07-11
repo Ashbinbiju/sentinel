@@ -229,6 +229,24 @@ export class DhanBroker extends EventEmitter {
     }
   }
 
+  async getTradesByOrderId(orderId: string): Promise<any[]> {
+    try {
+      const response = await axios.get(
+        `${DHAN_BASE_URL}/trades/${encodeURIComponent(orderId)}`,
+        {
+          headers: this.getHeaders(),
+          timeout: 10_000,
+        }
+      );
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
   async placeSuperOrder(input: PlaceSuperOrderInput): Promise<string> {
     console.log(`[BROKER] Placing SUPER ORDER ${input.side} for secId: ${input.securityId} | Qty: ${input.quantity}`);
     

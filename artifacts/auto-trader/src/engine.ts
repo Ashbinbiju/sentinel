@@ -307,18 +307,26 @@ export class ExecutionEngine {
               const parent = superOrders.find(o => o.orderId === trade.superOrderId);
               const targetOrSlTriggered = parent?.legDetails?.some(leg => 
                   (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
-                  leg.orderStatus === "TRADED"
+                  leg.orderStatus === "TRIGGERED" &&
+                  Number(leg.triggeredQuantity) === trade.quantity
               );
 
               const positionAbsentOrFlat = !pos || netQty === 0;
 
               if (positionAbsentOrFlat && parent?.orderStatus === "CLOSED" && targetOrSlTriggered) {
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
-                  const triggeredLeg = parent.legDetails?.find(leg => 
-                    (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
-                    leg.orderStatus === "TRADED"
-                  );
-                  const exitPrice = triggeredLeg ? Number(triggeredLeg.price) : undefined;
+                  const trades = await this.broker.getTradesByOrderId(parent.orderId);
+                  
+                  let totalValue = 0;
+                  let totalQty = 0;
+                  for (const t of trades) {
+                      if (t.transactionType !== trade.side) {
+                          totalValue += Number(t.tradedPrice || 0) * Number(t.tradedQty || 0);
+                          totalQty += Number(t.tradedQty || 0);
+                      }
+                  }
+                  
+                  const exitPrice = totalQty > 0 ? totalValue / totalQty : undefined;
                   TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
               } else if (
                 pos && (
@@ -409,13 +417,8 @@ export class ExecutionEngine {
 
         if (!exitOrder) {
             const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
-            if (notFoundCount >= 4) {
-               console.error(`[ENGINE] Exit ${trade.exitCorrelationId} repeatedly missing from broker. Permitting new exit.`);
-               TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
-            } else {
-               console.warn(`[ENGINE] Exit ${trade.exitCorrelationId} missing. Retrying count ${notFoundCount}`);
-               TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
-            }
+            console.error(`[ENGINE] Exit ${trade.exitCorrelationId} missing from broker (count ${notFoundCount}). Retaining lock indefinitely.`);
+            TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
             continue;
         }
 

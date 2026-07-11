@@ -4,6 +4,7 @@ import { TradeDB } from "./db";
 import { CandleEngine, Candle } from "./candle-engine";
 import { ExecutionEngine, WatchlistContext } from "./engine";
 import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST } from "./utils";
+import { randomUUID } from "crypto";
 import axios from "axios";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
@@ -137,7 +138,10 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
 
               const exitSide = netQty > 0 ? "SELL" : "BUY";
               const qtyToExit = Math.abs(netQty);
-              const exitCorrelationId = `sentinel-exit-${trade.id}-${exitAttempts}-${Date.now()}`;
+              const exitCorrelationId = `sx-${Date.now().toString(36)}-${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+              if (exitCorrelationId.length > 30) {
+                throw new Error("Exit correlation ID exceeds Dhan limit");
+              }
               
               TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
               
@@ -175,7 +179,13 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
               
               if (positionFlat) {
-                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+                  const completedExit = await broker.getOrderByCorrelationId(exitCorrelationId);
+
+                  if (completedExit?.orderStatus !== "TRADED" || Number(completedExit.filledQty) !== qtyToExit) {
+                    continue tradeLoop;
+                  }
+
+                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF", Number(completedExit.averageTradedPrice));
               } else {
                 console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
               }
