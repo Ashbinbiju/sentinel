@@ -37,6 +37,8 @@ export interface ActiveTrade {
   protectionConfirmed: boolean;
   protectionCancelled?: boolean;
   breakevenApplied: boolean;
+  exitPrice?: number;
+  realizedPnl?: number;
   createdAt: string;
   updatedAt: string;
   
@@ -153,12 +155,18 @@ export const TradeDB = {
     }
   },
 
-  markTradeClosed: async (id: string, reason: string = "SQUARED OFF") => {
+  markTradeClosed: async (id: string, reason: string = "SQUARED OFF", exitPrice?: number) => {
     const trades = readDB();
     const trade = trades.find(t => t.id === id);
     if (trade) {
+      let realizedPnl = 0;
+      if (exitPrice && trade.entryPrice && trade.quantity) {
+        realizedPnl = (exitPrice - trade.entryPrice) * trade.quantity * (trade.side === "BUY" ? 1 : -1);
+      }
       trade.state = "EXITED";
       trade.status = "CLOSED";
+      trade.exitPrice = exitPrice;
+      trade.realizedPnl = realizedPnl;
       writeDB(trades);
       
       try {

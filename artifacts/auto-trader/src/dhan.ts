@@ -57,6 +57,14 @@ export interface DhanOrder {
   correlationId?: string;
   filledQty?: number;
   remainingQuantity?: number;
+  averageTradedPrice?: number;
+  legDetails?: DhanSuperOrderLeg[];
+}
+
+export interface DhanSuperOrder extends DhanOrder {
+  legName?: "ENTRY_LEG" | "TARGET_LEG" | "STOP_LOSS_LEG";
+  averageTradedPrice: number;
+  filledQty: number;
   legDetails?: DhanSuperOrderLeg[];
 }
 
@@ -200,6 +208,24 @@ export class DhanBroker extends EventEmitter {
     } catch (err: any) {
       console.error("[BROKER] Failed to get executed buy symbols:", err.message);
       throw err;
+    }
+  }
+
+  async getOrderByCorrelationId(correlationId: string): Promise<DhanOrder | null> {
+    try {
+      const response = await axios.get(
+        `${DHAN_BASE_URL}/orders/external/${encodeURIComponent(correlationId)}`,
+        {
+          headers: this.getHeaders(),
+          timeout: 10_000,
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        return null;
+      }
+      throw error;
     }
   }
 

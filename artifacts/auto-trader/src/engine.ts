@@ -2,7 +2,7 @@ import { ActiveTrade, TradeDB, TradeState } from "./db";
 import { Candle } from "./candle-engine";
 import { DhanBroker, PlaceSuperOrderInput, DhanOrder } from "./dhan";
 import { randomUUID } from "crypto";
-import { getISTDateStr } from "./index";
+import { getISTDateStr } from "./utils";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
@@ -235,11 +235,18 @@ export class ExecutionEngine {
                   const trade = TradeDB.getOpenTrades().find(t => t.id === tradeId);
                   if (!trade) break;
                   
-                  const actualFillPrice = entryLeg ? Number(entryLeg.price) || trade.entryPrice : trade.entryPrice;
-                  TradeDB.updateState(tradeId, "ENTRY_TRADED", { entryPrice: actualFillPrice });
-                  TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice });
+                  const actualFillPrice = Number(parent.averageTradedPrice);
+                  const actualFilledQty = Number(parent.filledQty);
+
+                  if (!Number.isFinite(actualFillPrice) || actualFillPrice <= 0 || actualFilledQty !== trade.quantity) {
+                      TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
+                      break;
+                  }
+
+                  TradeDB.updateState(tradeId, "ENTRY_TRADED", { entryPrice: actualFillPrice, quantity: actualFilledQty });
+                  TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice, quantity: actualFilledQty });
                   confirmed = true;
-                  console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice}`);
+                  console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
               }
           } catch (err) {
               console.warn(`[ENGINE] Order book polling failed for ${tradeId}`);
@@ -291,18 +298,33 @@ export class ExecutionEngine {
 
       try {
           const positions = await this.broker.getPositions();
+          const superOrders = await this.broker.getSuperOrderList();
+
           for (const trade of activeTrades) {
               const pos = positions.find(p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY");
-              if (!pos) continue;
+              const netQty = Number(pos?.netQty || 0);
 
-              const netQty = Number(pos.netQty || 0);
+              const parent = superOrders.find(o => o.orderId === trade.superOrderId);
+              const targetOrSlTriggered = parent?.legDetails?.some(leg => 
+                  (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
+                  leg.orderStatus === "TRADED"
+              );
 
-              if (netQty === 0) {
+              const positionAbsentOrFlat = !pos || netQty === 0;
+
+              if (positionAbsentOrFlat && parent?.orderStatus === "CLOSED" && targetOrSlTriggered) {
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
-                  TradeDB.markTradeClosed(trade.id, "BROKER EXIT");
+                  const triggeredLeg = parent.legDetails?.find(leg => 
+                    (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
+                    leg.orderStatus === "TRADED"
+                  );
+                  const exitPrice = triggeredLeg ? Number(triggeredLeg.price) : undefined;
+                  TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
               } else if (
-                (trade.side === "BUY" && netQty < 0) ||
-                (trade.side === "SELL" && netQty > 0)
+                pos && (
+                  (trade.side === "BUY" && netQty < 0) ||
+                  (trade.side === "SELL" && netQty > 0)
+                )
               ) {
                   console.error(
                     `[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`
@@ -379,11 +401,21 @@ export class ExecutionEngine {
       const orders = await this.broker.getOrderBook();
 
       for (const trade of exitTrades) {
-        const exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
+        let exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
+
+        if (!exitOrder && trade.exitCorrelationId) {
+            exitOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId) || undefined;
+        }
 
         if (!exitOrder) {
-            console.error(`[ENGINE] Exit ${trade.exitCorrelationId} repeatedly missing from broker order book. Retaining lock.`);
-            TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: (trade.exitNotFoundCount || 0) + 1 });
+            const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
+            if (notFoundCount >= 4) {
+               console.error(`[ENGINE] Exit ${trade.exitCorrelationId} repeatedly missing from broker. Permitting new exit.`);
+               TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            } else {
+               console.warn(`[ENGINE] Exit ${trade.exitCorrelationId} missing. Retrying count ${notFoundCount}`);
+               TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
+            }
             continue;
         }
 
