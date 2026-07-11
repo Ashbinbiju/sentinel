@@ -6,6 +6,8 @@ import { getISTDateStr } from "./utils";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
+const STRUCTURAL_TRAIL_RR = 1.5;
+const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 
 export interface WatchlistContext {
   symbol: string;
@@ -60,8 +62,9 @@ export class ExecutionEngine {
         const prevHigh = ctx.prevHigh;
         const prevLow = ctx.prevLow;
         const c = candle;
-        const prevC = history.length > 1 ? history[history.length - 2] : history[history.length - 1];
-        const prevPrevC = history.length > 2 ? history[history.length - 3] : prevC;
+        if (history.length < 3) return;
+        const prevC = history[history.length - 2];
+        const prevPrevC = history[history.length - 3];
 
         let setup = "";
         let direction: "BUY" | "SELL" | null = null;
@@ -175,7 +178,7 @@ export class ExecutionEngine {
         trailingJump,
         state: "SIGNAL_CREATED",
         protectionConfirmed: false,
-        breakevenApplied: false,
+        trailApplied: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -287,22 +290,22 @@ export class ExecutionEngine {
     const trade = this.getActiveOrPendingTrade(securityId);
     if (!trade || trade.state !== "PROTECTION_CONFIRMED") return;
 
-    // Evaluate Structural Trail Rule (1.5R)
+    // Evaluate Structural Trail Rule
     const risk = Math.abs(trade.entryPrice - trade.stopLossPrice);
-    let reached1_5R = false;
+    let reachedTrailRR = false;
     let trailSLPrice = trade.entryPrice;
 
-    if (trade.side === "BUY" && ltp >= trade.entryPrice + (risk * 1.5)) {
-      reached1_5R = true;
-      trailSLPrice = this.roundToTick(trade.entryPrice - (risk * 0.15)); // Trail to bottom of touch zone roughly
-    } else if (trade.side === "SELL" && ltp <= trade.entryPrice - (risk * 1.5)) {
-      reached1_5R = true;
-      trailSLPrice = this.roundToTick(trade.entryPrice + (risk * 0.15));
+    if (trade.side === "BUY" && ltp >= trade.entryPrice + (risk * STRUCTURAL_TRAIL_RR)) {
+      reachedTrailRR = true;
+      trailSLPrice = this.roundToTick(trade.entryPrice - (risk * STRUCTURAL_TRAIL_RISK_BUFFER)); // Trail below entry to structural floor
+    } else if (trade.side === "SELL" && ltp <= trade.entryPrice - (risk * STRUCTURAL_TRAIL_RR)) {
+      reachedTrailRR = true;
+      trailSLPrice = this.roundToTick(trade.entryPrice + (risk * STRUCTURAL_TRAIL_RISK_BUFFER));
     }
 
-    if (reached1_5R && !trade.breakevenApplied) {
+    if (reachedTrailRR && !trade.trailApplied) {
       console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
-      TradeDB.updateState(trade.id, "BREAKEVEN_REQUESTED");
+      TradeDB.updateState(trade.id, "TRAIL_REQUESTED");
       
       try {
         await this.broker.moveSuperOrderStopToBreakeven(
@@ -310,7 +313,7 @@ export class ExecutionEngine {
           trailSLPrice,
           trade.trailingJump
         );
-        TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED", { breakevenApplied: true });
+        TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
       } catch (err) {
         console.error(`[ENGINE] Failed to move SL to breakeven for ${trade.symbol}`, err);
         TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
@@ -326,7 +329,7 @@ export class ExecutionEngine {
       // Background task to mark EXITED if target/SL hit externally
       const activeTrades = TradeDB.getOpenTrades().filter(t => 
           t.state === "PROTECTION_CONFIRMED" || 
-          t.state === "BREAKEVEN_CONFIRMED" || 
+          t.state === "TRAIL_CONFIRMED" || 
           (t.state === "EXIT_RECONCILIATION_REQUIRED" && !t.exitCorrelationId)
       );
       if (activeTrades.length === 0) return;
@@ -397,7 +400,7 @@ export class ExecutionEngine {
 
   private async _reconcileUnknownOrders(): Promise<void> {
     const unknownTrades = TradeDB.getOpenTrades().filter(trade =>
-      ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "BREAKEVEN_REQUESTED"].includes(trade.state)
+      ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "TRAIL_REQUESTED"].includes(trade.state)
     );
 
     if (unknownTrades.length === 0) return;
@@ -406,7 +409,7 @@ export class ExecutionEngine {
       const brokerOrders = await this.broker.getSuperOrderList();
 
       for (const trade of unknownTrades) {
-        if (trade.state === "BREAKEVEN_REQUESTED") {
+        if (trade.state === "TRAIL_REQUESTED") {
             const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
             if (parent) {
                 const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
@@ -414,13 +417,13 @@ export class ExecutionEngine {
                 const statusMatch = slLeg && slLeg.orderStatus === "PENDING";
                 
                 if (priceMatch && statusMatch) {
-                    TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED", { breakevenApplied: true });
+                    TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
                     console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
                 } else if (!statusMatch) {
                     console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol} (SL status: ${slLeg?.orderStatus}). Escalating to ENTRY_RECONCILIATION_REQUIRED`);
                     TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
                 } else {
-                    console.warn(`[ENGINE] Breakeven price mismatch for ${trade.symbol}. Leaving in BREAKEVEN_REQUESTED.`);
+                    console.warn(`[ENGINE] Breakeven price mismatch for ${trade.symbol}. Leaving in TRAIL_REQUESTED.`);
                 }
             } else {
                 console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Escalating to ENTRY_RECONCILIATION_REQUIRED`);

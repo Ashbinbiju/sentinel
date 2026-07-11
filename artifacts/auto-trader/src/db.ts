@@ -10,8 +10,8 @@ export type TradeState =
   | "ENTRY_PART_TRADED"
   | "ENTRY_TRADED"
   | "PROTECTION_CONFIRMED"
-  | "BREAKEVEN_REQUESTED"
-  | "BREAKEVEN_CONFIRMED"
+  | "TRAIL_REQUESTED"
+  | "TRAIL_CONFIRMED"
   | "EXITED"
   | "REJECTED"
   | "ENTRY_RECONCILIATION_REQUIRED"
@@ -36,7 +36,7 @@ export interface ActiveTrade {
   state: TradeState;
   protectionConfirmed: boolean;
   protectionCancelled?: boolean;
-  breakevenApplied: boolean;
+  trailApplied: boolean;
   exitPrice?: number;
   realizedPnl?: number;
   createdAt: string;

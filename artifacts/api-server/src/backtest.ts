@@ -3,6 +3,8 @@ import { writeFileSync } from "fs";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
+const STRUCTURAL_TRAIL_RR = 1.5;
+const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
@@ -183,8 +185,8 @@ async function runBacktest() {
                             exitStatus = "✅ TARGET HIT";
                             hitTime = rcTime;
                             break;
-                        } else if (rc.h >= entryPrice + (risk * 1.5) && sl < entryPrice) {
-                            sl = entryPrice - (risk * 0.15); // Structural Trail
+                        } else if (rc.h >= entryPrice + (risk * STRUCTURAL_TRAIL_RR) && sl < entryPrice) {
+                            sl = entryPrice - (risk * STRUCTURAL_TRAIL_RISK_BUFFER); // Structural Trail
                         }
                     } else { 
                         if (rc.h >= sl) {
@@ -195,8 +197,8 @@ async function runBacktest() {
                             exitStatus = "✅ TARGET HIT";
                             hitTime = rcTime;
                             break;
-                        } else if (rc.l <= entryPrice - (risk * 1.5) && sl > entryPrice) {
-                            sl = entryPrice + (risk * 0.15); // Structural Trail
+                        } else if (rc.l <= entryPrice - (risk * STRUCTURAL_TRAIL_RR) && sl > entryPrice) {
+                            sl = entryPrice + (risk * STRUCTURAL_TRAIL_RISK_BUFFER); // Structural Trail
                         }
                     }
                 }
