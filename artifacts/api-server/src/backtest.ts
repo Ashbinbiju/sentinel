@@ -7,7 +7,7 @@ const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
 const testCases: { symbol: string; date: string }[] = [
-    { symbol: "GODREJIND", date: "2026-07-10" }
+    { symbol: "VENKEYS", date: "2026-07-10" }
 ];
 
 function getISTDateStr(epochSecs: number): string {
@@ -258,10 +258,24 @@ async function runBacktest() {
     
     let md = `# Intraday Backtest Results\n\n`;
     md += `Prime Time: 10:15–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2\n\n`;
-    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | Exit Time |\n`;
-    md += `|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
+    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (10k) | Exit Time |\n`;
+    md += `|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
     for (const r of results) {
-        md += `| ${r.Symbol} | ${r.Date} | ${r.Time} | ${r.PDH} | ${r.PDL} | ${r.Setup} | ${r.Direction} | ${r.Entry} | ${r.StopLoss} | ${r.Target} | **${r.Status}** | ${r.HitTime} |\n`;
+        let pnlStr = "-";
+        if (r.Entry !== "-" && r.Status !== "No prime time entry") {
+            const entryPrice = parseFloat(r.Entry);
+            const qty = Math.floor(50000 / entryPrice);
+            let exitPrice = entryPrice;
+            if (r.Status === "✅ TARGET HIT") exitPrice = parseFloat(r.Target);
+            else if (r.Status === "❌ STOP LOSS HIT" || r.Status === "🛡️ BREAKEVEN HIT") exitPrice = parseFloat(r.StopLoss);
+            
+            let pnl = 0;
+            if (r.Direction === "LONG") pnl = (exitPrice - entryPrice) * qty;
+            else if (r.Direction === "SHORT") pnl = (entryPrice - exitPrice) * qty;
+            
+            pnlStr = pnl > 0 ? "+₹" + pnl.toFixed(2) : "₹" + pnl.toFixed(2);
+        }
+        md += `| ${r.Symbol} | ${r.Date} | ${r.Time} | ${r.PDH} | ${r.PDL} | ${r.Setup} | ${r.Direction} | ${r.Entry} | ${r.StopLoss} | ${r.Target} | **${r.Status}** | ${pnlStr} | ${r.HitTime} |\n`;
     }
     writeFileSync("./backtest_results.md", md);
     console.log("Backtest complete.");

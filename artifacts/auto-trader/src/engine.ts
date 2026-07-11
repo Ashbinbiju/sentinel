@@ -281,6 +281,10 @@ export class ExecutionEngine {
   }
 
   public async evaluateLiveTick(securityId: string, ltp: number) {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._evaluateLiveTick(securityId, ltp)).catch(e => console.error(e));
+  }
+
+  private async _evaluateLiveTick(securityId: string, ltp: number) {
     const trade = this.getActiveOrPendingTrade(securityId);
     if (!trade || trade.state !== "PROTECTION_CONFIRMED") return;
 
@@ -316,6 +320,10 @@ export class ExecutionEngine {
   }
 
   public async reconcileExits() {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExits()).catch(e => console.error(e));
+  }
+
+  private async _reconcileExits() {
       // Background task to mark EXITED if target/SL hit externally
       const activeTrades = TradeDB.getOpenTrades().filter(t => 
           t.state === "PROTECTION_CONFIRMED" || 
@@ -388,6 +396,10 @@ export class ExecutionEngine {
   }
 
   public async reconcileUnknownOrders(): Promise<void> {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileUnknownOrders()).catch(e => console.error(e));
+  }
+
+  private async _reconcileUnknownOrders(): Promise<void> {
     const unknownTrades = TradeDB.getOpenTrades().filter(trade =>
       ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "BREAKEVEN_REQUESTED"].includes(trade.state)
     );
@@ -437,6 +449,10 @@ export class ExecutionEngine {
   }
 
   public async reconcileExitOrders(): Promise<void> {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExitOrders()).catch(e => console.error(e));
+  }
+
+  private async _reconcileExitOrders(): Promise<void> {
     const exitTrades = TradeDB.getOpenTrades().filter(trade => 
       trade.state === "EXIT_RECONCILIATION_REQUIRED" && trade.exitCorrelationId
     );
