@@ -32,7 +32,7 @@ async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function getISTDateStr(): string {
+export function getISTDateStr(): string {
   const now = new Date();
   const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
   const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
@@ -143,6 +143,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                const parent = superOrders.find(o => o.orderId === trade.superOrderId);
                
                if (!parent) {
+                 TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
                  throw new Error(`Super Order ${trade.superOrderId} unavailable for ${trade.symbol}`);
                }
                

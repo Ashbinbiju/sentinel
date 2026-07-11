@@ -1,7 +1,8 @@
 import { ActiveTrade, TradeDB, TradeState } from "./db";
 import { Candle } from "./candle-engine";
-import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
+import { DhanBroker, PlaceSuperOrderInput, DhanOrder } from "./dhan";
 import { randomUUID } from "crypto";
+import { getISTDateStr } from "./index";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
@@ -47,9 +48,8 @@ export class ExecutionEngine {
             return;
         }
 
-        const MAX_DAILY_TRADES = 5;
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const tradesToday = TradeDB.getTradesForDate(todayStr).filter(trade =>
+        const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
+        const tradesToday = TradeDB.getTradesForDate(getISTDateStr()).filter(trade =>
           trade.state !== "REJECTED"
         ).length;
 
@@ -125,11 +125,12 @@ export class ExecutionEngine {
       if (qty < 1) qty = 1;
       
       const maxLeveragedQty = Math.floor((cycleBalance * 5) / entryPrice);
-      if (qty > maxLeveragedQty) qty = maxLeveragedQty;
-
-      if (process.env.LIVE_CANARY === "true") {
-          qty = 1;
+      if (maxLeveragedQty < 1) {
+          console.warn(`[ENGINE] Insufficient balance for one-share canary for ${ctx.symbol}. Required: ${entryPrice}. Available: ${cycleBalance}`);
+          return;
       }
+      
+      qty = process.env.LIVE_CANARY === "true" ? 1 : Math.min(qty, maxLeveragedQty);
 
       if (qty <= 0) {
           console.warn(`[ENGINE] Insufficient balance for ${ctx.symbol}. Required: ${entryPrice}. Available: ${cycleBalance}`);
@@ -220,6 +221,10 @@ export class ExecutionEngine {
                 leg => leg.legName === "STOP_LOSS_LEG"
               );
 
+              const entryLeg = parent?.legDetails?.find(
+                leg => leg.legName === "ENTRY_LEG"
+              );
+
               const protectedPosition =
                 parent?.orderStatus === "TRADED" &&
                 stopLeg?.orderStatus === "PENDING" &&
@@ -227,10 +232,14 @@ export class ExecutionEngine {
                 Number(stopLeg.triggeredQuantity ?? 0) === 0;
 
               if (protectedPosition) {
-                  TradeDB.updateState(tradeId, "ENTRY_TRADED");
-                  TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true });
+                  const trade = TradeDB.getOpenTrades().find(t => t.id === tradeId);
+                  if (!trade) break;
+                  
+                  const actualFillPrice = entryLeg ? Number(entryLeg.price) || trade.entryPrice : trade.entryPrice;
+                  TradeDB.updateState(tradeId, "ENTRY_TRADED", { entryPrice: actualFillPrice });
+                  TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice });
                   confirmed = true;
-                  console.log(`[ENGINE] Protection verified for ${tradeId}`);
+                  console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice}`);
               }
           } catch (err) {
               console.warn(`[ENGINE] Order book polling failed for ${tradeId}`);
@@ -283,7 +292,7 @@ export class ExecutionEngine {
       try {
           const positions = await this.broker.getPositions();
           for (const trade of activeTrades) {
-              const pos = positions.find(p => p.securityId === trade.securityId);
+              const pos = positions.find(p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY");
               if (!pos) continue;
 
               const netQty = Number(pos.netQty || 0);
@@ -332,13 +341,14 @@ export class ExecutionEngine {
                     TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED", { breakevenApplied: true });
                     console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
                 } else if (!statusMatch) {
-                    console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol} (SL status: ${slLeg?.orderStatus}). Reverting to PROTECTION_CONFIRMED`);
-                    TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
+                    console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol} (SL status: ${slLeg?.orderStatus}). Escalating to ENTRY_RECONCILIATION_REQUIRED`);
+                    TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
                 } else {
                     console.warn(`[ENGINE] Breakeven price mismatch for ${trade.symbol}. Leaving in BREAKEVEN_REQUESTED.`);
                 }
             } else {
-                console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Leaving in BREAKEVEN_REQUESTED.`);
+                console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Escalating to ENTRY_RECONCILIATION_REQUIRED`);
+                TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
             }
             continue;
         }
@@ -372,14 +382,8 @@ export class ExecutionEngine {
         const exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
 
         if (!exitOrder) {
-            const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
-            if (notFoundCount >= 4) {
-               console.error(`[ENGINE] Exit ${trade.exitCorrelationId} repeatedly missing. Permitting new exit.`);
-               TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
-            } else {
-               console.warn(`[ENGINE] Exit ${trade.exitCorrelationId} missing from order book. Retrying count ${notFoundCount}`);
-               TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
-            }
+            console.error(`[ENGINE] Exit ${trade.exitCorrelationId} repeatedly missing from broker order book. Retaining lock.`);
+            TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: (trade.exitNotFoundCount || 0) + 1 });
             continue;
         }
 
