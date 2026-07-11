@@ -41,6 +41,7 @@ export interface ActiveTrade {
   realizedPnl?: number;
   createdAt: string;
   updatedAt: string;
+  closedAt?: string;
   
   // Legacy fields
   entry_price?: number;
@@ -135,6 +136,10 @@ export const TradeDB = {
     }
   },
 
+  getAllExitedTrades: () => {
+    return readDB().filter(t => t.state === "EXITED");
+  },
+
   updateTradeSL: async (id: string, newSL: number, newHighestLTP: number) => {
     const trades = readDB();
     const trade = trades.find(t => t.id === id);
@@ -167,6 +172,7 @@ export const TradeDB = {
       trade.status = "CLOSED";
       trade.exitPrice = exitPrice;
       trade.realizedPnl = realizedPnl;
+      trade.closedAt = new Date().toISOString();
       writeDB(trades);
       
       try {

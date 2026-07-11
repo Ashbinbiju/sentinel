@@ -334,7 +334,13 @@ export class ExecutionEngine {
                       }
                   }
                   
-                  const exitPrice = totalQty > 0 ? totalValue / totalQty : undefined;
+                  const exitPrice = totalQty === trade.quantity ? totalValue / totalQty : undefined;
+                  
+                  if (!Number.isFinite(exitPrice) || Number(exitPrice) <= 0) {
+                      console.warn(`[ENGINE] Incomplete exit executions for ${trade.symbol}: ${totalQty}/${trade.quantity}`);
+                      continue;
+                  }
+
                   TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
               } else if (
                 pos && (

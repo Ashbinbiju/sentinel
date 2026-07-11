@@ -157,7 +157,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 const orders = await broker.getOrderBook();
                 const exitOrder = orders.find(o => o.orderId === exitOrderId);
                 
-                const terminalStatuses = new Set(["TRADED", "CANCELLED", "REJECTED"]);
+                const terminalStatuses = new Set(["TRADED", "CANCELLED", "REJECTED", "EXPIRED"]);
                 
                 if (exitOrder && terminalStatuses.has(exitOrder.orderStatus)) {
                   orderTerminal = true;
@@ -185,7 +185,13 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                     continue tradeLoop;
                   }
 
-                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF", Number(completedExit.averageTradedPrice));
+                  const exitPrice = Number(completedExit.averageTradedPrice);
+
+                  if (!Number.isFinite(exitPrice) || exitPrice <= 0) {
+                      continue tradeLoop;
+                  }
+
+                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
               } else {
                 console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
               }
@@ -347,18 +353,27 @@ async function main() {
       if (!DRY_RUN) {
         const todayTrades = TradeDB.getTradesForDate(getISTDateStr());
         let realizedPnl = 0;
-        let closedLosingTrades = 0;
         
         for (const t of todayTrades) {
             if (t.state === "EXITED" && t.realizedPnl !== undefined) {
                 realizedPnl += t.realizedPnl;
+            }
+        }
+        
+        const allExited = TradeDB.getAllExitedTrades();
+        allExited.sort((a, b) => new Date(a.closedAt || a.updatedAt).getTime() - new Date(b.closedAt || b.updatedAt).getTime());
+        
+        let closedLosingTrades = 0;
+        for (const t of allExited) {
+            if (t.realizedPnl !== undefined) {
                 if (t.realizedPnl < 0) {
                     closedLosingTrades++;
-                } else {
+                } else if (t.realizedPnl > 0) {
                     closedLosingTrades = 0;
                 }
             }
         }
+        
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
            console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
            await closeAllOpenTrades(broker);

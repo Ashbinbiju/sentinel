@@ -374,7 +374,7 @@ export class DhanBroker extends EventEmitter {
       const order = orders.find(o => o.orderId === orderId);
       if (
         order &&
-        ["CANCELLED", "CLOSED", "REJECTED", "TRADED"].includes(order.orderStatus)
+        ["CANCELLED", "CLOSED", "REJECTED", "TRADED", "EXPIRED"].includes(order.orderStatus)
       ) {
         return;
       }
