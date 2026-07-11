@@ -297,7 +297,7 @@ export class ExecutionEngine {
                 
                   TradeDB.updateState(
                     trade.id,
-                    "RECONCILIATION_REQUIRED"
+                    "REVERSAL_RECONCILIATION_REQUIRED"
                   );
                 
                   await this.broker.placeMarketOrder(
@@ -314,7 +314,7 @@ export class ExecutionEngine {
 
   public async reconcileUnknownOrders(): Promise<void> {
     const unknownTrades = TradeDB.getOpenTrades().filter(trade =>
-      ["ENTRY_SUBMITTING", "RECONCILIATION_REQUIRED"].includes(trade.state)
+      ["ENTRY_SUBMITTING", "RECONCILIATION_REQUIRED", "ENTRY_RECONCILIATION_REQUIRED", "BREAKEVEN_REQUESTED"].includes(trade.state)
     );
 
     if (unknownTrades.length === 0) return;
@@ -323,6 +323,18 @@ export class ExecutionEngine {
       const brokerOrders = await this.broker.getSuperOrderList();
 
       for (const trade of unknownTrades) {
+        if (trade.state === "BREAKEVEN_REQUESTED") {
+            const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
+            if (parent) {
+                const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
+                if (slLeg && Number(slLeg.price) === Number(trade.entryPrice)) {
+                    TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED");
+                    console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
+                }
+            }
+            continue;
+        }
+
         const parent = brokerOrders.find(order => order.correlationId === trade.correlationId);
 
         if (!parent) continue;

@@ -132,8 +132,9 @@ async function closeAllOpenTrades(broker: DhanBroker) {
             }
             
             let exitAttempts = 0;
-            let fullyFilled = false;
-            while (exitAttempts < 3 && !fullyFilled) {
+            let positionFlat = false;
+            
+            while (exitAttempts < 3 && !positionFlat) {
               exitAttempts++;
               
               const refreshedPositions = await broker.getPositions();
@@ -146,42 +147,56 @@ async function closeAllOpenTrades(broker: DhanBroker) {
 
               if (netQty === 0) {
                   TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
-                  fullyFilled = true;
+                  positionFlat = true;
                   break;
               }
 
               const exitSide = netQty > 0 ? "SELL" : "BUY";
               const qtyToExit = Math.abs(netQty);
-              console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide);
+              const exitCorrelationId = `sentinel-exit-${trade.id}-${exitAttempts}-${Date.now()}`;
               
-              // Poll order until TRADED and fully filled
+              TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
+              
+              console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
+              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, "INTRADAY", exitCorrelationId);
+              
               let retries = 0;
-              while (retries < 15 && !fullyFilled) {
+              let orderTerminal = false;
+              
+              while (retries < 15 && !orderTerminal) {
                 retries++;
                 await sleep(1000);
                 const orders = await broker.getOrderBook();
                 const exitOrder = orders.find(o => o.orderId === exitOrderId);
                 
-                if (exitOrder && exitOrder.orderStatus === "TRADED" && Number(exitOrder.tradedQty ?? 0) >= qtyToExit) {
-                  fullyFilled = true;
-                } else if (exitOrder && exitOrder.orderStatus === "PART_TRADED" && retries === 15) {
-                  const remaining = Number(exitOrder.remainingQuantity ?? 0);
-                  if (remaining > 0) {
+                const terminalStatuses = new Set(["TRADED", "CANCELLED", "REJECTED"]);
+                
+                if (exitOrder && terminalStatuses.has(exitOrder.orderStatus)) {
+                  orderTerminal = true;
+                } else if (retries === 15) {
+                  if (exitOrder) {
                     await broker.cancelOrder(exitOrder.orderId);
                     await broker.waitForOrderTerminal(exitOrder.orderId);
                   }
+                  orderTerminal = true;
                 }
               }
               
-              if (!fullyFilled) {
-                console.warn(`[BOT] Exit order ${exitOrderId} did not fully fill. Refreshing position and retrying...`);
+              const finalPositions = await broker.getPositions();
+              const finalPosition = finalPositions.find(p => p.securityId === trade.securityId);
+              
+              positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
+              
+              if (positionFlat) {
+                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+              } else {
+                console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
               }
             }
             
-            if (!fullyFilled) {
+            if (!positionFlat) {
                 console.error(`[BOT] CRITICAL: Failed to square off ${trade.symbol} after 3 attempts.`);
-                TradeDB.updateState(trade.id, "RECONCILIATION_REQUIRED");
+                TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
             }
         } catch (e) {
             console.error(`[BOT] Failed to close trade ${trade.id}`, e);

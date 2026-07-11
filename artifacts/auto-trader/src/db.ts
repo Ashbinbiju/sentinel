@@ -14,11 +14,15 @@ export type TradeState =
   | "BREAKEVEN_CONFIRMED"
   | "EXITED"
   | "REJECTED"
-  | "RECONCILIATION_REQUIRED";
+  | "RECONCILIATION_REQUIRED"
+  | "ENTRY_RECONCILIATION_REQUIRED"
+  | "EXIT_RECONCILIATION_REQUIRED"
+  | "REVERSAL_RECONCILIATION_REQUIRED";
 
 export interface ActiveTrade {
   id: string;
   correlationId: string;
+  exitCorrelationId?: string;
   superOrderId: string;
   symbol: string;
   securityId: string;

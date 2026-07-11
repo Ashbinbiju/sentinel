@@ -341,7 +341,8 @@ export class DhanBroker extends EventEmitter {
     securityId: string,
     quantity: number,
     side: "BUY" | "SELL" = "BUY",
-    productType: "INTRADAY" | "CNC" = "INTRADAY"
+    productType: "INTRADAY" | "CNC" = "INTRADAY",
+    correlationId?: string
   ): Promise<string> {
     console.log(`[BROKER] Placing MARKET exit ${side} for secId: ${securityId} | Qty: ${quantity}`);
     
@@ -350,7 +351,7 @@ export class DhanBroker extends EventEmitter {
     try {
       const payload = {
         dhanClientId: this.clientId,
-        correlationId: `sentinel-exit-${Date.now()}`,
+        correlationId: correlationId || `sentinel-exit-${Date.now()}`,
         transactionType: side,
         exchangeSegment: "NSE_EQ",
         productType: productType,
