@@ -13,7 +13,6 @@ const MAX_DAILY_LOSS = -2500;
 const MAX_CONSECUTIVE_LOSSES = 3;
 
 let isShuttingDown = false;
-let tradesToday = 0;
 
 const shutdown = () => {
   console.log("[BOT] Shutdown signal received.");
@@ -121,17 +120,31 @@ async function closeAllOpenTrades(broker: DhanBroker) {
 
     for (const trade of activeTrades) {
         try {
-            if (trade.superOrderId) {
-               await broker.cancelSuperOrder(trade.superOrderId);
-            }
-            // For intraday, positions will square off natively or we can emit market order
-            // This is a simplified close assuming Super Order cancellation drops the pending target/SL and we exit MARKET.
-            const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
-            console.log(`[BOT] Emitting EXIT order for ${trade.symbol}`);
+            // Fetch broker position
+            const positions = await broker.getPositions();
+            const pos = positions.find(p => p.securityId === trade.securityId);
             
-            // Revert back to using ordinary market order to close out the remaining netQty if needed
-            // But since this uses super orders, typically they auto-close at 3:15 or SL hit.
-            // Cancelling the Super Order drops the SL leg, so we must exit position.
+            // Cancel active Super Order legs
+            if (trade.superOrderId) {
+               await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
+               await broker.cancelSuperOrder(trade.superOrderId, "STOP_LOSS_LEG");
+            }
+            
+            // Read actual remaining net quantity
+            let netQty = 0;
+            if (pos && pos.netQty) {
+                netQty = Number(pos.netQty);
+            }
+
+            // Place opposite MARKET order for that quantity
+            if (netQty !== 0) {
+                const exitSide = netQty > 0 ? "SELL" : "BUY";
+                const qtyToExit = Math.abs(netQty);
+                console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
+                await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide);
+            }
+
+            // Only then mark local trade EXITED
             TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
         } catch (e) {
             console.error(`[BOT] Failed to close trade ${trade.id}`, e);
@@ -155,7 +168,6 @@ async function main() {
   let watchlist: WatchlistContext[] = [];
 
   candleEngine.on("onCandleClosed", async (securityId: string, candle: Candle, history: Candle[]) => {
-    if (tradesToday >= MAX_DAILY_TRADES) return;
     await executionEngine.evaluateClosedCandle(securityId, candle);
   });
 
@@ -173,9 +185,15 @@ async function main() {
     for (const item of watchlist) {
       try {
         const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-        if (histRes.data && histRes.data.sessionCandles) {
-          candleEngine.backfill(item.securityId, histRes.data.sessionCandles);
+        const candles = histRes.data?.sessionCandles;
+
+        if (!Array.isArray(candles) || candles.length === 0) {
+          backfillSuccess = false;
+          console.error(`[BOT] Missing session candles for ${item.symbol}`);
+          continue;
         }
+
+        candleEngine.backfill(item.securityId, candles);
       } catch (err) {
         console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
         backfillSuccess = false;
@@ -216,7 +234,6 @@ async function main() {
       const todayStr = getISTDateStr();
       if (todayStr !== currentTradingDay) {
         currentTradingDay = todayStr;
-        tradesToday = 0;
         watchlist = [];
         await broker.validateOrRenewToken();
         await initAndRecover();

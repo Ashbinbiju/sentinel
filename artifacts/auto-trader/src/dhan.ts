@@ -32,6 +32,16 @@ export interface PlaceSuperOrderInput {
   correlationId: string;
 }
 
+export interface DhanSuperOrderLeg {
+  orderId: string;
+  legName: "STOP_LOSS_LEG" | "TARGET_LEG" | "ENTRY_LEG";
+  orderStatus: string;
+  price: number;
+  remainingQuantity: number;
+  triggeredQuantity: number;
+  trailingJump: number;
+}
+
 export interface DhanOrder {
   orderId: string;
   orderStatus: string;
@@ -45,7 +55,9 @@ export interface DhanOrder {
   tradedQty: number;
   price: number;
   correlationId?: string;
-  legName?: string;
+  filledQty?: number;
+  remainingQuantity?: number;
+  legDetails?: DhanSuperOrderLeg[];
 }
 
 export interface DhanMarketTick {
@@ -281,6 +293,44 @@ export class DhanBroker extends EventEmitter {
     } catch (err: any) {
       console.error(`[BROKER] Exception cancelling super order ${orderId}:`, err?.response?.data || err.message);
       throw err;
+    }
+  }
+
+  async placeMarketOrder(
+    securityId: string,
+    quantity: number,
+    side: "BUY" | "SELL" = "BUY",
+    productType: "INTRADAY" | "CNC" = "INTRADAY"
+  ): Promise<string> {
+    console.log(`[BROKER] Placing MARKET exit ${side} for secId: ${securityId} | Qty: ${quantity}`);
+    
+    if (process.env.DRY_RUN === "true") return `mock-market-id-${Date.now()}`;
+
+    try {
+      const payload = {
+        dhanClientId: this.clientId,
+        correlationId: `sentinel-exit-${Date.now()}`,
+        transactionType: side,
+        exchangeSegment: "NSE_EQ",
+        productType: productType,
+        orderType: "MARKET",
+        validity: "DAY",
+        securityId: securityId,
+        quantity: Math.floor(quantity)
+      };
+      
+      const response = await axios.post(`${DHAN_BASE_URL}/orders`, payload, {
+        headers: this.getHeaders()
+      });
+      
+      if (response.data && response.data.orderId) {
+        return response.data.orderId;
+      } else {
+        throw new Error("Failed to place market order");
+      }
+    } catch (err: any) {
+      console.error("[BROKER] Market Order Exception:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.errorMessage || err.message);
     }
   }
 

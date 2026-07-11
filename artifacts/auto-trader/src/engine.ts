@@ -44,6 +44,23 @@ export class ExecutionEngine {
         return;
     }
 
+    // Daily Limits Check
+    const MAX_DAILY_TRADES = 5;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const tradesToday = TradeDB.getTradesForDate(todayStr).filter(trade =>
+      [
+        "ENTRY_PENDING",
+        "ENTRY_TRADED",
+        "PROTECTION_CONFIRMED",
+        "BREAKEVEN_CONFIRMED",
+        "EXITED",
+      ].includes(trade.state)
+    ).length;
+
+    if (tradesToday >= MAX_DAILY_TRADES) {
+        return;
+    }
+
     const prevHigh = ctx.prevHigh;
     const prevLow = ctx.prevLow;
     const c = candle;
@@ -181,22 +198,32 @@ export class ExecutionEngine {
 
           try {
               const orders = await this.broker.getSuperOrderList();
-              // Check if entry leg is traded and STOP_LOSS_LEG exists and is PENDING
-              const entryLeg = orders.find(o => o.orderId === superOrderId || o.correlationId === tradeId);
               
-              if (entryLeg && (entryLeg.orderStatus === "TRADED" || entryLeg.tradedQty > 0)) {
-                  TradeDB.updateState(tradeId, "ENTRY_TRADED");
-                  
-                  // Now verify STOP_LOSS_LEG
-                  const slLeg = orders.find(o => o.correlationId === tradeId && o.legName === "STOP_LOSS_LEG");
-                  if (slLeg && slLeg.orderStatus === "PENDING") {
-                      TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true });
-                      confirmed = true;
-                      console.log(`[ENGINE] Protection verified for ${tradeId}`);
-                  }
-              } else if (entryLeg && (entryLeg.orderStatus === "REJECTED" || entryLeg.orderStatus === "CANCELLED")) {
+              const parent = orders.find(
+                order => order.orderId === superOrderId || order.correlationId === tradeId
+              );
+
+              if (parent && (parent.orderStatus === "REJECTED" || parent.orderStatus === "CANCELLED")) {
                   TradeDB.updateState(tradeId, "REJECTED");
                   return;
+              }
+
+              const stopLeg = parent?.legDetails?.find(
+                leg => leg.legName === "STOP_LOSS_LEG"
+              );
+
+              const protectedPosition =
+                parent?.orderStatus === "TRADED" &&
+                stopLeg !== undefined &&
+                stopLeg.orderStatus !== "REJECTED" &&
+                stopLeg.orderStatus !== "CANCELLED" &&
+                Number(stopLeg.price) > 0;
+
+              if (protectedPosition) {
+                  TradeDB.updateState(tradeId, "ENTRY_TRADED");
+                  TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true });
+                  confirmed = true;
+                  console.log(`[ENGINE] Protection verified for ${tradeId}`);
               }
           } catch (err) {
               console.warn(`[ENGINE] Order book polling failed for ${tradeId}`);

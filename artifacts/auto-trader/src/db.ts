@@ -70,9 +70,12 @@ export const TradeDB = {
     return readDB().filter(t => 
       t.state !== "EXITED" && 
       t.state !== "REJECTED" && 
-      t.state !== "RECONCILIATION_REQUIRED" &&
       t.status !== "CLOSED"
     );
+  },
+
+  getTradesForDate: (dateStr: string): ActiveTrade[] => {
+    return readDB().filter(t => t.createdAt.startsWith(dateStr));
   },
 
   saveTrade: async (trade: ActiveTrade) => {
