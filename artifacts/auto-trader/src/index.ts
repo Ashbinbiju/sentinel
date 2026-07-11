@@ -120,48 +120,50 @@ async function closeAllOpenTrades(broker: DhanBroker) {
 
     for (const trade of activeTrades) {
         try {
+            // Cancel active Super Order legs
             if (trade.superOrderId) {
                await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
                await broker.waitForSuperOrderCancellation(trade.superOrderId);
             }
             
-            const refreshedPositions = await broker.getPositions();
-            const refreshedPosition = refreshedPositions.find(p => p.securityId === trade.securityId);
-            
-            let netQty = 0;
-            if (refreshedPosition && refreshedPosition.netQty) {
-                netQty = Number(refreshedPosition.netQty);
-            }
+            let exitAttempts = 0;
+            while (exitAttempts < 3) {
+              exitAttempts++;
+              
+              const refreshedPositions = await broker.getPositions();
+              const refreshedPosition = refreshedPositions.find(p => p.securityId === trade.securityId);
+              
+              let netQty = 0;
+              if (refreshedPosition && refreshedPosition.netQty) {
+                  netQty = Number(refreshedPosition.netQty);
+              }
 
-            if (netQty !== 0) {
-                const exitSide = netQty > 0 ? "SELL" : "BUY";
-                const qtyToExit = Math.abs(netQty);
-                console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-                const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide);
-                
-                // Poll order until TRADED
-                let retries = 0;
-                let exited = false;
-                while (retries < 15 && !exited) {
-                  retries++;
-                  await sleep(1000);
-                  const orders = await broker.getOrderBook();
-                  const exitOrder = orders.find(o => o.orderId === exitOrderId);
-                  if (exitOrder && (exitOrder.orderStatus === "TRADED" || exitOrder.tradedQty > 0)) {
-                    exited = true;
-                  }
-                }
-                
-                // Refresh positions and confirm netQty === 0
-                const updatedPositions = await broker.getPositions();
-                const updatedPos = updatedPositions.find(p => p.securityId === trade.securityId);
-                if (updatedPos && Number(updatedPos.netQty || 0) === 0) {
+              if (netQty === 0) {
                   TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
-                } else {
-                  console.warn(`[BOT] Failed to confirm exit for ${trade.symbol}. netQty is not zero.`);
+                  break;
+              }
+
+              const exitSide = netQty > 0 ? "SELL" : "BUY";
+              const qtyToExit = Math.abs(netQty);
+              console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
+              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide);
+              
+              // Poll order until TRADED and fully filled
+              let retries = 0;
+              let fullyFilled = false;
+              while (retries < 15 && !fullyFilled) {
+                retries++;
+                await sleep(1000);
+                const orders = await broker.getOrderBook();
+                const exitOrder = orders.find(o => o.orderId === exitOrderId);
+                if (exitOrder && exitOrder.orderStatus === "TRADED" && Number(exitOrder.tradedQty ?? 0) >= qtyToExit) {
+                  fullyFilled = true;
                 }
-            } else {
-                TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+              }
+              
+              if (!fullyFilled) {
+                console.warn(`[BOT] Exit order ${exitOrderId} did not fully fill. Refreshing position and retrying...`);
+              }
             }
         } catch (e) {
             console.error(`[BOT] Failed to close trade ${trade.id}`, e);
@@ -283,6 +285,9 @@ async function main() {
         await sleep(5 * 60 * 1000);
         continue;
       }
+
+      // Reconcile unknown accepted orders
+      await executionEngine.reconcileUnknownOrders();
 
       // Auto Square-Off at 3:14 PM
       const currentMins = getISTMinutes();

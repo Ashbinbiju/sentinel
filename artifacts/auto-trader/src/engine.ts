@@ -294,4 +294,30 @@ export class ExecutionEngine {
           // Ignore
       }
   }
+
+  public async reconcileUnknownOrders(): Promise<void> {
+    const unknownTrades = TradeDB.getOpenTrades().filter(trade =>
+      ["ENTRY_SUBMITTING", "RECONCILIATION_REQUIRED"].includes(trade.state)
+    );
+
+    if (unknownTrades.length === 0) return;
+
+    try {
+      const brokerOrders = await this.broker.getSuperOrderList();
+
+      for (const trade of unknownTrades) {
+        const parent = brokerOrders.find(order => order.correlationId === trade.correlationId);
+
+        if (!parent) continue;
+
+        TradeDB.updateState(trade.id, "ENTRY_PENDING", {
+          superOrderId: parent.orderId,
+        });
+
+        await this.verifyOrderExecution(trade.id, parent.orderId);
+      }
+    } catch (e) {
+      console.error("[ENGINE] Failed to run reconcileUnknownOrders", e);
+    }
+  }
 }

@@ -145,39 +145,30 @@ export class DhanBroker extends EventEmitter {
   }
 
   async getPositions(): Promise<DhanPosition[]> {
-    try {
-      const response = await axios.get(`${DHAN_BASE_URL}/positions`, {
-        headers: this.getHeaders()
-      });
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (err: any) {
-      console.error("[BROKER] Failed to fetch positions:", err?.response?.data || err.message);
-      return [];
-    }
+    const response = await axios.get(`${DHAN_BASE_URL}/positions`, {
+      headers: this.getHeaders(),
+      timeout: 10000
+    });
+    if (!Array.isArray(response.data)) throw new Error("Invalid Dhan positions response");
+    return response.data;
   }
 
   async getOrderBook(): Promise<DhanOrder[]> {
-    try {
-      const response = await axios.get(`${DHAN_BASE_URL}/orders`, {
-        headers: this.getHeaders()
-      });
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (err: any) {
-      console.error("[BROKER] Failed to fetch order book:", err?.response?.data || err.message);
-      return [];
-    }
+    const response = await axios.get(`${DHAN_BASE_URL}/orders`, {
+      headers: this.getHeaders(),
+      timeout: 10000
+    });
+    if (!Array.isArray(response.data)) throw new Error("Invalid Dhan order book response");
+    return response.data;
   }
   
   async getSuperOrderList(): Promise<DhanOrder[]> {
-    try {
-      const response = await axios.get(`${DHAN_BASE_URL}/super/orders`, {
-        headers: this.getHeaders()
-      });
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (err: any) {
-      console.error("[BROKER] Failed to fetch super order book:", err?.response?.data || err.message);
-      return [];
-    }
+    const response = await axios.get(`${DHAN_BASE_URL}/super/orders`, {
+      headers: this.getHeaders(),
+      timeout: 10000
+    });
+    if (!Array.isArray(response.data)) throw new Error("Invalid Dhan super order list response");
+    return response.data;
   }
 
   async getExecutedBuySymbols(): Promise<Set<string>> {
@@ -284,10 +275,15 @@ export class DhanBroker extends EventEmitter {
     orderId: string,
     orderLeg: "ENTRY_LEG" | "TARGET_LEG" | "STOP_LOSS_LEG" = "ENTRY_LEG",
   ): Promise<void> {
+    if (process.env.DRY_RUN === "true") {
+      console.log(`[DRY RUN] Would cancel ${orderId}/${orderLeg}`);
+      return;
+    }
+
     try {
       await axios.delete(
         `${DHAN_BASE_URL}/super/orders/${orderId}/${orderLeg}`,
-        { headers: this.getHeaders() }
+        { headers: this.getHeaders(), timeout: 10000 }
       );
       console.log(`[BROKER] Cancelled super order ${orderId} leg ${orderLeg} successfully.`);
     } catch (err: any) {
@@ -297,6 +293,8 @@ export class DhanBroker extends EventEmitter {
   }
 
   async waitForSuperOrderCancellation(orderId: string): Promise<void> {
+    if (process.env.DRY_RUN === "true") return;
+
     for (let attempt = 1; attempt <= 10; attempt++) {
       await new Promise(r => setTimeout(r, 1000));
       const orders = await this.getSuperOrderList();
