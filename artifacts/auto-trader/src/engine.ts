@@ -264,7 +264,6 @@ export class ExecutionEngine {
                       break;
                   }
 
-                  TradeDB.updateState(tradeId, "ENTRY_TRADED", { entryPrice: actualFillPrice, quantity: actualFilledQty });
                   TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice, quantity: actualFilledQty });
                   confirmed = true;
                   console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
