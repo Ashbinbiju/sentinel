@@ -35,69 +35,73 @@ export class ExecutionEngine {
     );
   }
 
+  private evaluationQueue: Promise<void> = Promise.resolve();
+
   public async evaluateClosedCandle(securityId: string, candle: Candle) {
-    const ctx = this.watchlist.get(securityId);
-    if (!ctx) return; 
+    const evaluateTask = async () => {
+      try {
+        const ctx = this.watchlist.get(securityId);
+        if (!ctx) return; 
 
-    // Prevent duplicate entries if trade is already active or needs reconciliation
-    if (this.getActiveOrPendingTrade(securityId)) {
-        return;
-    }
-
-    // Daily Limits Check
-    const MAX_DAILY_TRADES = 5;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const tradesToday = TradeDB.getTradesForDate(todayStr).filter(trade =>
-      [
-        "ENTRY_PENDING",
-        "ENTRY_TRADED",
-        "PROTECTION_CONFIRMED",
-        "BREAKEVEN_CONFIRMED",
-        "EXITED",
-      ].includes(trade.state)
-    ).length;
-
-    if (tradesToday >= MAX_DAILY_TRADES) {
-        return;
-    }
-
-    const prevHigh = ctx.prevHigh;
-    const prevLow = ctx.prevLow;
-    const c = candle;
-
-    let setup = "";
-    let direction: "BUY" | "SELL" | null = null;
-    let sl = 0;
-    let entryPrice = c.c;
-
-    if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
-      if (c.c > prevHigh) {
-        if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
-          setup = "HIGH BREAKOUT"; direction = "BUY";
-          sl = Math.min(c.l, prevHigh * 0.999);
+        if (this.getActiveOrPendingTrade(securityId)) {
+            return;
         }
-      } else if (c.c < c.o) {
-        setup = "HIGH REJECTION"; direction = "SELL";
-        sl = Math.max(c.h, prevHigh * 1.001);
-      }
-      if (direction) entryPrice = c.c;
-    } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
-      if (c.c < prevLow) {
-        if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
-          setup = "LOW BREAKDOWN"; direction = "SELL";
-          sl = Math.max(c.h, prevLow * 1.001);
-        }
-      } else if (c.c > c.o) {
-        setup = "LOW SUPPORT"; direction = "BUY";
-        sl = Math.min(c.l, prevLow * 0.999);
-      }
-      if (direction) entryPrice = c.c;
-    }
 
-    if (direction) {
-      console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
-      await this.initiateTrade(ctx, direction, entryPrice, sl);
-    }
+        const MAX_DAILY_TRADES = 5;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const tradesToday = TradeDB.getTradesForDate(todayStr).filter(trade =>
+          trade.state !== "REJECTED"
+        ).length;
+
+        if (tradesToday >= MAX_DAILY_TRADES) {
+            return;
+        }
+
+        const prevHigh = ctx.prevHigh;
+        const prevLow = ctx.prevLow;
+        const c = candle;
+
+        let setup = "";
+        let direction: "BUY" | "SELL" | null = null;
+        let sl = 0;
+        let entryPrice = c.c;
+
+        if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
+          if (c.c > prevHigh) {
+            if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
+              setup = "HIGH BREAKOUT"; direction = "BUY";
+              sl = Math.min(c.l, prevHigh * 0.999);
+            }
+          } else if (c.c < c.o) {
+            setup = "HIGH REJECTION"; direction = "SELL";
+            sl = Math.max(c.h, prevHigh * 1.001);
+          }
+          if (direction) entryPrice = c.c;
+        } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
+          if (c.c < prevLow) {
+            if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
+              setup = "LOW BREAKDOWN"; direction = "SELL";
+              sl = Math.max(c.h, prevLow * 1.001);
+            }
+          } else if (c.c > c.o) {
+            setup = "LOW SUPPORT"; direction = "BUY";
+            sl = Math.min(c.l, prevLow * 0.999);
+          }
+          if (direction) entryPrice = c.c;
+        }
+
+        if (direction) {
+          console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
+          await this.initiateTrade(ctx, direction, entryPrice, sl);
+        }
+      } catch (err: any) {
+        console.error(`[ENGINE] evaluateClosedCandle error for ${securityId}:`, err);
+      }
+    };
+
+    this.evaluationQueue = this.evaluationQueue.then(evaluateTask).catch(err => {
+      console.error("[ENGINE] Queue Error:", err);
+    });
   }
 
   private roundToTick(val: number): number {
@@ -214,10 +218,9 @@ export class ExecutionEngine {
 
               const protectedPosition =
                 parent?.orderStatus === "TRADED" &&
-                stopLeg !== undefined &&
-                stopLeg.orderStatus !== "REJECTED" &&
-                stopLeg.orderStatus !== "CANCELLED" &&
-                Number(stopLeg.price) > 0;
+                stopLeg?.orderStatus === "PENDING" &&
+                Number(stopLeg.price) > 0 &&
+                Number(stopLeg.triggeredQuantity ?? 0) === 0;
 
               if (protectedPosition) {
                   TradeDB.updateState(tradeId, "ENTRY_TRADED");

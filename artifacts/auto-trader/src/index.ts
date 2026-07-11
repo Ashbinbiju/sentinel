@@ -120,32 +120,49 @@ async function closeAllOpenTrades(broker: DhanBroker) {
 
     for (const trade of activeTrades) {
         try {
-            // Fetch broker position
             const positions = await broker.getPositions();
             const pos = positions.find(p => p.securityId === trade.securityId);
             
-            // Cancel active Super Order legs
             if (trade.superOrderId) {
                await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
-               await broker.cancelSuperOrder(trade.superOrderId, "STOP_LOSS_LEG");
+               await broker.waitForSuperOrderCancellation(trade.superOrderId);
             }
             
-            // Read actual remaining net quantity
             let netQty = 0;
             if (pos && pos.netQty) {
                 netQty = Number(pos.netQty);
             }
 
-            // Place opposite MARKET order for that quantity
             if (netQty !== 0) {
                 const exitSide = netQty > 0 ? "SELL" : "BUY";
                 const qtyToExit = Math.abs(netQty);
                 console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-                await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide);
+                const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide);
+                
+                // Poll order until TRADED
+                let retries = 0;
+                let exited = false;
+                while (retries < 15 && !exited) {
+                  retries++;
+                  await sleep(1000);
+                  const orders = await broker.getOrderBook();
+                  const exitOrder = orders.find(o => o.orderId === exitOrderId);
+                  if (exitOrder && (exitOrder.orderStatus === "TRADED" || exitOrder.tradedQty > 0)) {
+                    exited = true;
+                  }
+                }
+                
+                // Refresh positions and confirm netQty === 0
+                const updatedPositions = await broker.getPositions();
+                const updatedPos = updatedPositions.find(p => p.securityId === trade.securityId);
+                if (updatedPos && Number(updatedPos.netQty || 0) === 0) {
+                  TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
+                } else {
+                  console.warn(`[BOT] Failed to confirm exit for ${trade.symbol}. netQty is not zero.`);
+                }
+            } else {
+                TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
             }
-
-            // Only then mark local trade EXITED
-            TradeDB.markTradeClosed(trade.id, "SQUARED OFF");
         } catch (e) {
             console.error(`[BOT] Failed to close trade ${trade.id}`, e);
         }
@@ -190,6 +207,17 @@ async function main() {
         if (!Array.isArray(candles) || candles.length === 0) {
           backfillSuccess = false;
           console.error(`[BOT] Missing session candles for ${item.symbol}`);
+          continue;
+        }
+
+        const lastCandle = candles[candles.length - 1];
+        const epochSecs = Math.floor(Date.now() / 1000);
+        const currentSlot5m = Math.floor(epochSecs / 300) * 300;
+        const expectedLastClosed5m = currentSlot5m - 300;
+
+        if (lastCandle.t < expectedLastClosed5m - 60) {
+          backfillSuccess = false;
+          console.error(`[BOT] Stale backfill for ${item.symbol}. Last candle is ${lastCandle.t}, expected ${expectedLastClosed5m}`);
           continue;
         }
 

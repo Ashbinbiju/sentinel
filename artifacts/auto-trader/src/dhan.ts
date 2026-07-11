@@ -296,6 +296,20 @@ export class DhanBroker extends EventEmitter {
     }
   }
 
+  async waitForSuperOrderCancellation(orderId: string): Promise<void> {
+    let retries = 0;
+    while (retries < 10) {
+      retries++;
+      await new Promise(r => setTimeout(r, 1000));
+      const orders = await this.getSuperOrderList();
+      const order = orders.find(o => o.orderId === orderId);
+      if (order && (order.orderStatus === "CANCELLED" || order.orderStatus === "REJECTED" || order.orderStatus === "CLOSED")) {
+        return;
+      }
+    }
+    console.warn(`[BROKER] Super Order ${orderId} cancellation verification timed out.`);
+  }
+
   async placeMarketOrder(
     securityId: string,
     quantity: number,
@@ -316,7 +330,9 @@ export class DhanBroker extends EventEmitter {
         orderType: "MARKET",
         validity: "DAY",
         securityId: securityId,
-        quantity: Math.floor(quantity)
+        quantity: Math.floor(quantity),
+        price: 0,
+        afterMarketOrder: false
       };
       
       const response = await axios.post(`${DHAN_BASE_URL}/orders`, payload, {
