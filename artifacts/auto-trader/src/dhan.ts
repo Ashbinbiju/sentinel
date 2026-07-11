@@ -297,17 +297,18 @@ export class DhanBroker extends EventEmitter {
   }
 
   async waitForSuperOrderCancellation(orderId: string): Promise<void> {
-    let retries = 0;
-    while (retries < 10) {
-      retries++;
+    for (let attempt = 1; attempt <= 10; attempt++) {
       await new Promise(r => setTimeout(r, 1000));
       const orders = await this.getSuperOrderList();
       const order = orders.find(o => o.orderId === orderId);
-      if (order && (order.orderStatus === "CANCELLED" || order.orderStatus === "REJECTED" || order.orderStatus === "CLOSED")) {
+      if (
+        order &&
+        ["CANCELLED", "CLOSED", "REJECTED"].includes(order.orderStatus)
+      ) {
         return;
       }
     }
-    console.warn(`[BROKER] Super Order ${orderId} cancellation verification timed out.`);
+    throw new Error(`Super Order ${orderId} cancellation was not confirmed`);
   }
 
   async placeMarketOrder(

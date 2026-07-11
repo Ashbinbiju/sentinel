@@ -120,17 +120,17 @@ async function closeAllOpenTrades(broker: DhanBroker) {
 
     for (const trade of activeTrades) {
         try {
-            const positions = await broker.getPositions();
-            const pos = positions.find(p => p.securityId === trade.securityId);
-            
             if (trade.superOrderId) {
                await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
                await broker.waitForSuperOrderCancellation(trade.superOrderId);
             }
             
+            const refreshedPositions = await broker.getPositions();
+            const refreshedPosition = refreshedPositions.find(p => p.securityId === trade.securityId);
+            
             let netQty = 0;
-            if (pos && pos.netQty) {
-                netQty = Number(pos.netQty);
+            if (refreshedPosition && refreshedPosition.netQty) {
+                netQty = Number(refreshedPosition.netQty);
             }
 
             if (netQty !== 0) {
@@ -215,9 +215,21 @@ async function main() {
         const currentSlot5m = Math.floor(epochSecs / 300) * 300;
         const expectedLastClosed5m = currentSlot5m - 300;
 
-        if (lastCandle.t < expectedLastClosed5m - 60) {
+        if (Number(lastCandle.t) !== expectedLastClosed5m) {
           backfillSuccess = false;
           console.error(`[BOT] Stale backfill for ${item.symbol}. Last candle is ${lastCandle.t}, expected ${expectedLastClosed5m}`);
+          continue;
+        }
+
+        const hasGap = candles.some(
+          (candle, index) =>
+            index > 0 &&
+            Number(candle.t) - Number(candles[index - 1].t) !== 300
+        );
+
+        if (hasGap) {
+          backfillSuccess = false;
+          console.error(`[BOT] Missing internal gaps in backfill for ${item.symbol}. Continuity compromised.`);
           continue;
         }
 
