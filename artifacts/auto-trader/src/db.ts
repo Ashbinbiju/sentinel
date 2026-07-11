@@ -56,16 +56,19 @@ function readDB(): ActiveTrade[] {
     const data = fs.readFileSync(dbPath, "utf-8");
     return JSON.parse(data);
   } catch (err) {
-    console.error("[DB] Failed to read database:", err);
-    return [];
+    console.error("FATAL: Failed to read trade database:", err);
+    throw err;
   }
 }
 
 function writeDB(trades: ActiveTrade[]) {
   try {
-    fs.writeFileSync(dbPath, JSON.stringify(trades, null, 2), "utf-8");
+    const tempPath = `${dbPath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(trades, null, 2), "utf-8");
+    fs.renameSync(tempPath, dbPath);
   } catch (err) {
-    console.error("[DB] Failed to write to database:", err);
+    console.error("FATAL: Failed to write to database:", err);
+    throw err;
   }
 }
 

@@ -328,9 +328,15 @@ export class ExecutionEngine {
             if (parent) {
                 const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
                 if (slLeg && Number(slLeg.price) === Number(trade.entryPrice)) {
-                    TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED");
+                    TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED", { breakevenApplied: true });
                     console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
+                } else {
+                    console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol}. Reverting to PROTECTION_CONFIRMED`);
+                    TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
                 }
+            } else {
+                console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Reverting to PROTECTION_CONFIRMED`);
+                TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
             }
             continue;
         }
@@ -363,11 +369,18 @@ export class ExecutionEngine {
       for (const trade of exitTrades) {
         const exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
 
-        if (exitOrder && !["TRADED", "CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
+        if (!exitOrder) {
+            throw new Error(`ExitReconciliationRequiredError: ${trade.exitCorrelationId} missing from broker order book`);
+        }
+
+        if (!["TRADED", "CANCELLED", "REJECTED"].includes(exitOrder.orderStatus)) {
           console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
           await this.broker.cancelOrder(exitOrder.orderId);
           await this.broker.waitForOrderTerminal(exitOrder.orderId);
         }
+
+        // Successfully resolved to terminal. Clear ID.
+        TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "" });
       }
     } catch (e) {
       console.error("[ENGINE] Failed to run reconcileExitOrders", e);

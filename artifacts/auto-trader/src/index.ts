@@ -114,12 +114,17 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
   return list;
 }
 
-async function closeAllOpenTrades(broker: DhanBroker) {
-    const activeTrades = TradeDB.getOpenTrades();
+async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
+    const activeTrades = specificTrades || TradeDB.getOpenTrades();
     if (activeTrades.length === 0) return;
 
     for (const trade of activeTrades) {
         try {
+            if (trade.exitCorrelationId) {
+                console.warn(`[BOT] Trade ${trade.symbol} has unresolved exitCorrelationId. Skipping new exit placement.`);
+                continue;
+            }
+
             // Cancel active Super Order legs
             if (["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED"].includes(trade.state) && !trade.superOrderId) {
                 TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
@@ -180,7 +185,10 @@ async function closeAllOpenTrades(broker: DhanBroker) {
                   orderTerminal = true;
                 } else if (retries === 15) {
                   if (!exitOrder) {
-                    throw new Error(`ExitReconciliationRequiredError: ${exitCorrelationId}`);
+                    console.error(`[BOT] ExitReconciliationRequiredError: ${exitCorrelationId}`);
+                    TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                    orderTerminal = true;
+                    break;
                   }
                   await broker.cancelOrder(exitOrder.orderId);
                   await broker.waitForOrderTerminal(exitOrder.orderId);
@@ -345,12 +353,27 @@ async function main() {
         }
       }
 
+      // Reversal/Emergency Intraday Square-off
+      const orphanedTrades = activeTrades.filter(t => t.state === "REVERSAL_RECONCILIATION_REQUIRED");
+      if (orphanedTrades.length > 0) {
+          console.warn(`[BOT] Found ${orphanedTrades.length} reversed trades needing emergency square-off.`);
+          await closeAllOpenTrades(broker, orphanedTrades);
+      }
+
       // Kill Switch Validation
       if (!DRY_RUN) {
         const { realizedPnl, closedLosingTrades } = await broker.getRiskMetrics();
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
            console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
            await closeAllOpenTrades(broker);
+           activeTrades = TradeDB.getOpenTrades();
+           
+           if (activeTrades.length > 0) {
+               console.error(`[KILL SWITCH] Failed to square off. Retrying in safety loop...`);
+               await sleep(10 * 1000);
+               continue;
+           }
+           
            // Sleep until next day
            while (todayStr === getISTDateStr()) {
                await sleep(60 * 60 * 1000);
@@ -371,7 +394,7 @@ async function main() {
        console.error(`[BOT] Safety Loop Error:`, e.message);
     }
 
-    await sleep(60000);
+    await sleep(10000);
   }
 }
 
