@@ -284,24 +284,27 @@ export class ExecutionEngine {
     const trade = this.getActiveOrPendingTrade(securityId);
     if (!trade || trade.state !== "PROTECTION_CONFIRMED") return;
 
-    // Evaluate Breakeven Rule (1R)
+    // Evaluate Structural Trail Rule (1.5R)
     const risk = Math.abs(trade.entryPrice - trade.stopLossPrice);
-    let reached1R = false;
+    let reached1_5R = false;
+    let trailSLPrice = trade.entryPrice;
 
-    if (trade.side === "BUY" && ltp >= trade.entryPrice + risk) {
-      reached1R = true;
-    } else if (trade.side === "SELL" && ltp <= trade.entryPrice - risk) {
-      reached1R = true;
+    if (trade.side === "BUY" && ltp >= trade.entryPrice + (risk * 1.5)) {
+      reached1_5R = true;
+      trailSLPrice = this.roundToTick(trade.entryPrice - (risk * 0.15)); // Trail to bottom of touch zone roughly
+    } else if (trade.side === "SELL" && ltp <= trade.entryPrice - (risk * 1.5)) {
+      reached1_5R = true;
+      trailSLPrice = this.roundToTick(trade.entryPrice + (risk * 0.15));
     }
 
-    if (reached1R && !trade.breakevenApplied) {
-      console.log(`[ENGINE] Trade ${trade.symbol} reached 1R! Moving Super Order SL to Breakeven.`);
+    if (reached1_5R && !trade.breakevenApplied) {
+      console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
       TradeDB.updateState(trade.id, "BREAKEVEN_REQUESTED");
       
       try {
         await this.broker.moveSuperOrderStopToBreakeven(
           trade.superOrderId,
-          trade.entryPrice,
+          trailSLPrice,
           trade.trailingJump
         );
         TradeDB.updateState(trade.id, "BREAKEVEN_CONFIRMED", { breakevenApplied: true });

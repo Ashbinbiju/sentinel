@@ -3,9 +3,11 @@ import { writeFileSync } from "fs";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
+const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
+const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
 const testCases: { symbol: string; date: string }[] = [
-    { symbol: "LTIM", date: "2026-07-10" }
+    { symbol: "GODREJIND", date: "2026-07-10" }
 ];
 
 function getISTDateStr(epochSecs: number): string {
@@ -181,8 +183,8 @@ async function runBacktest() {
                             exitStatus = "✅ TARGET HIT";
                             hitTime = rcTime;
                             break;
-                        } else if (rc.h >= entryPrice + risk && sl < entryPrice) {
-                            sl = entryPrice;
+                        } else if (rc.h >= entryPrice + (risk * 1.5) && sl < entryPrice) {
+                            sl = entryPrice - (risk * 0.15); // Structural Trail
                         }
                     } else { 
                         if (rc.h >= sl) {
@@ -193,8 +195,8 @@ async function runBacktest() {
                             exitStatus = "✅ TARGET HIT";
                             hitTime = rcTime;
                             break;
-                        } else if (rc.l <= entryPrice - risk && sl > entryPrice) {
-                            sl = entryPrice;
+                        } else if (rc.l <= entryPrice - (risk * 1.5) && sl > entryPrice) {
+                            sl = entryPrice + (risk * 0.15); // Structural Trail
                         }
                     }
                 }
