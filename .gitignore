@@ -54,3 +54,10 @@ Thumbs.db
 !.env.example
 
 .vercel
+
+# Runtime-generated files (should never be committed)
+.angel_session.json
+*.log
+error.log
+artifacts/*/error.log
+trades.json
