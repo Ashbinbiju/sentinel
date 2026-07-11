@@ -125,11 +125,11 @@ export const TradeDB = {
     }
   },
 
-  updateState: (id: string, newState: TradeState, updates: Partial<ActiveTrade> = {}) => {
+  updateState: (id: string, newState: TradeState | undefined, updates: Partial<ActiveTrade> = {}) => {
     const trades = readDB();
     const trade = trades.find(t => t.id === id);
     if (trade) {
-      trade.state = newState;
+      if (newState) trade.state = newState;
       trade.updatedAt = new Date().toISOString();
       Object.assign(trade, updates);
       writeDB(trades);

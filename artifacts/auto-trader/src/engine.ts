@@ -468,7 +468,7 @@ export class ExecutionEngine {
         if (!exitOrder) {
             const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
             console.error(`[EMERGENCY] Exit ${trade.exitCorrelationId} missing from broker (count ${notFoundCount}). MANUAL OPERATOR RESOLUTION REQUIRED to avoid unflattened exposure.`);
-            TradeDB.updateState(trade.id, trade.state, { exitNotFoundCount: notFoundCount });
+            TradeDB.updateState(, undefined, { exitNotFoundCount: notFoundCount });
             continue;
         }
 
@@ -496,7 +496,7 @@ export class ExecutionEngine {
 
             TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
         } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
-            TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            TradeDB.updateState(, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
         } else {
             console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
             await this.broker.cancelOrder(exitOrder.orderId);
@@ -528,7 +528,7 @@ export class ExecutionEngine {
 
                 TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
             } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(finalOrder?.orderStatus ?? "")) {
-                TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "", exitNotFoundCount: 0 });
+                TradeDB.updateState(, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
             }
         }
       }

@@ -7,7 +7,7 @@ const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
 const testCases: { symbol: string; date: string }[] = [
-    { symbol: "VENKEYS", date: "2026-07-10" }
+    { symbol: "SUDARSCHEM", date: "2026-07-10" }
 ];
 
 function getISTDateStr(epochSecs: number): string {

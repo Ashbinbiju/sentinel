@@ -113,11 +113,11 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                }
                
                if (["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
-                 TradeDB.updateState(trade.id, trade.state, { protectionCancelled: true });
+                 TradeDB.updateState(, undefined, { protectionCancelled: true });
                } else {
                  await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
                  await broker.waitForSuperOrderCancellation(trade.superOrderId);
-                 TradeDB.updateState(trade.id, trade.state, { protectionCancelled: true });
+                 TradeDB.updateState(, undefined, { protectionCancelled: true });
                }
             }
             
@@ -193,7 +193,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               }
               
               if (["CANCELLED", "REJECTED", "EXPIRED"].includes(completedExit?.orderStatus ?? "")) {
-                  TradeDB.updateState(trade.id, trade.state, { exitCorrelationId: "" });
+                  TradeDB.updateState(, undefined, { exitCorrelationId: "" });
               }
 
               const finalPositions = await broker.getPositions();
