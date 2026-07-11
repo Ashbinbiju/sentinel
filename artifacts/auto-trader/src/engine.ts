@@ -351,9 +351,6 @@ export class ExecutionEngine {
 
               if (positionAbsentOrFlat && parent?.orderStatus === "CLOSED" && triggeredLeg) {
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
-                  if (!triggeredLeg) {
-                      continue;
-                  }
                   
                   const trades = await this.broker.getTradesByOrderId(triggeredLeg.orderId);
                   
