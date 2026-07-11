@@ -160,7 +160,7 @@ async function main() {
   });
 
   const initAndRecover = async () => {
-    candleEngine.isContinuityValid = false;
+    candleEngine.prepareForReconnect();
     
     if (watchlist.length === 0) {
         console.log(`[BOT] Fetching Watchlist & Historical Context...`);
@@ -197,8 +197,8 @@ async function main() {
   });
 
   broker.on("onDisconnect", () => {
-      console.warn(`[BOT] WebSocket disconnected. Invalidating continuity.`);
-      candleEngine.isContinuityValid = false;
+      console.warn(`[BOT] WebSocket disconnected. Invalidating continuity and cleaning up partial buckets.`);
+      candleEngine.prepareForReconnect();
   });
 
   broker.onTick(async (tick) => {

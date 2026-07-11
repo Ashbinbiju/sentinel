@@ -268,13 +268,16 @@ export class DhanBroker extends EventEmitter {
     }
   }
 
-  async cancelSuperOrder(orderId: string): Promise<void> {
+  async cancelSuperOrder(
+    orderId: string,
+    orderLeg: "ENTRY_LEG" | "TARGET_LEG" | "STOP_LOSS_LEG" = "ENTRY_LEG",
+  ): Promise<void> {
     try {
-      // Typically, to cancel a Super Order, we may need to specify the legName. But Dhan provides a direct cancellation route or we cancel the pending leg.
-      await axios.delete(`${DHAN_BASE_URL}/super/orders/${orderId}`, {
-        headers: this.getHeaders()
-      });
-      console.log(`[BROKER] Cancelled super order ${orderId} successfully.`);
+      await axios.delete(
+        `${DHAN_BASE_URL}/super/orders/${orderId}/${orderLeg}`,
+        { headers: this.getHeaders() }
+      );
+      console.log(`[BROKER] Cancelled super order ${orderId} leg ${orderLeg} successfully.`);
     } catch (err: any) {
       console.error(`[BROKER] Exception cancelling super order ${orderId}:`, err?.response?.data || err.message);
       throw err;

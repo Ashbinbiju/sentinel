@@ -11,7 +11,7 @@ export interface Candle {
   isPartial?: boolean;
 }
 
-const CANDLE_CLOSE_GRACE_MS = 2000; // 2 seconds grace period before finalizing
+const CANDLE_CLOSE_GRACE_MS = 2000;
 
 export class CandleEngine extends EventEmitter {
   private candles1m: Map<string, Candle[]> = new Map();
@@ -21,6 +21,7 @@ export class CandleEngine extends EventEmitter {
   private current5m: Map<string, Candle> = new Map();
   
   private cumulativeVolume: Map<string, number> = new Map();
+  private lastExchangeTimestamp: Map<string, number> = new Map();
   
   public isContinuityValid: boolean = false;
   private intervalTimer: NodeJS.Timeout | null = null;
@@ -32,7 +33,6 @@ export class CandleEngine extends EventEmitter {
   public start() {
     if (this.intervalTimer) clearInterval(this.intervalTimer);
     
-    // Check for candle closures every second
     this.intervalTimer = setInterval(() => {
       if (!this.isContinuityValid) return;
       const nowMs = Date.now();
@@ -47,6 +47,15 @@ export class CandleEngine extends EventEmitter {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
     }
+  }
+
+  public prepareForReconnect(): void {
+    this.isContinuityValid = false;
+
+    this.current1m.clear();
+    this.current5m.clear();
+    this.cumulativeVolume.clear();
+    this.lastExchangeTimestamp.clear();
   }
 
   private checkClosures(
@@ -71,10 +80,8 @@ export class CandleEngine extends EventEmitter {
     closedMap: Map<string, Candle[]>,
     label: "1m" | "5m"
   ) {
-    // Remove from forming
     currentMap.delete(securityId);
     
-    // Add to closed
     let history = closedMap.get(securityId);
     if (!history) {
       history = [];
@@ -89,17 +96,19 @@ export class CandleEngine extends EventEmitter {
 
   public backfill(securityId: string, history: Candle[]) {
     if (!history || history.length === 0) return;
-    
     this.candles5m.set(securityId, [...history]);
-    
-    // We intentionally DO NOT populate current5m from backfill
-    // The current bucket will be marked as partial if it hasn't started natively.
   }
 
   public processTick(tick: DhanMarketTick) {
     if (!this.isContinuityValid) return;
 
-    // Market Session Boundary: 09:15 to 15:30 IST
+    // Out-of-order protection
+    const previousTimestamp = this.lastExchangeTimestamp.get(tick.securityId);
+    if (previousTimestamp !== undefined && tick.exchangeTimestampMs < previousTimestamp) {
+      return;
+    }
+    this.lastExchangeTimestamp.set(tick.securityId, tick.exchangeTimestampMs);
+
     const d = new Date(tick.exchangeTimestampMs);
     const utcHours = d.getUTCHours();
     const utcMinutes = d.getUTCMinutes();
@@ -113,19 +122,19 @@ export class CandleEngine extends EventEmitter {
     const slot1m = Math.floor(epochSecs / 60) * 60;
     const slot5m = Math.floor(epochSecs / 300) * 300;
 
+    const previousVolume = this.cumulativeVolume.get(tick.securityId);
     let tickVol = 0;
-    if (tick.cumulativeVolume > 0) {
-        const prevVol = this.cumulativeVolume.get(tick.securityId) || 0;
-        if (istMinutes === 555 && prevVol > tick.cumulativeVolume) {
-            tickVol = tick.cumulativeVolume;
-        } else {
-            tickVol = Math.max(0, tick.cumulativeVolume - prevVol);
-        }
-        this.cumulativeVolume.set(tick.securityId, tick.cumulativeVolume);
+
+    if (previousVolume === undefined) {
+      // First packet establishes the baseline.
+      this.cumulativeVolume.set(tick.securityId, tick.cumulativeVolume);
+    } else {
+      tickVol = tick.cumulativeVolume >= previousVolume ? tick.cumulativeVolume - previousVolume : 0;
+      this.cumulativeVolume.set(tick.securityId, tick.cumulativeVolume);
     }
 
-    this.updateCandle(this.current1m, this.candles1m, tick.securityId, slot1m, tick.ltp, tickVol, 60);
-    this.updateCandle(this.current5m, this.candles5m, tick.securityId, slot5m, tick.ltp, tickVol, 300);
+    this.updateCandle(this.current1m, this.candles1m, tick.securityId, slot1m, epochSecs, tick.ltp, tickVol, 60);
+    this.updateCandle(this.current5m, this.candles5m, tick.securityId, slot5m, epochSecs, tick.ltp, tickVol, 300);
   }
 
   private updateCandle(
@@ -133,6 +142,7 @@ export class CandleEngine extends EventEmitter {
     closedMap: Map<string, Candle[]>,
     securityId: string,
     slot: number,
+    epochSecs: number,
     ltp: number,
     vol: number,
     intervalSecs: number
@@ -140,28 +150,22 @@ export class CandleEngine extends EventEmitter {
     let current = currentMap.get(securityId);
 
     if (!current) {
-      // Determine if we are starting mid-candle
-      const nowSecs = Math.floor(Date.now() / 1000);
-      const secondsIntoBucket = nowSecs - slot;
-      
-      // If we started listening late into the bucket (e.g., > 10 seconds), mark as partial
+      const secondsIntoBucket = epochSecs - slot;
       const isPartial = secondsIntoBucket > 10;
       
       current = { t: slot, o: ltp, h: ltp, l: ltp, c: ltp, v: vol, isPartial };
       currentMap.set(securityId, current);
     } else if (current.t !== slot) {
-      // We received a tick for a new bucket, but the old one hasn't been finalized by the timer yet?
-      // Or it's a late out-of-order tick?
       if (slot < current.t) {
-        // Late tick for a past candle. Ignore it for real-time safety.
         return;
       }
       
-      // If slot > current.t, the old candle should have been finalized. 
-      // Force finalize it now.
       this.finalizeCandle(securityId, current, currentMap, closedMap, intervalSecs === 300 ? "5m" : "1m");
       
-      current = { t: slot, o: ltp, h: ltp, l: ltp, c: ltp, v: vol, isPartial: false };
+      const secondsIntoBucket = epochSecs - slot;
+      const isPartial = secondsIntoBucket > 10;
+      
+      current = { t: slot, o: ltp, h: ltp, l: ltp, c: ltp, v: vol, isPartial };
       currentMap.set(securityId, current);
     } else {
       current.h = Math.max(current.h, ltp);
