@@ -386,8 +386,8 @@ export class ExecutionEngine {
                   );
               }
           }
-      } catch (e) {
-          // Ignore
+      } catch (e: any) {
+          console.error("[ENGINE] Critical error in reconcileExits:", e.message || e);
       }
   }
 
