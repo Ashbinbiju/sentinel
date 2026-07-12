@@ -1,6 +1,6 @@
 import { ActiveTrade, TradeDB, TradeState } from "./db";
 import { Candle } from "./candle-engine";
-import { DhanBroker, PlaceSuperOrderInput, DhanOrder } from "./dhan";
+import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
 import { randomUUID } from "crypto";
 import { getISTDateStr } from "./utils";
 
@@ -8,6 +8,7 @@ const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
+const NSE_TICK_SIZE = 0.05;
 
 export interface WatchlistContext {
   symbol: string;
@@ -123,13 +124,11 @@ export class ExecutionEngine {
       }
     };
 
-    this.evaluationQueue = this.evaluationQueue.then(evaluateTask).catch(err => {
-      console.error("[ENGINE] Queue Error:", err);
-    });
+    this.evaluationQueue = this.evaluationQueue.then(evaluateTask);
   }
 
   private roundToTick(val: number): number {
-    return Math.round(val * 20) / 20;
+    return Math.round(val / NSE_TICK_SIZE) * NSE_TICK_SIZE;
   }
 
   private async initiateTrade(ctx: WatchlistContext, side: "BUY"|"SELL", entryPrice: number, sl: number) {
@@ -499,13 +498,16 @@ export class ExecutionEngine {
 
             TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
         } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
-            TradeDB.updateState(, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
         } else {
             console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
             await this.broker.cancelOrder(exitOrder.orderId);
             await this.broker.waitForOrderTerminal(exitOrder.orderId);
             
-            const finalOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId!);
+            if (!trade.exitCorrelationId) {
+                continue;
+            }
+            const finalOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId);
             
             if (finalOrder?.orderStatus === "TRADED") {
                 const finalExitPrice = Number(finalOrder.averageTradedPrice);
