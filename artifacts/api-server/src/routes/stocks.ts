@@ -5654,7 +5654,7 @@ router.get("/momentum-picks", async (req, res) => {
       if (isRes.ok) {
         const data = await isRes.json() as any;
         if (data && Array.isArray(data.intradayLosers)) {
-            const losers = data.intradayLosers.filter((s: any) => s.priceChangePct <= -2).slice(0, 25);
+            const losers = data.intradayLosers.slice(0, 25);
             const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
             volumeShockers = uniqueLosers.map((s: any) => ({
                 symbol: s.symbol?.trim(),

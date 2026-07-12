@@ -42,7 +42,7 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
     
     if (res.data && Array.isArray(res.data.intradayLosers)) {
-      const losers = res.data.intradayLosers.filter((s: any) => s.priceChangePct <= -2).slice(0, 25);
+      const losers = res.data.intradayLosers.slice(0, 25);
       const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
       
       for (const s of uniqueLosers) {
