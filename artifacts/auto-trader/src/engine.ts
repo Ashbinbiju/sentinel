@@ -68,6 +68,21 @@ export class ExecutionEngine {
         const prevC = history[history.length - 2];
         const prevPrevC = history[history.length - 3];
 
+        // Prevent cross-session signals (and implicitly skip 9:15-9:20 volatility)
+        const getEpochDateStr = (epochSecs: number) => {
+          const d = new Date(epochSecs * 1000);
+          d.setUTCHours(d.getUTCHours() + 5);
+          d.setUTCMinutes(d.getUTCMinutes() + 30);
+          return d.toISOString().slice(0, 10);
+        };
+
+        if (
+          getEpochDateStr(prevC.t) !== getEpochDateStr(c.t) || 
+          getEpochDateStr(prevPrevC.t) !== getEpochDateStr(c.t)
+        ) {
+          return;
+        }
+
         let setup = "";
         let direction: "BUY" | "SELL" | null = null;
         let sl = 0;
