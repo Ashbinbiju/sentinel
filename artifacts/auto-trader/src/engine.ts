@@ -114,6 +114,11 @@ export class ExecutionEngine {
             sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
         }
 
+        if (direction === "BUY") {
+            direction = null;
+            // console.log(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol} (Longs disabled for Intraday Loser filter)`);
+        }
+
         if (direction) entryPrice = c.c;
 
         if (direction) {
