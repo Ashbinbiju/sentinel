@@ -1220,7 +1220,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
   let token = process.env.DHAN_ACCESS_TOKEN;
   
   // Read dynamic token from shared file updated by auto-trader
-  const tokenFilePath = path.join(__dirname, "../../../../.dhan_token");
+  const tokenFilePath = path.resolve(process.cwd(), "../../.dhan_token");
   if (fs.existsSync(tokenFilePath)) {
     try {
       token = fs.readFileSync(tokenFilePath, "utf8").trim();

@@ -100,7 +100,7 @@ export class DhanBroker extends EventEmitter {
     let accessToken = process.env.DHAN_ACCESS_TOKEN?.trim() || "";
     
     // Attempt to load from shared token file if it exists
-    const tokenFilePath = path.join(__dirname, "../../../.dhan_token");
+    const tokenFilePath = path.resolve(process.cwd(), "../../.dhan_token");
     if (fs.existsSync(tokenFilePath)) {
       try {
         accessToken = fs.readFileSync(tokenFilePath, "utf8").trim();
@@ -152,7 +152,7 @@ export class DhanBroker extends EventEmitter {
              console.log("[BROKER] Automated Dhan login successful. Token renewed.");
              // Write the renewed token to the shared file for api-server to use
              try {
-               const tokenFilePath = path.join(__dirname, "../../../.dhan_token");
+               const tokenFilePath = path.resolve(process.cwd(), "../../.dhan_token");
                fs.writeFileSync(tokenFilePath, this.accessToken, "utf8");
              } catch (e) {
                console.warn("[BROKER] Failed to save .dhan_token", e);
