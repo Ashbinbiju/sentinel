@@ -33,8 +33,8 @@ export class ExecutionEngine {
     console.log(`[ENGINE] Watchlist set with ${list.length} symbols.`);
   }
 
-  private getActiveOrPendingTrade(securityId: string) {
-    return TradeDB.getOpenTrades().find(
+  private async getActiveOrPendingTrade(securityId: string) {
+    return (await TradeDB.getOpenTrades()).find(
       t => t.securityId === securityId
     );
   }
@@ -47,12 +47,12 @@ export class ExecutionEngine {
         const ctx = this.watchlist.get(securityId);
         if (!ctx) return; 
 
-        if (this.getActiveOrPendingTrade(securityId)) {
+        if (await this.getActiveOrPendingTrade(securityId)) {
             return;
         }
 
         const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
-        const tradesToday = TradeDB.getTradesForDate(getISTDateStr()).filter(trade =>
+        const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
           trade.state !== "REJECTED"
         ).length;
 
@@ -183,8 +183,8 @@ export class ExecutionEngine {
       };
 
       // Mandatory sequence
-      await TradeDB.saveTrade(newTrade);
-      TradeDB.updateState(newTrade.id, "ENTRY_SUBMITTING");
+      await await TradeDB.saveTrade(newTrade);
+      await TradeDB.updateState(newTrade.id, "ENTRY_SUBMITTING");
 
       const orderInput: PlaceSuperOrderInput = {
         securityId: newTrade.securityId,
@@ -200,16 +200,16 @@ export class ExecutionEngine {
       let superOrderId: string;
       try {
         superOrderId = await this.broker.placeSuperOrder(orderInput);
-        TradeDB.updateState(newTrade.id, "ENTRY_PENDING", { superOrderId });
+        await TradeDB.updateState(newTrade.id, "ENTRY_PENDING", { superOrderId });
       } catch (err: any) {
         console.error(`[ENGINE] Failed to POST Super Order for ${ctx.symbol}:`, err.message);
-        TradeDB.updateState(newTrade.id, "ENTRY_RECONCILIATION_REQUIRED");
+        await TradeDB.updateState(newTrade.id, "ENTRY_RECONCILIATION_REQUIRED");
         return;
       }
 
       // Verify execution and protection via order book polling
       if (process.env.DRY_RUN === "true") {
-          TradeDB.updateState(newTrade.id, "PROTECTION_CONFIRMED", { protectionConfirmed: true });
+          await TradeDB.updateState(newTrade.id, "PROTECTION_CONFIRMED", { protectionConfirmed: true });
           return;
       }
 
@@ -236,7 +236,7 @@ export class ExecutionEngine {
               );
 
               if (parent && (parent.orderStatus === "REJECTED" || parent.orderStatus === "CANCELLED")) {
-                  TradeDB.updateState(tradeId, "REJECTED");
+                  await TradeDB.updateState(tradeId, "REJECTED");
                   return;
               }
 
@@ -255,18 +255,18 @@ export class ExecutionEngine {
                 Number(stopLeg.triggeredQuantity ?? 0) === 0;
 
               if (protectedPosition) {
-                  const trade = TradeDB.getOpenTrades().find(t => t.id === tradeId);
+                  const trade = (await TradeDB.getOpenTrades()).find(t => t.id === tradeId);
                   if (!trade) break;
                   
                   const actualFillPrice = Number(parent.averageTradedPrice);
                   const actualFilledQty = Number(parent.filledQty);
 
                   if (!Number.isFinite(actualFillPrice) || actualFillPrice <= 0 || actualFilledQty !== trade.quantity) {
-                      TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
+                      await TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
                       break;
                   }
 
-                  TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice, quantity: actualFilledQty });
+                  await TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice, quantity: actualFilledQty });
                   confirmed = true;
                   console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
               }
@@ -277,7 +277,7 @@ export class ExecutionEngine {
 
       if (!confirmed) {
           console.warn(`[ENGINE] Failed to verify protection for ${tradeId} after 20s.`);
-          TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
+          await TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
       }
   }
 
@@ -286,7 +286,7 @@ export class ExecutionEngine {
   }
 
   private async _evaluateLiveTick(securityId: string, ltp: number) {
-    const trade = this.getActiveOrPendingTrade(securityId);
+    const trade = await this.getActiveOrPendingTrade(securityId);
     if (!trade || trade.state !== "PROTECTION_CONFIRMED") return;
 
     // Evaluate Structural Trail Rule
@@ -304,7 +304,7 @@ export class ExecutionEngine {
 
     if (reachedTrailRR && !trade.trailApplied) {
       console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
-      TradeDB.updateState(trade.id, "TRAIL_REQUESTED");
+      await TradeDB.updateState(trade.id, "TRAIL_REQUESTED");
       
       try {
         await this.broker.moveSuperOrderStopToBreakeven(
@@ -312,10 +312,10 @@ export class ExecutionEngine {
           trailSLPrice,
           trade.trailingJump
         );
-        TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+        await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
       } catch (err) {
         console.error(`[ENGINE] Failed to move SL to breakeven for ${trade.symbol}`, err);
-        TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
+        await TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
       }
     }
   }
@@ -326,7 +326,7 @@ export class ExecutionEngine {
 
   private async _reconcileExits() {
       // Background task to mark EXITED if target/SL hit externally
-      const activeTrades = TradeDB.getOpenTrades().filter(t => 
+      const activeTrades = (await TradeDB.getOpenTrades()).filter(t => 
           t.state === "PROTECTION_CONFIRMED" || 
           t.state === "TRAIL_CONFIRMED" || 
           (t.state === "EXIT_RECONCILIATION_REQUIRED" && !t.exitCorrelationId)
@@ -371,7 +371,7 @@ export class ExecutionEngine {
                       continue;
                   }
 
-                  TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
+                  await TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
               } else if (
                 pos && (
                   (trade.side === "BUY" && netQty < 0) ||
@@ -382,7 +382,7 @@ export class ExecutionEngine {
                     `[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`
                   );
                 
-                  TradeDB.updateState(
+                  await TradeDB.updateState(
                     trade.id,
                     "REVERSAL_RECONCILIATION_REQUIRED"
                   );
@@ -398,7 +398,7 @@ export class ExecutionEngine {
   }
 
   private async _reconcileUnknownOrders(): Promise<void> {
-    const unknownTrades = TradeDB.getOpenTrades().filter(trade =>
+    const unknownTrades = (await TradeDB.getOpenTrades()).filter(trade =>
       ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "TRAIL_REQUESTED"].includes(trade.state)
     );
 
@@ -416,17 +416,17 @@ export class ExecutionEngine {
                 const statusMatch = slLeg && slLeg.orderStatus === "PENDING";
                 
                 if (priceMatch && statusMatch) {
-                    TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+                    await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
                     console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
                 } else if (!statusMatch) {
                     console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol} (SL status: ${slLeg?.orderStatus}). Escalating to ENTRY_RECONCILIATION_REQUIRED`);
-                    TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+                    await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
                 } else {
                     console.warn(`[ENGINE] Breakeven price mismatch for ${trade.symbol}. Leaving in TRAIL_REQUESTED.`);
                 }
             } else {
                 console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Escalating to ENTRY_RECONCILIATION_REQUIRED`);
-                TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+                await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
             }
             continue;
         }
@@ -435,7 +435,7 @@ export class ExecutionEngine {
 
         if (!parent) continue;
 
-        TradeDB.updateState(trade.id, "ENTRY_PENDING", {
+        await TradeDB.updateState(trade.id, "ENTRY_PENDING", {
           superOrderId: parent.orderId,
         });
 
@@ -451,7 +451,7 @@ export class ExecutionEngine {
   }
 
   private async _reconcileExitOrders(): Promise<void> {
-    const exitTrades = TradeDB.getOpenTrades().filter(trade => 
+    const exitTrades = (await TradeDB.getOpenTrades()).filter(trade => 
       trade.state === "EXIT_RECONCILIATION_REQUIRED" && trade.exitCorrelationId
     );
 
@@ -470,7 +470,7 @@ export class ExecutionEngine {
         if (!exitOrder) {
             const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
             console.error(`[EMERGENCY] Exit ${trade.exitCorrelationId} missing from broker (count ${notFoundCount}). MANUAL OPERATOR RESOLUTION REQUIRED to avoid unflattened exposure.`);
-            TradeDB.updateState(, undefined, { exitNotFoundCount: notFoundCount });
+            await TradeDB.updateState(trade.id, undefined, { exitNotFoundCount: notFoundCount });
             continue;
         }
 
@@ -496,9 +496,9 @@ export class ExecutionEngine {
                 continue;
             }
 
-            TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
+            await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
         } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
-            TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
+            await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
         } else {
             console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
             await this.broker.cancelOrder(exitOrder.orderId);
@@ -531,9 +531,9 @@ export class ExecutionEngine {
                     continue;
                 }
 
-                TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
+                await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
             } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(finalOrder?.orderStatus ?? "")) {
-                TradeDB.updateState(, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
+                await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
             }
         }
       }

@@ -86,7 +86,7 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
 }
 
 async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
-    const activeTrades = specificTrades || TradeDB.getOpenTrades();
+    const activeTrades = specificTrades || (await TradeDB.getOpenTrades());
     if (activeTrades.length === 0) return;
 
     tradeLoop:
@@ -99,7 +99,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
 
             // Cancel active Super Order legs
             if (["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED"].includes(trade.state) && !trade.superOrderId) {
-                TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+                await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
                 throw new Error(`Cannot square off unresolved order ${trade.correlationId}`);
             }
 
@@ -108,16 +108,16 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                const parent = superOrders.find(o => o.orderId === trade.superOrderId);
                
                if (!parent) {
-                 TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+                 await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
                  throw new Error(`Super Order ${trade.superOrderId} unavailable for ${trade.symbol}`);
                }
                
                if (["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
-                 TradeDB.updateState(, undefined, { protectionCancelled: true });
+                 await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
                } else {
                  await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
                  await broker.waitForSuperOrderCancellation(trade.superOrderId);
-                 TradeDB.updateState(, undefined, { protectionCancelled: true });
+                 await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
                }
             }
             
@@ -137,7 +137,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
 
               if (netQty === 0) {
                   console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
-                  TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                  await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
                   continue tradeLoop;
               }
 
@@ -148,7 +148,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 throw new Error("Exit correlation ID exceeds Dhan limit");
               }
               
-              TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
+              await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
               
               console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
               const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, "INTRADAY", exitCorrelationId);
@@ -169,7 +169,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 } else if (retries === 15) {
                   if (!exitOrder) {
                     console.error(`[BOT] ExitReconciliationRequiredError: ${exitCorrelationId}`);
-                    TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitSubmittedAt: Date.now() });
+                    await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitSubmittedAt: Date.now() });
                     continue tradeLoop;
                   }
                   await broker.cancelOrder(exitOrder.orderId);
@@ -188,12 +188,12 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                   !completedExit ||
                   ["TRANSIT", "PENDING", "PART_TRADED"].includes(completedExit.orderStatus)
               ) {
-                  TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
+                  await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
                   continue tradeLoop;
               }
               
               if (["CANCELLED", "REJECTED", "EXPIRED"].includes(completedExit?.orderStatus ?? "")) {
-                  TradeDB.updateState(, undefined, { exitCorrelationId: "" });
+                  await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "" });
               }
 
               const finalPositions = await broker.getPositions();
@@ -205,14 +205,14 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
               } else {
                   console.log(`[BOT] Position flat after terminal non-traded status. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
-                  TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                  await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
                   continue tradeLoop;
               }
             }
             
             if (!positionFlat) {
                 console.error(`[BOT] CRITICAL: Failed to square off ${trade.symbol} after 3 attempts.`);
-                TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
             }
         } catch (e) {
             console.error(`[BOT] Failed to close trade ${trade.id}`, e);
@@ -330,7 +330,7 @@ async function main() {
         await initAndRecover();
       }
 
-      if (!isMarketOpenIST() && !DRY_RUN && TradeDB.getOpenTrades().length === 0) {
+      if (!isMarketOpenIST() && !DRY_RUN && (await TradeDB.getOpenTrades()).length === 0) {
         await sleep(5 * 60 * 1000);
         continue;
       }
@@ -339,7 +339,7 @@ async function main() {
       await executionEngine.reconcileUnknownOrders();
       await executionEngine.reconcileExitOrders();
 
-      let activeTrades = TradeDB.getOpenTrades();
+      let activeTrades = (await TradeDB.getOpenTrades());
 
       // Auto Square-Off at 3:14 PM
       const currentMins = getISTMinutes();
@@ -347,7 +347,7 @@ async function main() {
         if (activeTrades.length > 0) {
           console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM).`);
           await closeAllOpenTrades(broker);
-          activeTrades = TradeDB.getOpenTrades();
+          activeTrades = (await TradeDB.getOpenTrades());
         }
         
         if (activeTrades.length > 0) {
@@ -364,7 +364,7 @@ async function main() {
 
       // Kill Switch Validation
       if (!DRY_RUN) {
-        const todayTrades = TradeDB.getTradesForDate(getISTDateStr());
+        const todayTrades = (await TradeDB.getTradesForDate(getISTDateStr()));
         let realizedPnl = 0;
         
         for (const t of todayTrades) {
@@ -373,7 +373,7 @@ async function main() {
             }
         }
         
-        const allExited = TradeDB.getAllExitedTrades();
+        const allExited = (await TradeDB.getAllExitedTrades());
         allExited.sort((a, b) => new Date(a.closedAt || a.updatedAt).getTime() - new Date(b.closedAt || b.updatedAt).getTime());
         
         let closedLosingTrades = 0;
@@ -390,7 +390,7 @@ async function main() {
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
            console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
            await closeAllOpenTrades(broker);
-           activeTrades = TradeDB.getOpenTrades();
+           activeTrades = (await TradeDB.getOpenTrades());
            
            if (activeTrades.length > 0) {
                console.error(`[KILL SWITCH] Failed to square off. Retrying in safety loop...`);
