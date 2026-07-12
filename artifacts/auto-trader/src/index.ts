@@ -326,14 +326,30 @@ async function main() {
   await broker.connectWebSocket();
 
   // Polling / Safety Loop
+  let lastWatchlistFetchMs = 0;
+
   while (!isShuttingDown) {
     try {
       const todayStr = getISTDateStr();
       if (todayStr !== currentTradingDay) {
         currentTradingDay = todayStr;
-        watchlist = [];
+        lastWatchlistFetchMs = 0;
         await broker.validateOrRenewToken();
-        await initAndRecover();
+        // Clear yesterday's continuity state completely
+        candleEngine.prepareForReconnect(); 
+      }
+
+      const currentMins = getISTMinutes();
+      const nowMs = Date.now();
+
+      // Periodically refresh the watchlist every 3 minutes during market hours
+      if (currentMins >= 9 * 60 + 15 && currentMins < 15 * 60 + 30) {
+        if (nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000) {
+          console.log(`[BOT] Scheduled Watchlist Refresh (3-min interval).`);
+          watchlist = []; // Force re-fetch
+          await initAndRecover();
+          lastWatchlistFetchMs = Date.now();
+        }
       }
 
       if (!isMarketOpenIST() && !DRY_RUN && (await TradeDB.getOpenTrades()).length === 0) {
@@ -348,7 +364,6 @@ async function main() {
       let activeTrades = (await TradeDB.getOpenTrades());
 
       // Auto Square-Off at 3:14 PM
-      const currentMins = getISTMinutes();
       if (currentMins >= 15 * 60 + 14) {
         if (activeTrades.length > 0) {
           console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM).`);
