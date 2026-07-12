@@ -5649,20 +5649,24 @@ router.get("/momentum-picks", async (req, res) => {
 
     let volumeShockers: any[] = [];
     try {
-      const seUrl = "https://api.stockedge.com/Api/trendingstocksapi/GetVolumeShockers?page=1&pageSize=10&relevantListings=10&lang=en";
-      const seRes = await fetch(seUrl, { headers: HEADERS });
-      if (seRes.ok) {
-        const shockers = await seRes.json() as any[];
-        volumeShockers = shockers.map((s: any) => ({
-          symbol: s.Symbol,
-          ltp: s.C,
-          changePct: s.CZG
-        })).filter(s => s.ltp > 100 && s.changePct < 15);
+      const isUrl = "https://intradayscreener.com/api/trackStocks/cash";
+      const isRes = await fetch(isUrl, { headers: { Accept: "application/json" } });
+      if (isRes.ok) {
+        const data = await isRes.json() as any;
+        if (data && Array.isArray(data.intradayLosers)) {
+            const losers = data.intradayLosers.filter((s: any) => s.priceChangePct <= -2).slice(0, 25);
+            const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+            volumeShockers = uniqueLosers.map((s: any) => ({
+                symbol: s.symbol?.trim(),
+                ltp: s.ltp,
+                changePct: s.priceChangePct
+            })).filter(s => s.symbol && s.ltp > 100);
+        }
       } else {
-        req.log.warn(`StockEdge API responded with ${seRes.status}`);
+        req.log.warn(`IntradayScreener API responded with ${isRes.status}`);
       }
     } catch (err: any) {
-      req.log.error({ err }, "Failed to fetch StockEdge Volume Shockers");
+      req.log.error({ err }, "Failed to fetch IntradayScreener Losers");
     }
 
     await Promise.all(

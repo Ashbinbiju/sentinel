@@ -6,6 +6,7 @@ import { getISTDateStr } from "./utils";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
+const SL_BUFFER_PCT = 0.003;
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const NSE_TICK_SIZE = 0.05;
@@ -98,19 +99,19 @@ export class ExecutionEngine {
         if (freshHighBreakout) {
             if (touchedHighZone && chaseAllowedHigh) {
                 setup = "HIGH BREAKOUT"; direction = "BUY";
-                sl = Math.min(c.l, prevHigh * 0.999);
+                sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
             }
         } else if (freshLowBreakdown) {
             if (touchedLowZone && chaseAllowedLow) {
                 setup = "LOW BREAKDOWN"; direction = "SELL";
-                sl = Math.max(c.h, prevLow * 1.001);
+                sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
             }
         } else if (validHighRejection) {
             setup = "HIGH REJECTION"; direction = "SELL";
-            sl = Math.max(c.h, zoneTopH) * 1.001;
+            sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
         } else if (validLowSupport) {
             setup = "LOW SUPPORT"; direction = "BUY";
-            sl = Math.min(c.l, zoneBotL) * 0.999;
+            sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
         }
 
         if (direction) entryPrice = c.c;

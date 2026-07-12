@@ -3,13 +3,163 @@ import { writeFileSync } from "fs";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
+const SL_BUFFER_PCT = 0.003;
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
 const testCases: { symbol: string; date: string }[] = [
-    { symbol: "SUDARSCHEM", date: "2026-07-10" }
+    { symbol: "SPARC", date: "2026-07-10" },
+    { symbol: "URBANCO", date: "2026-07-10" },
+    { symbol: "GVPIL", date: "2026-07-10" },
+    { symbol: "THYROCARE", date: "2026-07-10" },
+    { symbol: "SCHNEIDER", date: "2026-07-10" },
+    { symbol: "SWIGGY", date: "2026-07-10" },
+    { symbol: "DIXON", date: "2026-07-10" },
+    { symbol: "PWL", date: "2026-07-10" },
+    { symbol: "KAYNES", date: "2026-07-10" },
+    { symbol: "EPIGRAL", date: "2026-07-10" },
+    { symbol: "ZEEL", date: "2026-07-10" },
+    { symbol: "SUPRIYA", date: "2026-07-10" },
+    { symbol: "PAGEIND", date: "2026-07-10" },
+    { symbol: "ABDL", date: "2026-07-10" },
+    { symbol: "AEGISLOG", date: "2026-07-10" },
+    { symbol: "ICIL", date: "2026-07-10" },
+    { symbol: "ELGIEQUIP", date: "2026-07-10" },
+    { symbol: "QUESS", date: "2026-07-10" },
+    { symbol: "ACUTAAS", date: "2026-07-10" },
+    { symbol: "LENSKART", date: "2026-07-10" },
+    { symbol: "CREDITACC", date: "2026-07-10" },
+    { symbol: "TRITURBINE", date: "2026-07-10" },
+    { symbol: "BORORENEW", date: "2026-07-10" },
+    { symbol: "TRAVELFOOD", date: "2026-07-10" },
+    { symbol: "PARADEEP", date: "2026-07-10" },
+    { symbol: "WOCKPHARMA", date: "2026-07-10" },
+    { symbol: "CAPLIPOINT", date: "2026-07-10" },
+    { symbol: "HFCL", date: "2026-07-10" },
+    { symbol: "DEEPAKFERT", date: "2026-07-10" },
+    { symbol: "GMMPFAUDLR", date: "2026-07-10" },
+    { symbol: "GAEL", date: "2026-07-10" },
+    { symbol: "JKLAKSHMI", date: "2026-07-10" },
+    { symbol: "METROBRAND", date: "2026-07-10" },
+    { symbol: "TCS", date: "2026-07-10" },
+    { symbol: "RBA", date: "2026-07-10" },
+    { symbol: "ETERNAL", date: "2026-07-10" },
+    { symbol: "JYOTHYLAB", date: "2026-07-10" },
+    { symbol: "CEATLTD", date: "2026-07-10" },
+    { symbol: "ENDURANCE", date: "2026-07-10" },
+    { symbol: "TATACOMM", date: "2026-07-10" },
+    { symbol: "KPRMILL", date: "2026-07-10" },
+    { symbol: "THELEELA", date: "2026-07-10" },
+    { symbol: "RESPONIND", date: "2026-07-10" },
+    { symbol: "VBL", date: "2026-07-10" },
+    { symbol: "EPL", date: "2026-07-10" },
+    { symbol: "JUBLPHARMA", date: "2026-07-10" },
+    { symbol: "VIYASH", date: "2026-07-10" },
+    { symbol: "HAVELLS", date: "2026-07-10" },
+    { symbol: "INOXINDIA", date: "2026-07-10" },
+    { symbol: "TVSSCS", date: "2026-07-10" },
+    { symbol: "KRBL", date: "2026-07-10" },
+    { symbol: "EMMVEE", date: "2026-07-10" },
+    { symbol: "MARICO", date: "2026-07-10" },
+    { symbol: "RAINBOW", date: "2026-07-10" },
+    { symbol: "STLTECH", date: "2026-07-10" },
+    { symbol: "TIMKEN", date: "2026-07-10" },
+    { symbol: "BERGEPAINT", date: "2026-07-10" },
+    { symbol: "MINDACORP", date: "2026-07-10" },
+    { symbol: "OLAELEC", date: "2026-07-10" },
+    { symbol: "JAINREC", date: "2026-07-10" },
+    { symbol: "BHARATFORG", date: "2026-07-10" },
+    { symbol: "BOSCHLTD", date: "2026-07-10" },
+    { symbol: "LTFOODS", date: "2026-07-10" },
+    { symbol: "SONACOMS", date: "2026-07-10" },
+    { symbol: "RADICO", date: "2026-07-10" },
+    { symbol: "JMFINANCIL", date: "2026-07-10" },
+    { symbol: "NOCIL", date: "2026-07-10" },
+    { symbol: "GNFC", date: "2026-07-10" },
+    { symbol: "EXIDEIND", date: "2026-07-10" },
+    { symbol: "TRENT", date: "2026-07-10" },
+    { symbol: "MCX", date: "2026-07-10" },
+    { symbol: "THERMAX", date: "2026-07-10" },
+    { symbol: "VALIANTORG", date: "2026-07-10" },
+    { symbol: "GALAXYSURF", date: "2026-07-10" },
+    { symbol: "CHAMBLFERT", date: "2026-07-10" },
+    { symbol: "CGCL", date: "2026-07-10" },
+    { symbol: "SUNDARMFIN", date: "2026-07-10" },
+    { symbol: "NEULANDLAB", date: "2026-07-10" },
+    { symbol: "NESCO", date: "2026-07-10" },
+    { symbol: "ICICIAMC", date: "2026-07-10" },
+    { symbol: "GSFC", date: "2026-07-10" },
+    { symbol: "WELSPUNLIV", date: "2026-07-10" },
+    { symbol: "SJS", date: "2026-07-10" },
+    { symbol: "STARHEALTH", date: "2026-07-10" },
+    { symbol: "ZYDUSLIFE", date: "2026-07-10" },
+    { symbol: "NAM-INDIA", date: "2026-07-10" },
+    { symbol: "KSCL", date: "2026-07-10" },
+    { symbol: "NAUKRI", date: "2026-07-10" },
+    { symbol: "TATATECH", date: "2026-07-10" },
+    { symbol: "HINDALCO", date: "2026-07-10" },
+    { symbol: "MSUMI", date: "2026-07-10" },
+    { symbol: "LATENTVIEW", date: "2026-07-10" },
+    { symbol: "STARCEMENT", date: "2026-07-10" },
+    { symbol: "CEMPRO", date: "2026-07-10" },
+    { symbol: "MEDANTA", date: "2026-07-10" },
+    { symbol: "ELECON", date: "2026-07-10" },
+    { symbol: "COLPAL", date: "2026-07-10" },
+    { symbol: "SUNTV", date: "2026-07-10" },
+    { symbol: "SIS", date: "2026-07-10" },
+    { symbol: "NESTLEIND", date: "2026-07-10" },
+    { symbol: "JINDALSAW", date: "2026-07-10" },
+    { symbol: "APARINDS", date: "2026-07-10" },
+    { symbol: "HCLTECH", date: "2026-07-10" },
+    { symbol: "VGUARD", date: "2026-07-10" },
+    { symbol: "GUJALKALI", date: "2026-07-10" },
+    { symbol: "BPCL", date: "2026-07-10" },
+    { symbol: "AUROPHARMA", date: "2026-07-10" },
+    { symbol: "DELHIVERY", date: "2026-07-10" },
+    { symbol: "AARTIDRUGS", date: "2026-07-10" },
+    { symbol: "VIJAYA", date: "2026-07-10" },
+    { symbol: "MANKIND", date: "2026-07-10" },
+    { symbol: "CUB", date: "2026-07-10" },
+    { symbol: "MOTHERSON", date: "2026-07-10" },
+    { symbol: "UBL", date: "2026-07-10" },
+    { symbol: "BRITANNIA", date: "2026-07-10" },
+    { symbol: "IFCI", date: "2026-07-10" },
+    { symbol: "FIVESTAR", date: "2026-07-10" },
+    { symbol: "DELTACORP", date: "2026-07-10" },
+    { symbol: "INFY", date: "2026-07-10" },
+    { symbol: "CCL", date: "2026-07-10" },
+    { symbol: "RRKABEL", date: "2026-07-10" },
+    { symbol: "ASIANPAINT", date: "2026-07-10" },
+    { symbol: "AADHARHFC", date: "2026-07-10" },
+    { symbol: "JTEKTINDIA", date: "2026-07-10" },
+    { symbol: "HONASA", date: "2026-07-10" },
+    { symbol: "PGEL", date: "2026-07-10" },
+    { symbol: "APOLLOTYRE", date: "2026-07-10" },
+    { symbol: "FORCEMOT", date: "2026-07-10" },
+    { symbol: "VTL", date: "2026-07-10" },
+    { symbol: "KPIL", date: "2026-07-10" },
+    { symbol: "TVSMOTOR", date: "2026-07-10" },
+    { symbol: "RECLTD", date: "2026-07-10" },
+    { symbol: "PGHH", date: "2026-07-10" },
+    { symbol: "BIKAJI", date: "2026-07-10" },
+    { symbol: "AIAENG", date: "2026-07-10" },
+    { symbol: "NIITLTD", date: "2026-07-10" },
+    { symbol: "RATEGAIN", date: "2026-07-10" },
+    { symbol: "IRB", date: "2026-07-10" },
+    { symbol: "LTF", date: "2026-07-10" },
+    { symbol: "VARROC", date: "2026-07-10" },
+    { symbol: "HATSUN", date: "2026-07-10" },
+    { symbol: "ALKEM", date: "2026-07-10" },
+    { symbol: "NILKAMAL", date: "2026-07-10" },
+    { symbol: "BHARTIARTL", date: "2026-07-10" },
+    { symbol: "CONCORDBIO", date: "2026-07-10" },
+    { symbol: "DIVISLAB", date: "2026-07-10" },
+    { symbol: "SHRIRAMFIN", date: "2026-07-10" },
+    { symbol: "EICHERMOT", date: "2026-07-10" },
+    { symbol: "VEDL", date: "2026-07-10" },
+    { symbol: "ALKYLAMINE", date: "2026-07-10" }
 ];
 
 function getISTDateStr(epochSecs: number): string {
@@ -141,23 +291,35 @@ async function runBacktest() {
             if (freshHighBreakout) {
                 if (touchedHighZone && chaseAllowedHigh) {
                     setup = "HIGH BREAKOUT"; direction = "LONG";
-                    sl = Math.min(c.l, prevHigh * 0.999);
+                    sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
                 } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
             } else if (freshLowBreakdown) {
                 if (touchedLowZone && chaseAllowedLow) {
                     setup = "LOW BREAKDOWN"; direction = "SHORT";
-                    sl = Math.max(c.h, prevLow * 1.001);
+                    sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
                 } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
             } else if (validHighRejection) {
                 setup = "HIGH REJECTION"; direction = "SHORT";
-                sl = Math.max(c.h, zoneTopH) * 1.001;
+                sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
             } else if (validLowSupport) {
                 setup = "LOW SUPPORT"; direction = "LONG";
-                sl = Math.min(c.l, zoneBotL) * 0.999;
+                sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
+            }
+
+            if (direction === "LONG") {
+                direction = null;
+                skippedReason = "Longs disabled (Intraday Loser filter)";
+            }
+
+            const prevClose = prevDayCandles[prevDayCandles.length - 1].c;
+            const priceChangePct = ((c.c - prevClose) / prevClose) * 100;
+            if (direction && priceChangePct > -2) {
+                direction = null;
+                skippedReason = 'Not a strong loser (' + priceChangePct.toFixed(2) + '% down)';
             }
 
             if (direction) entryPrice = c.c;

@@ -38,16 +38,19 @@ process.on("SIGTERM", shutdown);
 async function getDailyWatchlist(): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
-    const seUrl = "https://api.stockedge.com/Api/trendingstocksapi/GetVolumeShockers?page=1&pageSize=10&relevantListings=10&lang=en";
-    const seRes = await axios.get(seUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const url = "https://intradayscreener.com/api/trackStocks/cash";
+    const res = await axios.get(url, { headers: { Accept: "application/json" } });
     
-    if (seRes.data && Array.isArray(seRes.data)) {
-      for (const s of seRes.data) {
-        const symbol = s.Symbol;
-        const ltp = s.C;
-        const changePct = s.CZG;
+    if (res.data && Array.isArray(res.data.intradayLosers)) {
+      const losers = res.data.intradayLosers.filter((s: any) => s.priceChangePct <= -2).slice(0, 25);
+      const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+      
+      for (const s of uniqueLosers) {
+        const symbol = s.symbol?.trim();
+        const ltp = s.ltp;
+        const changePct = s.priceChangePct;
         
-        if (ltp > 100 && changePct < 15) {
+        if (symbol && ltp > 100) {
           const securityId = getSecurityId(symbol);
           if (securityId) {
             try {
