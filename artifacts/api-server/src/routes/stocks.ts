@@ -6063,4 +6063,23 @@ router.get("/trades/history", async (req, res) => {
   }
 });
 
+// ── GET /stocks/:symbol/candles ───────────────────────────────────────────────
+// Returns candle data for a specific symbol
+router.get("/:symbol/candles", async (req, res) => {
+  try {
+    const symbol = req.params.symbol;
+    const isSwing = req.query.swing === "true";
+    const candleData = await fetchCandles(symbol, isSwing);
+    
+    if (!candleData) {
+      return res.status(404).json({ error: "No candle data found" });
+    }
+    
+    return res.json(candleData);
+  } catch (err) {
+    req.log.error({ err, symbol: req.params.symbol }, "Failed to fetch candles via API");
+    return res.status(500).json({ error: "Failed to fetch candles" });
+  }
+});
+
 export default router;
