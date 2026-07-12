@@ -6,6 +6,8 @@ const MAX_CHASE_PCT = 0.008;
 const SL_BUFFER_PCT = 0.003;
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
+const SLIPPAGE_PCT = 0.0005;
+const CHARGES_PCT_TURNOVER = 0.0005;
 const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
@@ -298,7 +300,7 @@ async function runBacktest() {
         let pnlStr = "-";
         if (r.Entry !== "-" && r.Status !== "No prime time entry") {
             const entryPrice = parseFloat(r.Entry);
-            const qty = Math.floor(50000 / entryPrice);
+            const qty = Math.floor(10000 / entryPrice);
             let exitPrice = entryPrice;
             if (r.Status === "✅ TARGET HIT") exitPrice = parseFloat(r.Target);
             else if (r.Status === "❌ STOP LOSS HIT" || r.Status === "🛡️ BREAKEVEN HIT") exitPrice = parseFloat(r.StopLoss);
@@ -306,6 +308,14 @@ async function runBacktest() {
             let pnl = 0;
             if (r.Direction === "LONG") pnl = (exitPrice - entryPrice) * qty;
             else if (r.Direction === "SHORT") pnl = (entryPrice - exitPrice) * qty;
+            if (pnl !== 0 || r.Status === "🛡️ BREAKEVEN HIT") {
+                const entryVal = entryPrice * qty;
+                const exitVal = exitPrice * qty;
+                const turnover = entryVal + exitVal;
+                const slippage = (entryVal * SLIPPAGE_PCT) + (exitVal * SLIPPAGE_PCT);
+                const charges = turnover * CHARGES_PCT_TURNOVER;
+                pnl = pnl - slippage - charges;
+            }
             
             pnlStr = pnl > 0 ? "+₹" + pnl.toFixed(2) : "₹" + pnl.toFixed(2);
         }

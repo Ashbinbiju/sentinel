@@ -15,9 +15,11 @@ import * as path from "path";
 
 // Angel One removed. Stub for compilation
 class SmartAPI {
-  constructor() {}
-  generateSession() { return { status: false, message: "Disabled" }; }
-  getCandleData() { return { status: false, message: "Disabled" }; }
+  access_token?: string;
+  refresh_token?: string;
+  constructor(options?: any) {}
+  async generateSession(clientCode?: any, password?: any, totp?: any): Promise<any> { return { status: false, message: "Disabled" }; }
+  async getCandleData(opts?: any): Promise<any> { return { status: false, message: "Disabled" }; }
 }
 
 const router = Router();
