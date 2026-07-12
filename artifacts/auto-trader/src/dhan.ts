@@ -1,8 +1,10 @@
 import axios from "axios";
 import { WebSocket } from "ws";
 import { EventEmitter } from "events";
+import { TOTP } from "totp-generator";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
+const DHAN_AUTH_URL = "https://auth.dhan.co/app/generateAccessToken";
 
 export interface DhanPosition {
   dhanClientId: string;
@@ -85,16 +87,20 @@ const DHAN_FULL_PACKET_SIZE = 162;
 export class DhanBroker extends EventEmitter {
   private clientId: string;
   private accessToken: string;
+  private pin: string | undefined;
+  private totpSecret: string | undefined;
   private ws: WebSocket | null = null;
   private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
   
   constructor() {
     super();
     const clientId = process.env.DHAN_CLIENT_ID?.trim();
-    const accessToken = process.env.DHAN_ACCESS_TOKEN?.trim();
+    const accessToken = process.env.DHAN_ACCESS_TOKEN?.trim() || "";
+    this.pin = process.env.DHAN_PIN?.trim();
+    this.totpSecret = process.env.DHAN_TOTP_SECRET?.trim();
     
-    if (!clientId || !accessToken) {
-      throw new Error("Missing DHAN_CLIENT_ID or DHAN_ACCESS_TOKEN in .env");
+    if (!clientId) {
+      throw new Error("Missing DHAN_CLIENT_ID in .env");
     }
     
     this.clientId = clientId;
@@ -111,28 +117,32 @@ export class DhanBroker extends EventEmitter {
 
   async validateOrRenewToken(): Promise<void> {
     try {
+      if (!this.accessToken) throw { response: { status: 401 } };
       await this.getAccountBalance();
       console.log("[BROKER] Dhan access token is valid.");
     } catch (err: any) {
       if (err.response && err.response.status === 401) {
-        console.warn("[BROKER] Token seems invalid or expired. Attempting to renew...");
+        console.warn("[BROKER] Token invalid or missing. Attempting automated login via PIN + TOTP...");
+        
+        if (!this.pin || !this.totpSecret) {
+          throw new Error("Dhan token expired and automated login failed because DHAN_PIN or DHAN_TOTP_SECRET is missing from .env");
+        }
+
         try {
-          const response = await axios.post(`${DHAN_BASE_URL}/RenewToken`, {}, {
-            headers: {
-              ...this.getHeaders(),
-              "dhanClientId": this.clientId
-            }
-          });
+          const totpInfo = await TOTP.generate(this.totpSecret);
+          const totpCode = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
+          
+          const response = await axios.post(`${DHAN_AUTH_URL}?dhanClientId=${this.clientId}&pin=${this.pin}&totp=${totpCode}`, {});
           
           if (response.data && response.data.accessToken) {
              this.accessToken = response.data.accessToken;
-             console.log("[BROKER] Token renewed successfully.");
+             console.log("[BROKER] Automated Dhan login successful. Token renewed.");
           } else {
-             throw new Error("No new token returned");
+             throw new Error("No accessToken returned from Auth endpoint");
           }
-        } catch (renewErr: any) {
-          console.error("[BROKER] Failed to renew token:", renewErr?.response?.data || renewErr.message);
-          throw new Error("Dhan token expired and renewal failed. Please generate a new one from the portal.");
+        } catch (loginErr: any) {
+          console.error("[BROKER] Automated Dhan login failed:", loginErr?.response?.data || loginErr.message);
+          throw new Error("Automated Dhan login failed. Please verify your PIN and TOTP secret.");
         }
       } else {
         throw err;
