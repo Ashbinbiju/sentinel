@@ -183,7 +183,7 @@ export class ExecutionEngine {
       };
 
       // Mandatory sequence
-      await await TradeDB.saveTrade(newTrade);
+      await TradeDB.saveTrade(newTrade);
       await TradeDB.updateState(newTrade.id, "ENTRY_SUBMITTING");
 
       const orderInput: PlaceSuperOrderInput = {
