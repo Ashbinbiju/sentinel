@@ -1217,7 +1217,18 @@ async function getDhanInstrumentMap(): Promise<Map<string, string>> {
 
 async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
   const clientId = process.env.DHAN_CLIENT_ID;
-  const token = process.env.DHAN_ACCESS_TOKEN;
+  let token = process.env.DHAN_ACCESS_TOKEN;
+  
+  // Read dynamic token from shared file updated by auto-trader
+  const tokenFilePath = path.join(__dirname, "../../../../.dhan_token");
+  if (fs.existsSync(tokenFilePath)) {
+    try {
+      token = fs.readFileSync(tokenFilePath, "utf8").trim();
+    } catch (e) {
+      // ignore
+    }
+  }
+
   if (!clientId || !token) return null;
 
   let securityId: string | undefined;

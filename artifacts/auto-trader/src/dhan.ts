@@ -2,6 +2,8 @@ import axios from "axios";
 import { WebSocket } from "ws";
 import { EventEmitter } from "events";
 import { TOTP } from "totp-generator";
+import * as path from "path";
+import * as fs from "fs";
 
 const DHAN_BASE_URL = "https://api.dhan.co/v2";
 const DHAN_AUTH_URL = "https://auth.dhan.co/app/generateAccessToken";
@@ -95,7 +97,18 @@ export class DhanBroker extends EventEmitter {
   constructor() {
     super();
     const clientId = process.env.DHAN_CLIENT_ID?.trim();
-    const accessToken = process.env.DHAN_ACCESS_TOKEN?.trim() || "";
+    let accessToken = process.env.DHAN_ACCESS_TOKEN?.trim() || "";
+    
+    // Attempt to load from shared token file if it exists
+    const tokenFilePath = path.join(__dirname, "../../../.dhan_token");
+    if (fs.existsSync(tokenFilePath)) {
+      try {
+        accessToken = fs.readFileSync(tokenFilePath, "utf8").trim();
+      } catch (e) {
+        // ignore
+      }
+    }
+
     this.pin = process.env.DHAN_PIN?.trim();
     this.totpSecret = process.env.DHAN_TOTP_SECRET?.trim();
     
@@ -137,6 +150,13 @@ export class DhanBroker extends EventEmitter {
           if (response.data && response.data.accessToken) {
              this.accessToken = response.data.accessToken;
              console.log("[BROKER] Automated Dhan login successful. Token renewed.");
+             // Write the renewed token to the shared file for api-server to use
+             try {
+               const tokenFilePath = path.join(__dirname, "../../../.dhan_token");
+               fs.writeFileSync(tokenFilePath, this.accessToken, "utf8");
+             } catch (e) {
+               console.warn("[BROKER] Failed to save .dhan_token", e);
+             }
           } else {
              throw new Error("No accessToken returned from Auth endpoint");
           }
