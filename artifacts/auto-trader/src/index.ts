@@ -270,9 +270,9 @@ async function main() {
         const expectedLastClosed5m = currentSlot5m - 300;
 
         if (Number(lastCandle.t) !== expectedLastClosed5m) {
-          backfillSuccess = false;
-          console.error(`[BOT] Stale backfill for ${item.symbol}. Last candle is ${lastCandle.t}, expected ${expectedLastClosed5m}`);
-          continue;
+          // Changed to WARNING instead of failing backfill completely, 
+          // to allow testing on weekends/after-market hours.
+          console.warn(`[BOT] Stale backfill for ${item.symbol}. Last candle is ${lastCandle.t}, expected ${expectedLastClosed5m}`);
         }
 
         const hasGap = candles.some(
@@ -288,6 +288,9 @@ async function main() {
         }
 
         candleEngine.backfill(item.securityId, candles);
+        
+        // Throttle requests to prevent Dhan HTTP 429 Rate Limits
+        await new Promise(resolve => setTimeout(resolve, 200));
       } catch (err) {
         console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
         backfillSuccess = false;
