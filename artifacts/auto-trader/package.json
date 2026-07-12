@@ -13,10 +13,12 @@
     "axios": "^1.16.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "catalog:",
+    "totp-generator": "^2.0.1",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/totp-generator": "^0.0.8",
     "@types/ws": "^8.18.1",
     "tsx": "catalog:",
     "typescript": "~5.9.3"

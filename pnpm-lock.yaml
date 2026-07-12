@@ -156,6 +156,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.18.0)(pg@8.20.0)
+      totp-generator:
+        specifier: ^2.0.1
+        version: 2.0.1
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -163,6 +166,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.3.5
+      '@types/totp-generator':
+        specifier: ^0.0.8
+        version: 0.0.8
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -2183,6 +2189,9 @@ packages:
 
   '@types/serve-static@2.2.0':
     resolution: {integrity: sha512-8mam4H1NHLtu7nmtalF7eyBH14QyOASmcxHhSfEoRyr0nP/YdoesEtU+uSRvMe96TW/HPTtkoKqQLl53N7UXMQ==}
+
+  '@types/totp-generator@0.0.8':
+    resolution: {integrity: sha512-NAiruWgCYxW1sd2LjpTT/sVarogTjjQoUyLiiL/e2DZOz9eovKxzEx5BiH8YgZoKUDZql1VXiIzgDBK7VzOmNw==}
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
@@ -5437,6 +5446,8 @@ snapshots:
     dependencies:
       '@types/http-errors': 2.0.5
       '@types/node': 25.3.5
+
+  '@types/totp-generator@0.0.8': {}
 
   '@types/unist@3.0.3': {}
 
