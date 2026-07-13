@@ -108,7 +108,7 @@ export const TradeDB = {
   getTradesForDate: async (dateStr: string): Promise<ActiveTrade[]> => {
     return withLock(async () => {
       const trades = await readDB();
-      return trades.filter(t => t.createdAt.startsWith(dateStr));
+      return trades.filter(t => t.createdAt && t.createdAt.startsWith(dateStr));
     });
   },
 

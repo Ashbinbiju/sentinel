@@ -11,33 +11,7 @@ const CHARGES_PCT_TURNOVER = 0.0005;
 const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
-const testCases: { symbol: string; date: string }[] = [
-    { symbol: "SPARC", date: "2026-07-10" },
-    { symbol: "URBANCO", date: "2026-07-10" },
-    { symbol: "GVPIL", date: "2026-07-10" },
-    { symbol: "THYROCARE", date: "2026-07-10" },
-    { symbol: "SCHNEIDER", date: "2026-07-10" },
-    { symbol: "SWIGGY", date: "2026-07-10" },
-    { symbol: "DIXON", date: "2026-07-10" },
-    { symbol: "PWL", date: "2026-07-10" },
-    { symbol: "KAYNES", date: "2026-07-10" },
-    { symbol: "EPIGRAL", date: "2026-07-10" },
-    { symbol: "ZEEL", date: "2026-07-10" },
-    { symbol: "SUPRIYA", date: "2026-07-10" },
-    { symbol: "PAGEIND", date: "2026-07-10" },
-    { symbol: "ABDL", date: "2026-07-10" },
-    { symbol: "AEGISLOG", date: "2026-07-10" },
-    { symbol: "ICIL", date: "2026-07-10" },
-    { symbol: "ELGIEQUIP", date: "2026-07-10" },
-    { symbol: "QUESS", date: "2026-07-10" },
-    { symbol: "ACUTAAS", date: "2026-07-10" },
-    { symbol: "LENSKART", date: "2026-07-10" },
-    { symbol: "CREDITACC", date: "2026-07-10" },
-    { symbol: "TRITURBINE", date: "2026-07-10" },
-    { symbol: "BORORENEW", date: "2026-07-10" },
-    { symbol: "TRAVELFOOD", date: "2026-07-10" },
-    { symbol: "PARADEEP", date: "2026-07-10" }
-];
+let testCases: { symbol: string; date: string }[] = [];
 
 function getISTDateStr(epochSecs: number): string {
   const d = new Date(epochSecs * 1000);
@@ -87,6 +61,28 @@ async function fetchCandlesWithRetry(sym: string, targetDate: string, retries = 
 }
 
 async function runBacktest() {
+    console.log("Fetching top losers from intradayscreener...");
+    try {
+        const url = "https://intradayscreener.com/api/trackStocks/cash";
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        const data = await res.json() as any;
+        if (data && Array.isArray(data.intradayLosers)) {
+          const losers = data.intradayLosers.slice(0, 25);
+          const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+          testCases = uniqueLosers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
+              symbol: s.symbol,
+              date: "2026-07-13" // Hardcode today's date
+          }));
+        }
+    } catch (e: any) {
+        console.error("Failed to fetch dynamic watchlist:", e.message);
+    }
+    
+    if (testCases.length === 0) {
+        console.error("No test cases found.");
+        return;
+    }
+
     const results = [];
 
     for (const { symbol: sym, date: TARGET_DATE } of testCases) {

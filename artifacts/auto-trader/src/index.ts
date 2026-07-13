@@ -346,8 +346,43 @@ async function main() {
       if (currentMins >= 9 * 60 + 15 && currentMins < 15 * 60 + 30) {
         if (nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000) {
           console.log(`[BOT] Scheduled Watchlist Refresh (3-min interval).`);
-          watchlist = []; // Force re-fetch
-          await initAndRecover();
+          
+          const newWatchlist = await getDailyWatchlist();
+          const currentSymbols = new Set(watchlist.map(w => w.symbol));
+          const addedSymbols = newWatchlist.filter(w => !currentSymbols.has(w.symbol));
+          
+          watchlist = newWatchlist;
+          executionEngine.setWatchlist(watchlist);
+          
+          if (addedSymbols.length > 0) {
+              console.log(`[BOT] Found ${addedSymbols.length} new symbols entering watchlist. Smart backfilling...`);
+              let backfillSuccess = true;
+              
+              for (const item of addedSymbols) {
+                  try {
+                      const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
+                      const candles = histRes.data?.sessionCandles;
+                      
+                      if (!candles || candles.length === 0) {
+                          console.warn(`[BOT] No candles returned for ${item.symbol}. Continuity compromised.`);
+                          backfillSuccess = false;
+                          continue;
+                      }
+                      
+                      candleEngine.backfill(item.securityId, candles);
+                      await new Promise(resolve => setTimeout(resolve, 300));
+                  } catch (err) {
+                      console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
+                      backfillSuccess = false;
+                  }
+              }
+              
+              if (backfillSuccess) {
+                  console.log(`[BOT] Smart backfill complete. Subscribing to new symbols...`);
+                  broker.subscribeToSecurityIds(addedSymbols.map(w => w.securityId));
+              }
+          }
+          
           lastWatchlistFetchMs = Date.now();
         }
       }
