@@ -1274,8 +1274,10 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
     });
     
     if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.warn(`[DATA] ${symbol}: Dhan chart HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      if (response.status !== 401 && response.status !== 429) {
+          const errText = await response.text().catch(() => "");
+          console.warn(`[DATA] ${symbol}: Dhan chart HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      }
       return null;
     }
 
@@ -1463,7 +1465,6 @@ export async function fetchCandles(symbol: string, isSwing: boolean = false): Pr
     const dhanCandles = await fetchDhanCandles(symbol);
     if (dhanCandles) return dhanCandles;
 
-    console.warn(`[DATA] ${symbol}: Dhan candle fetch failed, falling back to Upstox.`);
     const upstoxCandles = await fetchUpstoxCandles(symbol);
     if (upstoxCandles) return upstoxCandles;
 
