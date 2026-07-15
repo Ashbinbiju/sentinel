@@ -1,31 +1,30 @@
 # Intraday Backtest Results
 
-Prime Time: 10:15–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x
+Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x
 
-| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (10k 5x) | Exit Time |
+| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (50k) | Exit Time |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| BAJAJCON | 2026-07-14 | - | 692.00 | 651.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| NEWGEN | 2026-07-14 | - | 607.00 | 507.05 | - | - | - | - | - | **No prime time entry** | - | - |
-| THERMAX | 2026-07-14 | - | 4796.00 | 4651.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| CHENNPETRO | 2026-07-14 | 10:20 | 1233.40 | 1125.00 | LOW BREAKDOWN | SHORT | 1124.90 | 1128.37 | 1117.95 | **✅ TARGET HIT** | +₹207.11 | 10:25 |
-| CMSINFO | 2026-07-14 | 12:00 | 274.70 | 260.40 | SKIPPED | - | 261.65 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
-| ICICIAMC | 2026-07-14 | 13:45 | 3256.00 | 3139.50 | SKIPPED | - | 3163.40 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
-| MRPL | 2026-07-14 | - | 170.00 | 162.50 | - | - | - | - | - | **No prime time entry** | - | - |
-| ATUL | 2026-07-14 | - | 6365.00 | 6187.50 | - | - | - | - | - | **No prime time entry** | - | - |
-| BOROLTD | 2026-07-14 | - | 266.00 | 228.01 | - | - | - | - | - | **No prime time entry** | - | - |
-| CREDITACC | 2026-07-14 | - | 1551.80 | 1508.40 | - | - | - | - | - | **No prime time entry** | - | - |
-| INOXINDIA | 2026-07-14 | - | 1989.00 | 1881.70 | - | - | - | - | - | **No prime time entry** | - | - |
-| TANLA | 2026-07-14 | - | 575.00 | 544.25 | - | - | - | - | - | **No prime time entry** | - | - |
-| TBOTEK | 2026-07-14 | - | 1534.10 | 1480.40 | - | - | - | - | - | **No prime time entry** | - | - |
-| SPARC | 2026-07-14 | - | 269.39 | 258.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| AEGISLOG | 2026-07-14 | 13:00 | 1314.60 | 1226.60 | SKIPPED | - | 1206.00 | - | - | **Anti-Chasing / Touch Filter** | ₹0.00 | - |
-| SUNTECK | 2026-07-14 | - | 329.00 | 318.15 | - | - | - | - | - | **No prime time entry** | - | - |
-| WESTLIFE | 2026-07-14 | - | 509.25 | 497.20 | - | - | - | - | - | **No prime time entry** | - | - |
-| KAJARIACER | 2026-07-14 | - | 1257.50 | 1204.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| INTELLECT | 2026-07-14 | 10:45 | 796.35 | 754.45 | LOW BREAKDOWN | SHORT | 753.30 | 756.71 | 746.47 | **❌ STOP LOSS HIT** | ₹-324.72 | 11:10 |
-| TRIVENI | 2026-07-14 | - | 485.60 | 458.70 | - | - | - | - | - | **No prime time entry** | - | - |
-| EPIGRAL | 2026-07-14 | - | 1107.00 | 971.20 | - | - | - | - | - | **No prime time entry** | - | - |
-| AEGISVOPAK | 2026-07-14 | - | 311.49 | 272.15 | - | - | - | - | - | **No prime time entry** | - | - |
-| ENGINERSIN | 2026-07-14 | - | 240.85 | 235.21 | - | - | - | - | - | **No prime time entry** | - | - |
-| SOLARA | 2026-07-14 | - | 591.45 | 558.75 | - | - | - | - | - | **No prime time entry** | - | - |
-| MASFIN | 2026-07-14 | 12:05 | 334.00 | 318.20 | SKIPPED | - | 319.20 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| BAJAJCON | 2026-07-13 | 09:55 | 679.85 | 640.50 | SKIPPED | - | 680.70 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| AEGISVOPAK | 2026-07-13 | 13:50 | 291.00 | 275.71 | SKIPPED | - | 291.76 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| NEWGEN | 2026-07-13 | 11:35 | 542.90 | 477.05 | SKIPPED | - | 547.25 | - | - | **Anti-Chasing / Touch Filter** | ₹0.00 | - |
+| THERMAX | 2026-07-13 | - | 4860.00 | 4748.00 | - | - | - | - | - | **No prime time entry** | - | - |
+| WELSPUNLIV | 2026-07-13 | 10:05 | 169.17 | 165.56 | SKIPPED | - | 169.32 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| BOROLTD | 2026-07-13 | 09:55 | 233.79 | 229.32 | SKIPPED | - | 230.33 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| AEGISLOG | 2026-07-13 | 14:00 | 1296.90 | 1224.00 | SKIPPED | - | 1306.00 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| MRPL | 2026-07-13 | 13:20 | 163.25 | 150.25 | HIGH REJECTION | SHORT | 163.10 | 163.99 | 161.33 | **❌ STOP LOSS HIT** | ₹-372.43 | 13:30 |
+| CHENNPETRO | 2026-07-13 | 10:45 | 1186.90 | 1130.60 | SKIPPED | - | 1187.90 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| SPARC | 2026-07-13 | 13:15 | 280.50 | 258.62 | SKIPPED | - | 259.45 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| HAPPSTMNDS | 2026-07-13 | - | 394.00 | 370.05 | - | - | - | - | - | **No prime time entry** | - | - |
+| INDOCO | 2026-07-13 | - | 265.09 | 250.50 | - | - | - | - | - | **No prime time entry** | - | - |
+| CREDITACC | 2026-07-13 | 09:45 | 1571.40 | 1523.80 | SKIPPED | - | 1526.60 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| BSOFT | 2026-07-13 | 09:50 | 293.00 | 278.85 | SKIPPED | - | 293.35 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| GALLANTT | 2026-07-13 | - | 679.00 | 663.00 | - | - | - | - | - | **No prime time entry** | - | - |
+| TBOTEK | 2026-07-13 | 09:45 | 1515.00 | 1480.00 | HIGH REJECTION | SHORT | 1511.40 | 1521.82 | 1490.55 | **❌ STOP LOSS HIT** | ₹-443.96 | 09:55 |
+| MASFIN | 2026-07-13 | 09:50 | 324.10 | 315.40 | SKIPPED | - | 324.80 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| TANLA | 2026-07-13 | - | 554.00 | 524.70 | - | - | - | - | - | **No prime time entry** | - | - |
+| CANFINHOME | 2026-07-13 | 09:45 | 931.90 | 914.15 | HIGH REJECTION | SHORT | 931.20 | 936.10 | 921.40 | **❌ STOP LOSS HIT** | ₹-358.67 | 10:20 |
+| HLEGLAS | 2026-07-13 | 12:00 | 434.50 | 411.80 | SKIPPED | - | 412.65 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| WESTLIFE | 2026-07-13 | 13:45 | 511.00 | 499.30 | SKIPPED | - | 501.50 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| ROUTE | 2026-07-13 | - | 549.40 | 542.00 | - | - | - | - | - | **No prime time entry** | - | - |
+| HOMEFIRST | 2026-07-13 | - | 1229.00 | 1196.70 | - | - | - | - | - | **No prime time entry** | - | - |
+| RAIN | 2026-07-13 | - | 208.50 | 202.60 | - | - | - | - | - | **No prime time entry** | - | - |

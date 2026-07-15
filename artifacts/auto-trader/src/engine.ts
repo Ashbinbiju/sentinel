@@ -269,11 +269,17 @@ export class ExecutionEngine {
                 leg => leg.legName === "ENTRY_LEG"
               );
 
+              const targetLeg = parent?.legDetails?.find(
+                leg => leg.legName === "TARGET_LEG"
+              );
+
+              const isLegPending = stopLeg?.orderStatus === "PENDING";
+              const isLegTraded = stopLeg?.orderStatus === "TRADED" || targetLeg?.orderStatus === "TRADED";
+
               const protectedPosition =
                 parent?.orderStatus === "TRADED" &&
-                stopLeg?.orderStatus === "PENDING" &&
-                Number(stopLeg.price) > 0 &&
-                Number(stopLeg.triggeredQuantity ?? 0) === 0;
+                (isLegPending || isLegTraded) &&
+                Number(stopLeg?.price ?? 0) > 0;
 
               if (protectedPosition) {
                   const trade = (await TradeDB.getOpenTrades()).find(t => t.id === tradeId);

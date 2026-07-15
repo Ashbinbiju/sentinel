@@ -292,7 +292,7 @@ export class DhanBroker extends EventEmitter {
         correlationId: input.correlationId,
         transactionType: input.side,
         exchangeSegment: "NSE_EQ",
-        productType: "INTRADAY",
+        productType: "BO",
         orderType: "MARKET",
         securityId: input.securityId,
         quantity: Math.floor(input.quantity),

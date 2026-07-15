@@ -71,7 +71,7 @@ async function runBacktest() {
           const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
           testCases = uniqueLosers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
               symbol: s.symbol,
-              date: "2026-07-13" // Hardcode today's date
+              date: "2026-07-13"
           }));
         }
     } catch (e: any) {
@@ -126,7 +126,7 @@ async function runBacktest() {
             const prevPrevC = i > 1 ? targetDayCandles[i-2] : (i === 1 ? prevDayCandles[prevDayCandles.length - 1] : (prevDayCandles[prevDayCandles.length - 2] || prevDayCandles[prevDayCandles.length - 1]));
             const mins = getISTMinuteOfDay(c.t + 300); 
             
-            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
+            if (mins < 9 * 60 + 45 || mins > 14 * 60 + 30) {
                 continue; 
             }
 
@@ -289,14 +289,14 @@ async function runBacktest() {
     }
     
     let md = `# Intraday Backtest Results\n\n`;
-    md += `Prime Time: 10:15–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2\n\n`;
-    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (10k) | Exit Time |\n`;
+    md += `Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x\n\n`;
+    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (50k) | Exit Time |\n`;
     md += `|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
     for (const r of results) {
         let pnlStr = "-";
         if (r.Entry !== "-" && r.Status !== "No prime time entry") {
             const entryPrice = parseFloat(r.Entry);
-            const qty = Math.floor(10000 / entryPrice);
+            const qty = Math.floor(50000 / entryPrice);
             let exitPrice = entryPrice;
             if (r.Status === "✅ TARGET HIT") exitPrice = parseFloat(r.Target);
             else if (r.Status === "❌ STOP LOSS HIT" || r.Status === "🛡️ BREAKEVEN HIT") exitPrice = parseFloat(r.StopLoss);
