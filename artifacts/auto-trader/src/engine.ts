@@ -365,7 +365,7 @@ export class ExecutionEngine {
           const superOrders = await this.broker.getSuperOrderList();
 
           for (const trade of activeTrades) {
-              const pos = positions.find(p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY");
+              const pos = positions.find(p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || ""));
               const netQty = Number(pos?.netQty || 0);
 
               const parent = superOrders.find(o => o.orderId === trade.superOrderId);
@@ -524,7 +524,7 @@ export class ExecutionEngine {
 
             const positions = await this.broker.getPositions();
             const position = positions.find(
-                p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY"
+                p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "")
             );
 
             if (Number(position?.netQty ?? 0) !== 0) {
@@ -559,7 +559,7 @@ export class ExecutionEngine {
 
                 const positions = await this.broker.getPositions();
                 const position = positions.find(
-                    p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY"
+                    p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "")
                 );
 
                 if (Number(position?.netQty ?? 0) !== 0) {

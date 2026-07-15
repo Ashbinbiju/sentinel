@@ -137,7 +137,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               exitAttempts++;
               
               const refreshedPositions = await broker.getPositions();
-              const refreshedPosition = refreshedPositions.find(p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY");
+              const refreshedPosition = refreshedPositions.find(p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || ""));
               
               let netQty = 0;
               if (refreshedPosition && refreshedPosition.netQty) {
@@ -206,7 +206,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               }
 
               const finalPositions = await broker.getPositions();
-              const finalPosition = finalPositions.find(p => p.securityId === trade.securityId && p.productType?.toUpperCase() === "INTRADAY");
+              const finalPosition = finalPositions.find(p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || ""));
               
               positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
               
