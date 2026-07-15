@@ -35,7 +35,7 @@ const shutdown = () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-async function getDailyWatchlist(): Promise<WatchlistContext[]> {
+async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
     const url = "https://intradayscreener.com/api/trackStocks/cash";
@@ -53,6 +53,12 @@ async function getDailyWatchlist(): Promise<WatchlistContext[]> {
         if (symbol && ltp > 100) {
           const securityId = getSecurityId(symbol);
           if (securityId) {
+            const cached = existingWatchlist?.find(w => w.symbol === symbol);
+            if (cached) {
+                list.push(cached);
+                continue;
+            }
+
             try {
               const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${symbol}/candles`);
               if (histRes.data && histRes.data.historicalCandles) {
@@ -347,7 +353,7 @@ async function main() {
         if (nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000) {
           console.log(`[BOT] Scheduled Watchlist Refresh (3-min interval).`);
           
-          const newWatchlist = await getDailyWatchlist();
+          const newWatchlist = await getDailyWatchlist(watchlist);
           const currentSymbols = new Set(watchlist.map(w => w.symbol));
           const addedSymbols = newWatchlist.filter(w => !currentSymbols.has(w.symbol));
           

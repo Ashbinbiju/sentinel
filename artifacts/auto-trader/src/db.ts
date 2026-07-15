@@ -43,6 +43,7 @@ export interface ActiveTrade {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
+  verifyAttempts?: number;
   
   // Legacy fields
   entry_price?: number;

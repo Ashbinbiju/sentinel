@@ -462,9 +462,17 @@ export class ExecutionEngine {
 
         if (!parent) continue;
 
+        const verifyAttempts = (trade.verifyAttempts || 0) + 1;
         await TradeDB.updateState(trade.id, "ENTRY_PENDING", {
           superOrderId: parent.orderId,
+          verifyAttempts,
         });
+
+        if (verifyAttempts > 5) {
+            console.error(`[ENGINE] Abandoning verification for ${trade.id} after ${verifyAttempts} attempts. Moving to REJECTED.`);
+            await TradeDB.updateState(trade.id, "REJECTED");
+            continue;
+        }
 
         await this.verifyOrderExecution(trade.id, parent.orderId);
       }
