@@ -133,6 +133,19 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
             let exitAttempts = 0;
             let positionFlat = false;
             
+            if (!trade.productType) {
+              const initialPositions = await broker.getPositions();
+              const initialPos = resolveTradePosition(initialPositions, trade);
+              const resolvedProductType = String(initialPos?.productType || "").toUpperCase();
+
+              if (resolvedProductType === "INTRADAY" || resolvedProductType === "BO") {
+                trade.productType = resolvedProductType;
+                await TradeDB.updateState(trade.id, undefined, { productType: resolvedProductType as any });
+              } else {
+                throw new Error(`Unable to resolve product type for exit on ${trade.symbol}`);
+              }
+            }
+            
             while (exitAttempts < 3 && !positionFlat) {
               exitAttempts++;
               
@@ -157,24 +170,10 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
                 throw new Error("Exit correlation ID exceeds Dhan limit");
               }
               
-              const resolvedProductType = String(
-                trade.productType ||
-                refreshedPosition?.productType ||
-                ""
-              ).toUpperCase();
-
-              if (resolvedProductType !== "INTRADAY" && resolvedProductType !== "BO") {
-                throw new Error(`Unable to resolve product type for exit on ${trade.symbol}`);
-              }
-
-              if (!trade.productType) {
-                await TradeDB.updateState(trade.id, undefined, { productType: resolvedProductType as any });
-              }
-              
               await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
               
               console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, resolvedProductType as any, exitCorrelationId);
+              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, trade.productType as any, exitCorrelationId);
               
               let retries = 0;
               let orderTerminal = false;
