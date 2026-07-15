@@ -429,6 +429,7 @@ async function main() {
         if (activeTrades.length > 0) {
           console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM).`);
           await closeAllOpenTrades(broker);
+          await executionEngine.reconcileExits();
           activeTrades = (await TradeDB.getOpenTrades());
         }
         
@@ -442,6 +443,7 @@ async function main() {
       if (orphanedTrades.length > 0) {
           console.warn(`[BOT] Found ${orphanedTrades.length} reversed trades needing emergency square-off.`);
           await closeAllOpenTrades(broker, orphanedTrades);
+          await executionEngine.reconcileExits();
       }
 
       // Kill Switch Validation
@@ -472,6 +474,7 @@ async function main() {
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
            console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
            await closeAllOpenTrades(broker);
+           await executionEngine.reconcileExits();
            activeTrades = (await TradeDB.getOpenTrades());
            
            if (activeTrades.length > 0) {

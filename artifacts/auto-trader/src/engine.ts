@@ -353,8 +353,9 @@ export class ExecutionEngine {
     }
   }
 
-  public async reconcileExits() {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExits()).catch(e => console.error(e));
+  public reconcileExits(): Promise<void> {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExits()).catch(e => console.error(e)) as Promise<void>;
+    return this.evaluationQueue;
   }
 
   private async _reconcileExits() {
@@ -426,8 +427,9 @@ export class ExecutionEngine {
       }
   }
 
-  public async reconcileUnknownOrders(): Promise<void> {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileUnknownOrders()).catch(e => console.error(e));
+  public reconcileUnknownOrders(): Promise<void> {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileUnknownOrders()).catch(e => console.error(e)) as Promise<void>;
+    return this.evaluationQueue;
   }
 
   private async _reconcileUnknownOrders(): Promise<void> {
@@ -488,8 +490,9 @@ export class ExecutionEngine {
     }
   }
 
-  public async reconcileExitOrders(): Promise<void> {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExitOrders()).catch(e => console.error(e));
+  public reconcileExitOrders(): Promise<void> {
+    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExitOrders()).catch(e => console.error(e)) as Promise<void>;
+    return this.evaluationQueue;
   }
 
   private async _reconcileExitOrders(): Promise<void> {
