@@ -136,10 +136,17 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
             if (!trade.productType) {
               const initialPositions = await broker.getPositions();
               const initialPos = resolveTradePosition(initialPositions, trade);
-              const resolvedProductType = String(initialPos?.productType || "").toUpperCase();
+              
+              if (!initialPos) {
+                console.log(`[BOT] No live position for legacy trade ${trade.symbol}. Sending to exit reconciliation.`);
+                await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+                continue tradeLoop;
+              }
+
+              const resolvedProductType = String(initialPos.productType || "").toUpperCase();
 
               if (resolvedProductType === "INTRADAY" || resolvedProductType === "BO") {
-                trade.productType = resolvedProductType;
+                trade.productType = resolvedProductType as any;
                 await TradeDB.updateState(trade.id, undefined, { productType: resolvedProductType as any });
               } else {
                 throw new Error(`Unable to resolve product type for exit on ${trade.symbol}`);
