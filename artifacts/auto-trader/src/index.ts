@@ -40,23 +40,23 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
   try {
     const url = "https://intradayscreener.com/api/trackStocks/cash";
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
-    
+
     if (res.data && Array.isArray(res.data.intradayLosers)) {
       const losers = res.data.intradayLosers.slice(0, 25);
       const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
-      
+
       for (const s of uniqueLosers) {
         const symbol = s.symbol?.trim();
         const ltp = s.ltp;
         const changePct = s.priceChangePct;
-        
+
         if (symbol && ltp > 100) {
           const securityId = getSecurityId(symbol);
           if (securityId) {
             const cached = existingWatchlist?.find(w => w.symbol === symbol);
             if (cached) {
-                list.push(cached);
-                continue;
+              list.push(cached);
+              continue;
             }
 
             try {
@@ -69,15 +69,15 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
                   const dtStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
                   return dtStr !== todaySlot;
                 });
-                
+
                 if (prevCandles.length > 0) {
-                  const dates = Array.from(new Set(prevCandles.map(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t*1000))))).sort();
+                  const dates = Array.from(new Set(prevCandles.map(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000))))).sort();
                   const lastDate = dates[dates.length - 1];
-                  const lastDayCandles = prevCandles.filter(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t*1000)) === lastDate);
-                  
+                  const lastDayCandles = prevCandles.filter(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000)) === lastDate);
+
                   const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
                   const prevLow = Math.min(...lastDayCandles.map(c => c.l));
-                  
+
                   list.push({ symbol, securityId, prevHigh, prevLow });
                 }
               }
@@ -94,159 +94,164 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
   return list;
 }
 
+async function reconcileAfterSquareOff(executionEngine: ExecutionEngine): Promise<void> {
+  await executionEngine.reconcileExitOrders();
+  await executionEngine.reconcileExits();
+}
+
 async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
-    const activeTrades = specificTrades || (await TradeDB.getOpenTrades());
-    if (activeTrades.length === 0) return;
+  const activeTrades = specificTrades || (await TradeDB.getOpenTrades());
+  if (activeTrades.length === 0) return;
 
-    tradeLoop:
-    for (const trade of activeTrades) {
-        try {
-            if (trade.exitCorrelationId) {
-                console.warn(`[BOT] Trade ${trade.symbol} has unresolved exitCorrelationId. Skipping new exit placement.`);
-                continue tradeLoop;
-            }
+  tradeLoop:
+  for (const trade of activeTrades) {
+    try {
+      if (trade.exitCorrelationId) {
+        console.warn(`[BOT] Trade ${trade.symbol} has unresolved exitCorrelationId. Skipping new exit placement.`);
+        continue tradeLoop;
+      }
 
-            // Cancel active Super Order legs
-            if (["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED"].includes(trade.state) && !trade.superOrderId) {
-                await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
-                throw new Error(`Cannot square off unresolved order ${trade.correlationId}`);
-            }
+      // Cancel active Super Order legs
+      if (["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED"].includes(trade.state) && !trade.superOrderId) {
+        await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+        throw new Error(`Cannot square off unresolved order ${trade.correlationId}`);
+      }
 
-            if (trade.superOrderId && !trade.protectionCancelled) {
-               const superOrders = await broker.getSuperOrderList();
-               const parent = superOrders.find(o => o.orderId === trade.superOrderId);
-               
-               if (!parent) {
-                 await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
-                 throw new Error(`Super Order ${trade.superOrderId} unavailable for ${trade.symbol}`);
-               }
-               
-               if (["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
-                 await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
-               } else {
-                 await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
-                 await broker.waitForSuperOrderCancellation(trade.superOrderId);
-                 await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
-               }
-            }
-            
-            let exitAttempts = 0;
-            let positionFlat = false;
-            
-            if (!trade.productType) {
-              const initialPositions = await broker.getPositions();
-              const initialPos = resolveTradePosition(initialPositions, trade);
-              
-              if (!initialPos) {
-                console.log(`[BOT] No live position for legacy trade ${trade.symbol}. Sending to exit reconciliation.`);
-                await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
-                continue tradeLoop;
-              }
+      if (trade.superOrderId && !trade.protectionCancelled) {
+        const superOrders = await broker.getSuperOrderList();
+        const parent = superOrders.find(o => o.orderId === trade.superOrderId);
 
-              const resolvedProductType = String(initialPos.productType || "").toUpperCase();
-
-              if (resolvedProductType === "INTRADAY" || resolvedProductType === "BO") {
-                trade.productType = resolvedProductType as any;
-                await TradeDB.updateState(trade.id, undefined, { productType: resolvedProductType as any });
-              } else {
-                throw new Error(`Unable to resolve product type for exit on ${trade.symbol}`);
-              }
-            }
-            
-            while (exitAttempts < 3 && !positionFlat) {
-              exitAttempts++;
-              
-              const refreshedPositions = await broker.getPositions();
-              const refreshedPosition = resolveTradePosition(refreshedPositions, trade);
-              
-              let netQty = 0;
-              if (refreshedPosition && refreshedPosition.netQty) {
-                  netQty = Number(refreshedPosition.netQty);
-              }
-
-              if (netQty === 0) {
-                  console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
-                  await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
-                  continue tradeLoop;
-              }
-
-              const exitSide = netQty > 0 ? "SELL" : "BUY";
-              const qtyToExit = Math.abs(netQty);
-              const exitCorrelationId = `sx-${Date.now().toString(36)}-${randomUUID().replace(/-/g, "").slice(0, 8)}`;
-              if (exitCorrelationId.length > 30) {
-                throw new Error("Exit correlation ID exceeds Dhan limit");
-              }
-              
-              await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
-              
-              console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, trade.productType as any, exitCorrelationId);
-              
-              let retries = 0;
-              let orderTerminal = false;
-              
-              while (retries < 15 && !orderTerminal) {
-                retries++;
-                await sleep(1000);
-                const orders = await broker.getOrderBook();
-                const exitOrder = orders.find(o => o.orderId === exitOrderId);
-                
-                const terminalStatuses = new Set(["TRADED", "CANCELLED", "REJECTED", "EXPIRED"]);
-                
-                if (exitOrder && terminalStatuses.has(exitOrder.orderStatus)) {
-                  orderTerminal = true;
-                } else if (retries === 15) {
-                  if (!exitOrder) {
-                    console.error(`[BOT] ExitReconciliationRequiredError: ${exitCorrelationId}`);
-                    await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitSubmittedAt: Date.now() });
-                    continue tradeLoop;
-                  }
-                  await broker.cancelOrder(exitOrder.orderId);
-                  await broker.waitForOrderTerminal(exitOrder.orderId);
-                  orderTerminal = true;
-                }
-              }
-              
-              const completedExit = await broker.getOrderByCorrelationId(exitCorrelationId);
-              
-              if (completedExit?.orderStatus === "TRADED") {
-                  continue tradeLoop;
-              }
-              
-              if (
-                  !completedExit ||
-                  ["TRANSIT", "PENDING", "PART_TRADED"].includes(completedExit.orderStatus)
-              ) {
-                  await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
-                  continue tradeLoop;
-              }
-              
-              if (["CANCELLED", "REJECTED", "EXPIRED"].includes(completedExit?.orderStatus ?? "")) {
-                  await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "" });
-              }
-
-              const finalPositions = await broker.getPositions();
-              const finalPosition = resolveTradePosition(finalPositions, trade);
-              
-              positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
-              
-              if (!positionFlat) {
-                console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
-              } else {
-                  console.log(`[BOT] Position flat after terminal non-traded status. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
-                  await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
-                  continue tradeLoop;
-              }
-            }
-            
-            if (!positionFlat) {
-                console.error(`[BOT] CRITICAL: Failed to square off ${trade.symbol} after 3 attempts.`);
-                await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
-            }
-        } catch (e) {
-            console.error(`[BOT] Failed to close trade ${trade.id}`, e);
+        if (!parent) {
+          await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+          throw new Error(`Super Order ${trade.superOrderId} unavailable for ${trade.symbol}`);
         }
+
+        if (["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
+          await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
+        } else {
+          await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
+          await broker.waitForSuperOrderCancellation(trade.superOrderId);
+          await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
+        }
+      }
+
+      let exitAttempts = 0;
+      let positionFlat = false;
+
+      if (!trade.productType) {
+        const initialPositions = await broker.getPositions();
+        const initialPos = resolveTradePosition(initialPositions, trade);
+
+        if (!initialPos) {
+          console.log(`[BOT] No live position for legacy trade ${trade.symbol}. Sending to exit reconciliation.`);
+          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+          continue tradeLoop;
+        }
+
+        const resolvedProductType = String(initialPos.productType || "").toUpperCase();
+
+        if (resolvedProductType === "INTRADAY" || resolvedProductType === "BO") {
+          trade.productType = resolvedProductType as any;
+          await TradeDB.updateState(trade.id, undefined, { productType: resolvedProductType as any });
+        } else {
+          throw new Error(`Unable to resolve product type for exit on ${trade.symbol}`);
+        }
+      }
+
+      while (exitAttempts < 3 && !positionFlat) {
+        exitAttempts++;
+
+        const refreshedPositions = await broker.getPositions();
+        const refreshedPosition = resolveTradePosition(refreshedPositions, trade);
+
+        let netQty = 0;
+        if (refreshedPosition && refreshedPosition.netQty) {
+          netQty = Number(refreshedPosition.netQty);
+        }
+
+        if (netQty === 0) {
+          console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
+          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+          continue tradeLoop;
+        }
+
+        const exitSide = netQty > 0 ? "SELL" : "BUY";
+        const qtyToExit = Math.abs(netQty);
+        const exitCorrelationId = `sx-${Date.now().toString(36)}-${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+        if (exitCorrelationId.length > 30) {
+          throw new Error("Exit correlation ID exceeds Dhan limit");
+        }
+
+        await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
+
+        console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
+        const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, trade.productType as any, exitCorrelationId);
+
+        let retries = 0;
+        let orderTerminal = false;
+
+        while (retries < 15 && !orderTerminal) {
+          retries++;
+          await sleep(1000);
+          const orders = await broker.getOrderBook();
+          const exitOrder = orders.find(o => o.orderId === exitOrderId);
+
+          const terminalStatuses = new Set(["TRADED", "CANCELLED", "REJECTED", "EXPIRED"]);
+
+          if (exitOrder && terminalStatuses.has(exitOrder.orderStatus)) {
+            orderTerminal = true;
+          } else if (retries === 15) {
+            if (!exitOrder) {
+              console.error(`[BOT] ExitReconciliationRequiredError: ${exitCorrelationId}`);
+              await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitSubmittedAt: Date.now() });
+              continue tradeLoop;
+            }
+            await broker.cancelOrder(exitOrder.orderId);
+            await broker.waitForOrderTerminal(exitOrder.orderId);
+            orderTerminal = true;
+          }
+        }
+
+        const completedExit = await broker.getOrderByCorrelationId(exitCorrelationId);
+
+        if (completedExit?.orderStatus === "TRADED") {
+          continue tradeLoop;
+        }
+
+        if (
+          !completedExit ||
+          ["TRANSIT", "PENDING", "PART_TRADED"].includes(completedExit.orderStatus)
+        ) {
+          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
+          continue tradeLoop;
+        }
+
+        if (["CANCELLED", "REJECTED", "EXPIRED"].includes(completedExit?.orderStatus ?? "")) {
+          await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "" });
+        }
+
+        const finalPositions = await broker.getPositions();
+        const finalPosition = resolveTradePosition(finalPositions, trade);
+
+        positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
+
+        if (!positionFlat) {
+          console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
+        } else {
+          console.log(`[BOT] Position flat after terminal non-traded status. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
+          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+          continue tradeLoop;
+        }
+      }
+
+      if (!positionFlat) {
+        console.error(`[BOT] CRITICAL: Failed to square off ${trade.symbol} after 3 attempts.`);
+        await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+      }
+    } catch (e) {
+      console.error(`[BOT] Failed to close trade ${trade.id}`, e);
     }
+  }
 }
 
 async function main() {
@@ -270,11 +275,11 @@ async function main() {
 
   const initAndRecover = async () => {
     candleEngine.prepareForReconnect();
-    
+
     if (watchlist.length === 0) {
-        console.log(`[BOT] Fetching Watchlist & Historical Context...`);
-        watchlist = await getDailyWatchlist();
-        executionEngine.setWatchlist(watchlist);
+      console.log(`[BOT] Fetching Watchlist & Historical Context...`);
+      watchlist = await getDailyWatchlist();
+      executionEngine.setWatchlist(watchlist);
     }
 
     // Recover from gap
@@ -314,7 +319,7 @@ async function main() {
         }
 
         candleEngine.backfill(item.securityId, candles);
-        
+
         // Throttle requests to prevent Dhan HTTP 429 Rate Limits
         await new Promise(resolve => setTimeout(resolve, 200));
       } catch (err) {
@@ -324,22 +329,22 @@ async function main() {
     }
 
     if (backfillSuccess) {
-        candleEngine.isContinuityValid = true;
-        console.log(`[BOT] CandleEngine Continuity Validated. Ready for live trading.`);
-        broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+      candleEngine.isContinuityValid = true;
+      console.log(`[BOT] CandleEngine Continuity Validated. Ready for live trading.`);
+      broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
     } else {
-        console.warn(`[BOT] Backfill failed. Skipping continuity validation. Retrying in 60s.`);
+      console.warn(`[BOT] Backfill failed. Skipping continuity validation. Retrying in 60s.`);
     }
   };
 
   broker.on("onReconnect", async () => {
-      console.log(`[BOT] WebSocket reconnected. Initiating backfill...`);
-      await initAndRecover();
+    console.log(`[BOT] WebSocket reconnected. Initiating backfill...`);
+    await initAndRecover();
   });
 
   broker.on("onDisconnect", () => {
-      console.warn(`[BOT] WebSocket disconnected. Invalidating continuity and cleaning up partial buckets.`);
-      candleEngine.prepareForReconnect();
+    console.warn(`[BOT] WebSocket disconnected. Invalidating continuity and cleaning up partial buckets.`);
+    candleEngine.prepareForReconnect();
   });
 
   broker.onTick(async (tick) => {
@@ -362,7 +367,7 @@ async function main() {
         lastWatchlistFetchMs = 0;
         await broker.validateOrRenewToken();
         // Clear yesterday's continuity state completely
-        candleEngine.prepareForReconnect(); 
+        candleEngine.prepareForReconnect();
       }
 
       const currentMins = getISTMinutes();
@@ -372,43 +377,43 @@ async function main() {
       if (currentMins >= 9 * 60 + 15 && currentMins < 15 * 60 + 30) {
         if (nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000) {
           console.log(`[BOT] Scheduled Watchlist Refresh (3-min interval).`);
-          
+
           const newWatchlist = await getDailyWatchlist(watchlist);
           const currentSymbols = new Set(watchlist.map(w => w.symbol));
           const addedSymbols = newWatchlist.filter(w => !currentSymbols.has(w.symbol));
-          
+
           watchlist = newWatchlist;
           executionEngine.setWatchlist(watchlist);
-          
+
           if (addedSymbols.length > 0) {
-              console.log(`[BOT] Found ${addedSymbols.length} new symbols entering watchlist. Smart backfilling...`);
-              let backfillSuccess = true;
-              
-              for (const item of addedSymbols) {
-                  try {
-                      const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-                      const candles = histRes.data?.sessionCandles;
-                      
-                      if (!candles || candles.length === 0) {
-                          console.warn(`[BOT] No candles returned for ${item.symbol}. Continuity compromised.`);
-                          backfillSuccess = false;
-                          continue;
-                      }
-                      
-                      candleEngine.backfill(item.securityId, candles);
-                      await new Promise(resolve => setTimeout(resolve, 300));
-                  } catch (err) {
-                      console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
-                      backfillSuccess = false;
-                  }
+            console.log(`[BOT] Found ${addedSymbols.length} new symbols entering watchlist. Smart backfilling...`);
+            let backfillSuccess = true;
+
+            for (const item of addedSymbols) {
+              try {
+                const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
+                const candles = histRes.data?.sessionCandles;
+
+                if (!candles || candles.length === 0) {
+                  console.warn(`[BOT] No candles returned for ${item.symbol}. Continuity compromised.`);
+                  backfillSuccess = false;
+                  continue;
+                }
+
+                candleEngine.backfill(item.securityId, candles);
+                await new Promise(resolve => setTimeout(resolve, 300));
+              } catch (err) {
+                console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
+                backfillSuccess = false;
               }
-              
-              if (backfillSuccess) {
-                  console.log(`[BOT] Smart backfill complete. Subscribing to new symbols...`);
-                  broker.subscribeToSecurityIds(addedSymbols.map(w => w.securityId));
-              }
+            }
+
+            if (backfillSuccess) {
+              console.log(`[BOT] Smart backfill complete. Subscribing to new symbols...`);
+              broker.subscribeToSecurityIds(addedSymbols.map(w => w.securityId));
+            }
           }
-          
+
           lastWatchlistFetchMs = Date.now();
         }
       }
@@ -429,10 +434,10 @@ async function main() {
         if (activeTrades.length > 0) {
           console.log(`[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM).`);
           await closeAllOpenTrades(broker);
-          await executionEngine.reconcileExits();
+          await reconcileAfterSquareOff(executionEngine);
           activeTrades = (await TradeDB.getOpenTrades());
         }
-        
+
         if (activeTrades.length > 0) {
           console.error(`[BOT] CRITICAL: Square-off failed for ${activeTrades.length} trades. Will retry in safety loop.`);
         }
@@ -441,53 +446,53 @@ async function main() {
       // Reversal/Emergency Intraday Square-off
       const orphanedTrades = activeTrades.filter(t => t.state === "REVERSAL_RECONCILIATION_REQUIRED");
       if (orphanedTrades.length > 0) {
-          console.warn(`[BOT] Found ${orphanedTrades.length} reversed trades needing emergency square-off.`);
-          await closeAllOpenTrades(broker, orphanedTrades);
-          await executionEngine.reconcileExits();
+        console.warn(`[BOT] Found ${orphanedTrades.length} reversed trades needing emergency square-off.`);
+        await closeAllOpenTrades(broker, orphanedTrades);
+        await reconcileAfterSquareOff(executionEngine);
       }
 
       // Kill Switch Validation
       if (!DRY_RUN) {
         const todayTrades = (await TradeDB.getTradesForDate(getISTDateStr()));
         let realizedPnl = 0;
-        
+
         for (const t of todayTrades) {
-            if (t.state === "EXITED" && t.realizedPnl !== undefined) {
-                realizedPnl += t.realizedPnl;
-            }
+          if (t.state === "EXITED" && t.realizedPnl !== undefined) {
+            realizedPnl += t.realizedPnl;
+          }
         }
-        
+
         const allExited = (await TradeDB.getAllExitedTrades());
         allExited.sort((a, b) => new Date(a.closedAt || a.updatedAt).getTime() - new Date(b.closedAt || b.updatedAt).getTime());
-        
+
         let closedLosingTrades = 0;
         for (const t of allExited) {
-            if (t.realizedPnl !== undefined) {
-                if (t.realizedPnl < 0) {
-                    closedLosingTrades++;
-                } else if (t.realizedPnl > 0) {
-                    closedLosingTrades = 0;
-                }
+          if (t.realizedPnl !== undefined) {
+            if (t.realizedPnl < 0) {
+              closedLosingTrades++;
+            } else if (t.realizedPnl > 0) {
+              closedLosingTrades = 0;
             }
+          }
         }
-        
+
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
-           console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
-           await closeAllOpenTrades(broker);
-           await executionEngine.reconcileExits();
-           activeTrades = (await TradeDB.getOpenTrades());
-           
-           if (activeTrades.length > 0) {
-               console.error(`[KILL SWITCH] Failed to square off. Retrying in safety loop...`);
-               await sleep(10 * 1000);
-               continue;
-           }
-           
-           // Sleep until next day
-           while (todayStr === getISTDateStr()) {
-               await sleep(60 * 60 * 1000);
-           }
-           continue;
+          console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
+          await closeAllOpenTrades(broker);
+          await reconcileAfterSquareOff(executionEngine);
+          activeTrades = (await TradeDB.getOpenTrades());
+
+          if (activeTrades.length > 0) {
+            console.error(`[KILL SWITCH] Failed to square off. Retrying in safety loop...`);
+            await sleep(10 * 1000);
+            continue;
+          }
+
+          // Sleep until next day
+          while (todayStr === getISTDateStr()) {
+            await sleep(60 * 60 * 1000);
+          }
+          continue;
         }
       }
 
@@ -496,11 +501,11 @@ async function main() {
 
       // Retry failed backfills if continuity is broken
       if (!candleEngine.isContinuityValid && isMarketOpenIST()) {
-          await initAndRecover();
+        await initAndRecover();
       }
 
     } catch (e: any) {
-       console.error(`[BOT] Safety Loop Error:`, e.message);
+      console.error(`[BOT] Safety Loop Error:`, e.message);
     }
 
     await sleep(10000);
