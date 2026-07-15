@@ -45,26 +45,29 @@ export function isMarketOpenIST(): boolean {
 }
 
 export function resolveTradePosition(positions: any[], trade: any): any {
-  // Try to match exact product type first
-  const exactMatch = positions.find(
-      p => p.securityId === trade.securityId && 
-           p.productType?.toUpperCase() === (trade.productType || "INTRADAY")
+  const securityPositions = positions.filter(
+    p =>
+      String(p.securityId) === String(trade.securityId) &&
+      ["INTRADAY", "BO"].includes(String(p.productType || "").toUpperCase())
   );
 
-  if (exactMatch) return exactMatch;
+  if (trade.productType) {
+    const expectedProductType = String(trade.productType).toUpperCase();
+    return securityPositions.find(
+      p => String(p.productType || "").toUpperCase() === expectedProductType
+    );
+  }
 
-  // If no exact match (legacy trades without productType), find non-zero matching product types
-  const candidates = positions.filter(
-      p => p.securityId === trade.securityId &&
-           ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "") &&
-           Number(p.netQty) !== 0
-  );
+  // Legacy migration only.
+  const liveCandidates = securityPositions.filter(p => Number(p.netQty) !== 0);
 
-  if (candidates.length === 1) return candidates[0];
+  if (liveCandidates.length === 1) {
+    return liveCandidates[0];
+  }
 
-  // If still ambiguous or all are 0, return the first one or undefined
-  return positions.find(
-      p => p.securityId === trade.securityId &&
-           ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "")
-  );
+  if (liveCandidates.length > 1) {
+    throw new Error(`Ambiguous legacy position for ${trade.securityId}`);
+  }
+
+  return undefined;
 }
