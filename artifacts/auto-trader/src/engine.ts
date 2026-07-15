@@ -83,6 +83,18 @@ export class ExecutionEngine {
           return;
         }
 
+        const getISTMinuteOfDay = (epochSecs: number) => {
+          const d = new Date(epochSecs * 1000);
+          d.setUTCHours(d.getUTCHours() + 5);
+          d.setUTCMinutes(d.getUTCMinutes() + 30);
+          return d.getUTCHours() * 60 + d.getUTCMinutes();
+        };
+
+        const mins = getISTMinuteOfDay(c.t + 300);
+        if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
+            return;
+        }
+
         let setup = "";
         let direction: "BUY" | "SELL" | null = null;
         let sl = 0;

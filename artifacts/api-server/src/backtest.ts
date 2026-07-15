@@ -71,7 +71,7 @@ async function runBacktest() {
           const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
           testCases = uniqueLosers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
               symbol: s.symbol,
-              date: "2026-07-13"
+              date: "2026-07-15"
           }));
         }
     } catch (e: any) {
@@ -126,7 +126,7 @@ async function runBacktest() {
             const prevPrevC = i > 1 ? targetDayCandles[i-2] : (i === 1 ? prevDayCandles[prevDayCandles.length - 1] : (prevDayCandles[prevDayCandles.length - 2] || prevDayCandles[prevDayCandles.length - 1]));
             const mins = getISTMinuteOfDay(c.t + 300); 
             
-            if (mins < 9 * 60 + 45 || mins > 14 * 60 + 30) {
+            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
                 continue; 
             }
 
