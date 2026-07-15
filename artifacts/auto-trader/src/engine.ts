@@ -2,7 +2,7 @@ import { ActiveTrade, TradeDB, TradeState } from "./db";
 import { Candle } from "./candle-engine";
 import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
 import { randomUUID } from "crypto";
-import { getISTDateStr } from "./utils";
+import { getISTDateStr, resolveTradePosition } from "./utils";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
@@ -199,6 +199,7 @@ export class ExecutionEngine {
         state: "SIGNAL_CREATED",
         protectionConfirmed: false,
         trailApplied: false,
+        productType: "INTRADAY",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -293,7 +294,12 @@ export class ExecutionEngine {
                       break;
                   }
 
-                  await TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { protectionConfirmed: true, entryPrice: actualFillPrice, quantity: actualFilledQty });
+                  await TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { 
+                      protectionConfirmed: true, 
+                      entryPrice: actualFillPrice, 
+                      quantity: actualFilledQty,
+                      productType: (parent.productType?.toUpperCase() as any) || trade.productType || "INTRADAY"
+                  });
                   confirmed = true;
                   console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
               }
@@ -365,7 +371,7 @@ export class ExecutionEngine {
           const superOrders = await this.broker.getSuperOrderList();
 
           for (const trade of activeTrades) {
-              const pos = positions.find(p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || ""));
+              const pos = resolveTradePosition(positions, trade);
               const netQty = Number(pos?.netQty || 0);
 
               const parent = superOrders.find(o => o.orderId === trade.superOrderId);
@@ -466,6 +472,7 @@ export class ExecutionEngine {
         await TradeDB.updateState(trade.id, "ENTRY_PENDING", {
           superOrderId: parent.orderId,
           verifyAttempts,
+          productType: (parent.productType?.toUpperCase() as any) || trade.productType || "INTRADAY",
         });
 
         if (verifyAttempts > 5) {
@@ -523,9 +530,7 @@ export class ExecutionEngine {
             }
 
             const positions = await this.broker.getPositions();
-            const position = positions.find(
-                p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "")
-            );
+            const position = resolveTradePosition(positions, trade);
 
             if (Number(position?.netQty ?? 0) !== 0) {
                 continue;
@@ -558,9 +563,7 @@ export class ExecutionEngine {
                 }
 
                 const positions = await this.broker.getPositions();
-                const position = positions.find(
-                    p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "")
-                );
+                const position = resolveTradePosition(positions, trade);
 
                 if (Number(position?.netQty ?? 0) !== 0) {
                     continue;

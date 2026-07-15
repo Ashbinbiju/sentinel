@@ -43,3 +43,28 @@ export function isMarketOpenIST(): boolean {
 
   return true;
 }
+
+export function resolveTradePosition(positions: any[], trade: any): any {
+  // Try to match exact product type first
+  const exactMatch = positions.find(
+      p => p.securityId === trade.securityId && 
+           p.productType?.toUpperCase() === (trade.productType || "INTRADAY")
+  );
+
+  if (exactMatch) return exactMatch;
+
+  // If no exact match (legacy trades without productType), find non-zero matching product types
+  const candidates = positions.filter(
+      p => p.securityId === trade.securityId &&
+           ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "") &&
+           Number(p.netQty) !== 0
+  );
+
+  if (candidates.length === 1) return candidates[0];
+
+  // If still ambiguous or all are 0, return the first one or undefined
+  return positions.find(
+      p => p.securityId === trade.securityId &&
+           ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || "")
+  );
+}

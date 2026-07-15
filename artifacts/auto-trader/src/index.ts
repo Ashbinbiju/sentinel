@@ -3,7 +3,7 @@ import { DhanBroker } from "./dhan";
 import { TradeDB } from "./db";
 import { CandleEngine, Candle } from "./candle-engine";
 import { ExecutionEngine, WatchlistContext } from "./engine";
-import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST } from "./utils";
+import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST, resolveTradePosition } from "./utils";
 import { randomUUID } from "crypto";
 import axios from "axios";
 
@@ -137,7 +137,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               exitAttempts++;
               
               const refreshedPositions = await broker.getPositions();
-              const refreshedPosition = refreshedPositions.find(p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || ""));
+              const refreshedPosition = resolveTradePosition(refreshedPositions, trade);
               
               let netQty = 0;
               if (refreshedPosition && refreshedPosition.netQty) {
@@ -160,7 +160,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
               
               console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, "INTRADAY", exitCorrelationId);
+              const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, trade.productType || "INTRADAY", exitCorrelationId);
               
               let retries = 0;
               let orderTerminal = false;
@@ -206,7 +206,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
               }
 
               const finalPositions = await broker.getPositions();
-              const finalPosition = finalPositions.find(p => p.securityId === trade.securityId && ["INTRADAY", "BO"].includes(p.productType?.toUpperCase() || ""));
+              const finalPosition = resolveTradePosition(finalPositions, trade);
               
               positionFlat = Number(finalPosition?.netQty ?? 0) === 0;
               

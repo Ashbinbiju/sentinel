@@ -292,7 +292,7 @@ export class DhanBroker extends EventEmitter {
         correlationId: input.correlationId,
         transactionType: input.side,
         exchangeSegment: "NSE_EQ",
-        productType: "BO",
+        productType: "INTRADAY",
         orderType: "MARKET",
         securityId: input.securityId,
         quantity: Math.floor(input.quantity),
@@ -416,7 +416,7 @@ export class DhanBroker extends EventEmitter {
     securityId: string,
     quantity: number,
     side: "BUY" | "SELL" = "BUY",
-    productType: "INTRADAY" | "CNC" = "INTRADAY",
+    productType: "INTRADAY" | "CNC" | "BO" = "INTRADAY",
     correlationId?: string
   ): Promise<string> {
     console.log(`[BROKER] Placing MARKET exit ${side} for secId: ${securityId} | Qty: ${quantity}`);

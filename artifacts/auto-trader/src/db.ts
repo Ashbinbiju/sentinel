@@ -44,6 +44,7 @@ export interface ActiveTrade {
   updatedAt: string;
   closedAt?: string;
   verifyAttempts?: number;
+  productType?: "INTRADAY" | "BO";
   
   // Legacy fields
   entry_price?: number;
