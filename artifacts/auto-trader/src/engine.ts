@@ -6,7 +6,7 @@ import { getISTDateStr, resolveTradePosition } from "./utils";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
-const SL_BUFFER_PCT = 0.003;
+const SL_BUFFER_PCT = 0.005;
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const NSE_TICK_SIZE = 0.05;

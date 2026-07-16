@@ -3,7 +3,7 @@ import { writeFileSync } from "fs";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
-const SL_BUFFER_PCT = 0.003;
+const SL_BUFFER_PCT = 0.005; // Increased for breathing space
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const SLIPPAGE_PCT = 0.0005;
@@ -71,7 +71,7 @@ async function runBacktest() {
           const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
           testCases = uniqueLosers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
               symbol: s.symbol,
-              date: "2026-07-15"
+              date: "2026-07-16"
           }));
         }
     } catch (e: any) {
