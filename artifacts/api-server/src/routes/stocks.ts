@@ -1448,17 +1448,25 @@ export async function fetchCandles(symbol: string, isSwing: boolean = false): Pr
     if (upstoxCandles) return upstoxCandles;
 
     console.warn(`[DATA] ${symbol}: Upstox candle fetch failed, falling back to AngelOne (Swing).`);
-    const angelCandles = await fetchAngelCandles(symbol);
-    if (angelCandles) {
-      console.log(`[DATA] ${symbol}: using AngelOne fallback candles.`);
-      return angelCandles;
+    try {
+      const angelCandles = await fetchAngelCandles(symbol);
+      if (angelCandles) {
+        console.log(`[DATA] ${symbol}: using AngelOne fallback candles.`);
+        return angelCandles;
+      }
+    } catch (err: any) {
+      console.warn(`[DATA] ${symbol}: AngelOne (Swing) fetch threw an error: ${err.message}`);
     }
 
     console.warn(`[DATA] ${symbol}: AngelOne candle fetch failed, falling back to Moneycontrol (Swing).`);
-    const mcCandles = await fetchMoneycontrolCandles(symbol);
-    if (mcCandles) {
-      console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
-      return mcCandles;
+    try {
+      const mcCandles = await fetchMoneycontrolCandles(symbol);
+      if (mcCandles) {
+        console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
+        return mcCandles;
+      }
+    } catch (err: any) {
+      console.warn(`[DATA] ${symbol}: Moneycontrol (Swing) fetch threw an error: ${err.message}`);
     }
     throw new Error(`[DATA] ${symbol}: All Swing candle sources failed.`);
   } else {
@@ -1470,17 +1478,25 @@ export async function fetchCandles(symbol: string, isSwing: boolean = false): Pr
     if (upstoxCandles) return upstoxCandles;
 
     console.warn(`[DATA] ${symbol}: Upstox candle fetch failed, falling back to AngelOne (fallback).`);
-    const angelCandles = await fetchAngelCandles(symbol);
-    if (angelCandles) {
-      console.log(`[DATA] ${symbol}: using AngelOne fallback candles.`);
-      return angelCandles;
+    try {
+      const angelCandles = await fetchAngelCandles(symbol);
+      if (angelCandles) {
+        console.log(`[DATA] ${symbol}: using AngelOne fallback candles.`);
+        return angelCandles;
+      }
+    } catch (err: any) {
+      console.warn(`[DATA] ${symbol}: AngelOne (fallback) fetch threw an error: ${err.message}`);
     }
 
     console.warn(`[DATA] ${symbol}: AngelOne candle fetch failed, falling back to Moneycontrol (fallback).`);
-    const mcCandles = await fetchMoneycontrolCandles(symbol);
-    if (mcCandles) {
-      console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
-      return mcCandles;
+    try {
+      const mcCandles = await fetchMoneycontrolCandles(symbol);
+      if (mcCandles) {
+        console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
+        return mcCandles;
+      }
+    } catch (err: any) {
+      console.warn(`[DATA] ${symbol}: Moneycontrol (fallback) fetch threw an error: ${err.message}`);
     }
     throw new Error(`[DATA] ${symbol}: All Intraday candle sources failed.`);
   }
