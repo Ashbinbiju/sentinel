@@ -3,7 +3,7 @@ import { writeFileSync } from "fs";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
-const SL_BUFFER_PCT = 0.005; // Increased for breathing space
+const SL_BUFFER_PCT = 0.008; // Increased for breathing space
 const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const SLIPPAGE_PCT = 0.0005;
