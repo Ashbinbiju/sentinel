@@ -11,7 +11,7 @@ const CHARGES_PCT_TURNOVER = 0.0005;
 const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
 const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
 
-let testCases: { symbol: string; date: string }[] = [];
+let testCases: { symbol: string; date: string; category: string }[] = [];
 
 function getISTDateStr(epochSecs: number): string {
   const d = new Date(epochSecs * 1000);
@@ -61,18 +61,26 @@ async function fetchCandlesWithRetry(sym: string, targetDate: string, retries = 
 }
 
 async function runBacktest() {
-    console.log("Fetching top losers from intradayscreener...");
+    console.log("Fetching top 20 gainers and 20 losers from intradayscreener...");
     try {
         const url = "https://intradayscreener.com/api/trackStocks/cash";
         const res = await fetch(url, { headers: { Accept: "application/json" } });
         const data = await res.json() as any;
-        if (data && Array.isArray(data.intradayLosers)) {
-          const losers = data.intradayLosers.slice(0, 25);
-          const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
-          testCases = uniqueLosers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
-              symbol: s.symbol,
-              date: "2026-07-16"
-          }));
+        if (data) {
+            const gainers = Array.isArray(data.intradayGainers) ? Array.from(new Map(data.intradayGainers.slice(0, 30).map((s: any) => [s.symbol?.trim(), s])).values()).slice(0, 20) : [];
+            const losers = Array.isArray(data.intradayLosers) ? Array.from(new Map(data.intradayLosers.slice(0, 30).map((s: any) => [s.symbol?.trim(), s])).values()).slice(0, 20) : [];
+            
+            const gainerCases = gainers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
+                symbol: s.symbol,
+                date: "2026-07-16",
+                category: "GAINER"
+            }));
+            const loserCases = losers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
+                symbol: s.symbol,
+                date: "2026-07-16",
+                category: "LOSER"
+            }));
+            testCases = [...gainerCases, ...loserCases];
         }
     } catch (e: any) {
         console.error("Failed to fetch dynamic watchlist:", e.message);
@@ -85,8 +93,8 @@ async function runBacktest() {
 
     const results = [];
 
-    for (const { symbol: sym, date: TARGET_DATE } of testCases) {
-        console.log(`Fetching candles for ${sym} (${TARGET_DATE})...`);
+    for (const { symbol: sym, date: TARGET_DATE, category } of testCases) {
+        console.log(`Fetching candles for ${sym} (${category}) for ${TARGET_DATE}...`);
         
         await delay(1500);
         
@@ -183,9 +191,12 @@ async function runBacktest() {
                 sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
             }
 
-            if (direction === "LONG") {
+            if (direction === "LONG" && category === "LOSER") {
                 direction = null;
                 skippedReason = "Longs disabled (Intraday Loser filter)";
+            } else if (direction === "SHORT" && category === "GAINER") {
+                direction = null;
+                skippedReason = "Shorts disabled (Intraday Gainer filter)";
             }
 
             // Filter removed

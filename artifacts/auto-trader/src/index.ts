@@ -41,11 +41,13 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
     const url = "https://intradayscreener.com/api/trackStocks/cash";
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
 
-    if (res.data && Array.isArray(res.data.intradayLosers)) {
-      const losers = res.data.intradayLosers.slice(0, 25);
-      const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+    if (res.data) {
+      const gainers = Array.isArray(res.data.intradayGainers) ? res.data.intradayGainers.slice(0, 25).map((s: any) => ({ ...s, category: "GAINER" })) : [];
+      const losers = Array.isArray(res.data.intradayLosers) ? res.data.intradayLosers.slice(0, 25).map((s: any) => ({ ...s, category: "LOSER" })) : [];
+      const combined = [...gainers, ...losers];
+      const uniqueStocks = Array.from(new Map(combined.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
 
-      for (const s of uniqueLosers) {
+      for (const s of uniqueStocks) {
         const symbol = s.symbol?.trim();
         const ltp = s.ltp;
         const changePct = s.priceChangePct;
@@ -78,7 +80,7 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
                   const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
                   const prevLow = Math.min(...lastDayCandles.map(c => c.l));
 
-                  list.push({ symbol, securityId, prevHigh, prevLow });
+                  list.push({ symbol, securityId, prevHigh, prevLow, category: s.category });
                 }
               }
             } catch (err: any) {

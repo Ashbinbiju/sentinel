@@ -16,6 +16,7 @@ export interface WatchlistContext {
   securityId: string;
   prevHigh: number;
   prevLow: number;
+  category: "GAINER" | "LOSER";
 }
 
 export class ExecutionEngine {
@@ -141,9 +142,12 @@ export class ExecutionEngine {
             sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
         }
 
-        if (direction === "BUY") {
+        if (direction === "LONG" && ctx.category === "LOSER") {
             direction = null;
             // console.log(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol} (Longs disabled for Intraday Loser filter)`);
+        } else if (direction === "SHORT" && ctx.category === "GAINER") {
+            direction = null;
+            // console.log(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol} (Shorts disabled for Intraday Gainer filter)`);
         }
 
         if (direction) entryPrice = c.c;
