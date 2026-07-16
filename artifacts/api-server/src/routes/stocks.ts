@@ -1488,16 +1488,6 @@ export async function fetchCandles(symbol: string, isSwing: boolean = false): Pr
       console.warn(`[DATA] ${symbol}: AngelOne (fallback) fetch threw an error: ${err.message}`);
     }
 
-    console.warn(`[DATA] ${symbol}: AngelOne candle fetch failed, falling back to Moneycontrol (fallback).`);
-    try {
-      const mcCandles = await fetchMoneycontrolCandles(symbol);
-      if (mcCandles) {
-        console.log(`[DATA] ${symbol}: using Moneycontrol fallback candles.`);
-        return mcCandles;
-      }
-    } catch (err: any) {
-      console.warn(`[DATA] ${symbol}: Moneycontrol (fallback) fetch threw an error: ${err.message}`);
-    }
     throw new Error(`[DATA] ${symbol}: All Intraday candle sources failed.`);
   }
 }
