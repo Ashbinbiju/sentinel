@@ -13,6 +13,7 @@ import { TOTP } from "totp-generator";
 import * as fs from "fs";
 import * as path from "path";
 
+// @ts-ignore
 import { SmartAPI } from "smartapi-javascript";
 
 const router = Router();
@@ -1032,7 +1033,7 @@ async function getAngelSmartApi(): Promise<any> {
   return angelLoginPromise;
 }
 
-async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
+export async function fetchAngelCandles(symbol: string): Promise<CandleData | null> {
   if (process.env.ANGEL_MARKET_DATA_ENABLED === "false") return null;
 
   if (!hasAngelMarketDataCredentials()) {
