@@ -6,6 +6,7 @@ import { ExecutionEngine, WatchlistContext } from "./engine";
 import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST, resolveTradePosition } from "./utils";
 import { randomUUID } from "crypto";
 import axios from "axios";
+import { Notifier } from "./notifier";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
 const LIVE_CANARY = process.env.LIVE_CANARY === "true";
@@ -42,8 +43,8 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
 
     if (res.data) {
-      const gainers = Array.isArray(res.data.intradayGainers) ? res.data.intradayGainers.slice(0, 25).map((s: any) => ({ ...s, category: "GAINER" })) : [];
-      const losers = Array.isArray(res.data.intradayLosers) ? res.data.intradayLosers.slice(0, 25).map((s: any) => ({ ...s, category: "LOSER" })) : [];
+      const gainers = Array.isArray(res.data.intradayGainers) ? res.data.intradayGainers.slice(0, 15).map((s: any) => ({ ...s, category: "GAINER" })) : [];
+      const losers = Array.isArray(res.data.intradayLosers) ? res.data.intradayLosers.slice(0, 15).map((s: any) => ({ ...s, category: "LOSER" })) : [];
       const combined = [...gainers, ...losers];
       const uniqueStocks = Array.from(new Map(combined.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
 
@@ -322,8 +323,8 @@ async function main() {
 
         candleEngine.backfill(item.securityId, candles);
 
-        // Throttle requests to prevent Dhan HTTP 429 Rate Limits
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Throttle requests to prevent Upstox/Cloudflare HTTP 429 Rate Limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (err) {
         console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
         backfillSuccess = false;
@@ -403,7 +404,7 @@ async function main() {
                 }
 
                 candleEngine.backfill(item.securityId, candles);
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => setTimeout(resolve, 1000));
               } catch (err) {
                 console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
                 backfillSuccess = false;
@@ -480,6 +481,14 @@ async function main() {
 
         if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
           console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
+          
+          try {
+            const notifier = new Notifier();
+            await notifier.sendKillSwitch(realizedPnl, closedLosingTrades);
+          } catch (e) {
+            console.error("Failed to send kill switch notification", e);
+          }
+          
           await closeAllOpenTrades(broker);
           await reconcileAfterSquareOff(executionEngine);
           activeTrades = (await TradeDB.getOpenTrades());

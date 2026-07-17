@@ -147,6 +147,9 @@ importers:
 
   artifacts/auto-trader:
     dependencies:
+      '@rmyndharis/openwa':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
@@ -1818,6 +1821,10 @@ packages:
 
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
+
+  '@rmyndharis/openwa@0.1.0':
+    resolution: {integrity: sha512-Ln47BJm6oD9Q7K5jMjrxRXVlUEiEpisKigmic79p3VNKhH8ck9eHz0TTj3nk7iDzd8lewSCRPJnpJGaj+wgQMQ==}
+    engines: {node: '>=18'}
 
   '@rolldown/pluginutils@1.0.0-rc.3':
     resolution: {integrity: sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q==}
@@ -5853,6 +5860,8 @@ snapshots:
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
   '@radix-ui/rect@1.1.1': {}
+
+  '@rmyndharis/openwa@0.1.0': {}
 
   '@rolldown/pluginutils@1.0.0-rc.3': {}
 

@@ -3,6 +3,7 @@ import { Candle } from "./candle-engine";
 import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
 import { randomUUID } from "crypto";
 import { getISTDateStr, resolveTradePosition } from "./utils";
+import { Notifier } from "./notifier";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
@@ -21,10 +22,12 @@ export interface WatchlistContext {
 
 export class ExecutionEngine {
   private broker: DhanBroker;
+  private notifier: Notifier;
   private watchlist: Map<string, WatchlistContext> = new Map();
 
   constructor(broker: DhanBroker) {
     this.broker = broker;
+    this.notifier = new Notifier();
   }
 
   public setWatchlist(list: WatchlistContext[]) {
@@ -318,6 +321,7 @@ export class ExecutionEngine {
                   });
                   confirmed = true;
                   console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
+                  this.notifier.sendTradeEntry(trade.symbol, trade.side, actualFillPrice, trade.targetPrice, trade.stopLossPrice).catch(e => console.error(e));
               }
           } catch (err) {
               console.warn(`[ENGINE] Order book polling failed for ${tradeId}`);
@@ -362,6 +366,7 @@ export class ExecutionEngine {
           trade.trailingJump
         );
         await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+        this.notifier.sendTrailApplied(trade.symbol, trailSLPrice).catch(e => console.error(e));
       } catch (err) {
         console.error(`[ENGINE] Failed to move SL to breakeven for ${trade.symbol}`, err);
         await TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
@@ -422,6 +427,8 @@ export class ExecutionEngine {
                   }
 
                   await TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
+                  const pnl = trade.side === "BUY" ? (Number(exitPrice) - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - Number(exitPrice)) / trade.entryPrice;
+                  this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, Number(exitPrice)).catch(e => console.error(e));
               } else if (
                 pos && (
                   (trade.side === "BUY" && netQty < 0) ||
@@ -556,6 +563,8 @@ export class ExecutionEngine {
             }
 
             await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
+            const pnl = trade.side === "BUY" ? (exitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - exitPrice) / trade.entryPrice;
+            this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, exitPrice).catch(e => console.error(e));
         } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
             await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
         } else {
@@ -589,6 +598,8 @@ export class ExecutionEngine {
                 }
 
                 await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
+                const pnl = trade.side === "BUY" ? (finalExitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - finalExitPrice) / trade.entryPrice;
+                this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, finalExitPrice).catch(e => console.error(e));
             } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(finalOrder?.orderStatus ?? "")) {
                 await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
             }

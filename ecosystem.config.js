@@ -17,6 +17,16 @@ module.exports = {
       env: {
         NODE_ENV: "production",
       }
+    },
+    {
+      name: "openwa",
+      script: "npm",
+      args: "run dev",
+      cwd: "./openwa",
+      kill_timeout: 7000,
+      env: {
+        ENGINE_TYPE: "baileys",
+      }
     }
   ]
 };

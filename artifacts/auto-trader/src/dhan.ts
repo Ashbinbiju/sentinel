@@ -93,6 +93,7 @@ export class DhanBroker extends EventEmitter {
   private totpSecret: string | undefined;
   private ws: WebSocket | null = null;
   private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
+  private pingInterval: NodeJS.Timeout | null = null;
   
   constructor() {
     super();
@@ -494,6 +495,10 @@ export class DhanBroker extends EventEmitter {
     if (this.ws) {
       try {
         console.log("[BROKER] Closing old WebSocket connection...");
+        if (this.pingInterval) {
+          clearInterval(this.pingInterval);
+          this.pingInterval = null;
+        }
         this.ws.close();
       } catch (err: any) {
         console.warn("[BROKER] Error closing old WebSocket instance:", err.message);
@@ -507,6 +512,11 @@ export class DhanBroker extends EventEmitter {
     
     this.ws.on("open", () => {
       console.log("[BROKER] Dhan WebSocket Connected.");
+      this.pingInterval = setInterval(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.ping();
+        }
+      }, 30000);
       this.emit("onReconnect");
     });
     
@@ -516,6 +526,10 @@ export class DhanBroker extends EventEmitter {
     
     this.ws.on("close", () => {
       console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 5s...");
+      if (this.pingInterval) {
+        clearInterval(this.pingInterval);
+        this.pingInterval = null;
+      }
       this.emit("onDisconnect");
       setTimeout(() => this.connectWebSocket(), 5000);
     });
