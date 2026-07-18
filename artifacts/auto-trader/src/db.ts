@@ -1,6 +1,7 @@
 import fs from "fs";
 import { promises as fsPromises } from "fs";
 import path from "path";
+import { fileURLToPath } from "node:url";
 import { db, tradesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -54,7 +55,22 @@ export interface ActiveTrade {
   status?: "OPEN" | "CLOSED";
 }
 
-const dbPath = path.resolve(__dirname, "../../trades.json");
+const _currentFile = fileURLToPath(import.meta.url);
+const _currentDir = path.dirname(_currentFile);
+const dbPath = process.env.TRADE_STATE_PATH ?? path.resolve(_currentDir, "../data/trades.json");
+
+// Verify the state directory is writable at startup
+(function verifyStateDir() {
+  const dir = path.dirname(dbPath);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.accessSync(dir, fs.constants.W_OK);
+    console.log(`[DB] Trade state path: ${dbPath}`);
+  } catch (err: any) {
+    console.error(`[FATAL] Trade state directory is not writable: ${dir}`, err.message);
+    process.exit(1);
+  }
+})();
 
 function fatalPersistenceError(error: unknown, msg: string): never {
   console.error(`[FATAL] ${msg}`, error);

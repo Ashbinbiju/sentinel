@@ -1,9 +1,12 @@
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'node:url';
 
 const SCRIP_MASTER_URL = 'https://images.dhan.co/api-data/api-scrip-master.csv';
-const CACHE_FILE = path.join(__dirname, '../../.dhan_scrip_cache.json');
+const _scripFile = fileURLToPath(import.meta.url);
+const _scripDir = path.dirname(_scripFile);
+const CACHE_FILE = process.env.SCRIP_CACHE_PATH ?? path.join(_scripDir, '../data/.dhan_scrip_cache.json');
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // In-memory maps
