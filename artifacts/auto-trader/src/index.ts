@@ -58,7 +58,10 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
           if (securityId) {
             const cached = existingWatchlist?.find(w => w.symbol === symbol);
             if (cached) {
-              list.push(cached);
+              list.push({
+                ...cached,
+                category: s.category
+              });
               continue;
             }
 
