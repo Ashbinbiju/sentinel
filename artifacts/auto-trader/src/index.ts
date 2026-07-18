@@ -465,17 +465,16 @@ async function main() {
           }
         }
 
-        const allExited = (await TradeDB.getAllExitedTrades());
-        allExited.sort((a, b) => new Date(a.closedAt || a.updatedAt).getTime() - new Date(b.closedAt || b.updatedAt).getTime());
+        const exitedToday = todayTrades
+          .filter(t => t.state === "EXITED" && t.realizedPnl !== undefined)
+          .sort((a, b) => new Date(a.closedAt || a.updatedAt).getTime() - new Date(b.closedAt || b.updatedAt).getTime());
 
         let closedLosingTrades = 0;
-        for (const t of allExited) {
-          if (t.realizedPnl !== undefined) {
-            if (t.realizedPnl < 0) {
-              closedLosingTrades++;
-            } else if (t.realizedPnl > 0) {
-              closedLosingTrades = 0;
-            }
+        for (const t of exitedToday) {
+          if (t.realizedPnl! < 0) {
+            closedLosingTrades++;
+          } else if (t.realizedPnl! > 0) {
+            closedLosingTrades = 0;
           }
         }
 
