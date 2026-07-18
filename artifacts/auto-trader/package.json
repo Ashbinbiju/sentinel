@@ -9,7 +9,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@rmyndharis/openwa": "^0.1.0",
     "@workspace/db": "workspace:*",
     "axios": "^1.16.0",
     "dotenv": "^17.4.2",
