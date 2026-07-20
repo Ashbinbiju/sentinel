@@ -207,6 +207,7 @@ async function runBacktest() {
                 const hrMins = Math.floor(mins / 60).toString().padStart(2, '0') + ":" + (mins % 60).toString().padStart(2, '0');
                 const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
                 const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+                const initialSl = sl;
                 
                 const entryIndex = targetDayCandles.indexOf(c);
                 const remainingCandles = targetDayCandles.slice(entryIndex + 1);
@@ -254,7 +255,7 @@ async function runBacktest() {
                     Setup: setup,
                     Direction: direction,
                     Entry: entryPrice.toFixed(2),
-                    StopLoss: sl.toFixed(2),
+                    StopLoss: initialSl.toFixed(2) + (sl !== initialSl ? ` (Trailed: ${sl.toFixed(2)})` : ""),
                     Target: target.toFixed(2),
                     Status: exitStatus,
                     HitTime: hitTime,
@@ -319,7 +320,7 @@ async function runBacktest() {
             if (r.Direction === "LONG") pnl = (exitPrice - entryPrice) * qty;
             else if (r.Direction === "SHORT") pnl = (entryPrice - exitPrice) * qty;
             
-            if (pnl !== 0 || r.Status === "🛡️ BREAKEVEN HIT") {
+            if (pnl !== 0 || r.Status === "🛡️ BREAKEVEN HIT" || r.Status === "OPEN (End of Day)") {
                 const entryVal = entryPrice * qty;
                 const exitVal = exitPrice * qty;
                 const turnover = entryVal + exitVal;
