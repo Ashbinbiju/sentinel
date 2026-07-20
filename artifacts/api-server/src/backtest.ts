@@ -72,12 +72,12 @@ async function runBacktest() {
             
             const gainerCases = gainers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
                 symbol: s.symbol,
-                date: "2026-07-16",
+                date: "2026-07-20",
                 category: "GAINER"
             }));
             const loserCases = losers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
                 symbol: s.symbol,
-                date: "2026-07-16",
+                date: "2026-07-20",
                 category: "LOSER"
             }));
             testCases = [...gainerCases, ...loserCases];
@@ -244,6 +244,7 @@ async function runBacktest() {
                     }
                 }
 
+                const eodPrice = targetDayCandles[targetDayCandles.length - 1].c;
                 results.push({
                     Symbol: sym,
                     Date: TARGET_DATE,
@@ -256,7 +257,8 @@ async function runBacktest() {
                     StopLoss: sl.toFixed(2),
                     Target: target.toFixed(2),
                     Status: exitStatus,
-                    HitTime: hitTime
+                    HitTime: hitTime,
+                    EODPrice: eodPrice.toFixed(2)
                 });
                 tradeTaken = true;
                 break;
@@ -311,10 +313,12 @@ async function runBacktest() {
             let exitPrice = entryPrice;
             if (r.Status === "✅ TARGET HIT") exitPrice = parseFloat(r.Target);
             else if (r.Status === "❌ STOP LOSS HIT" || r.Status === "🛡️ BREAKEVEN HIT") exitPrice = parseFloat(r.StopLoss);
+            else if (r.Status === "OPEN (End of Day)" && r.EODPrice) exitPrice = parseFloat(r.EODPrice); // Force exit at EOD price
             
             let pnl = 0;
             if (r.Direction === "LONG") pnl = (exitPrice - entryPrice) * qty;
             else if (r.Direction === "SHORT") pnl = (entryPrice - exitPrice) * qty;
+            
             if (pnl !== 0 || r.Status === "🛡️ BREAKEVEN HIT") {
                 const entryVal = entryPrice * qty;
                 const exitVal = exitPrice * qty;

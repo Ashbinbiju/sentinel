@@ -289,14 +289,13 @@ async function main() {
     }
 
     // Recover from gap
-    let backfillSuccess = true;
+    const successfulSymbols: string[] = [];
     for (const item of watchlist) {
       try {
         const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
         const candles = histRes.data?.sessionCandles;
 
         if (!Array.isArray(candles) || candles.length === 0) {
-          backfillSuccess = false;
           console.error(`[BOT] Missing session candles for ${item.symbol}`);
           continue;
         }
@@ -307,8 +306,6 @@ async function main() {
         const expectedLastClosed5m = currentSlot5m - 300;
 
         if (Number(lastCandle.t) !== expectedLastClosed5m) {
-          // Changed to WARNING instead of failing backfill completely, 
-          // to allow testing on weekends/after-market hours.
           console.warn(`[BOT] Stale backfill for ${item.symbol}. Last candle is ${lastCandle.t}, expected ${expectedLastClosed5m}`);
         }
 
@@ -319,27 +316,26 @@ async function main() {
         );
 
         if (hasGap) {
-          backfillSuccess = false;
           console.error(`[BOT] Missing internal gaps in backfill for ${item.symbol}. Continuity compromised.`);
           continue;
         }
 
         candleEngine.backfill(item.securityId, candles);
+        successfulSymbols.push(item.securityId);
 
         // Throttle requests to prevent Upstox/Cloudflare HTTP 429 Rate Limits
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (err) {
         console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
-        backfillSuccess = false;
       }
     }
 
-    if (backfillSuccess) {
+    if (successfulSymbols.length > 0) {
       candleEngine.isContinuityValid = true;
-      console.log(`[BOT] CandleEngine Continuity Validated. Ready for live trading.`);
-      broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+      console.log(`[BOT] CandleEngine Continuity Validated for ${successfulSymbols.length} stocks. Ready for live trading.`);
+      broker.subscribeToSecurityIds(successfulSymbols);
     } else {
-      console.warn(`[BOT] Backfill failed. Skipping continuity validation. Retrying in 60s.`);
+      console.warn(`[BOT] Backfill failed for all stocks. Skipping continuity validation. Retrying in 60s.`);
     }
   };
 
@@ -393,7 +389,7 @@ async function main() {
 
           if (addedSymbols.length > 0) {
             console.log(`[BOT] Found ${addedSymbols.length} new symbols entering watchlist. Smart backfilling...`);
-            let backfillSuccess = true;
+            const successfulNewSymbols: string[] = [];
 
             for (const item of addedSymbols) {
               try {
@@ -402,21 +398,20 @@ async function main() {
 
                 if (!candles || candles.length === 0) {
                   console.warn(`[BOT] No candles returned for ${item.symbol}. Continuity compromised.`);
-                  backfillSuccess = false;
                   continue;
                 }
 
                 candleEngine.backfill(item.securityId, candles);
+                successfulNewSymbols.push(item.securityId);
                 await new Promise(resolve => setTimeout(resolve, 1000));
               } catch (err) {
                 console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
-                backfillSuccess = false;
               }
             }
 
-            if (backfillSuccess) {
-              console.log(`[BOT] Smart backfill complete. Subscribing to new symbols...`);
-              broker.subscribeToSecurityIds(addedSymbols.map(w => w.securityId));
+            if (successfulNewSymbols.length > 0) {
+              console.log(`[BOT] Smart backfill complete. Subscribing to ${successfulNewSymbols.length} new symbols...`);
+              broker.subscribeToSecurityIds(successfulNewSymbols);
             }
           }
 

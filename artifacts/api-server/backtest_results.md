@@ -4,42 +4,42 @@ Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward
 
 | Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (50k) | Exit Time |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| GRINDWELL | 2026-07-16 | - | 2079.70 | 2002.50 | - | - | - | - | - | **No prime time entry** | - | - |
-| ABB | 2026-07-16 | - | 7270.00 | 6926.50 | - | - | - | - | - | **No prime time entry** | - | - |
-| CHENNPETRO | 2026-07-16 | - | 1177.80 | 1099.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| MRPL | 2026-07-16 | - | 162.30 | 156.15 | - | - | - | - | - | **No prime time entry** | - | - |
-| INGERRAND | 2026-07-16 | - | 4443.90 | 4360.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| UPL | 2026-07-16 | 10:15 | 608.00 | 584.05 | HIGH BREAKOUT | LONG | 608.70 | 607.68 | 622.26 | **✅ TARGET HIT** | +₹1010.98 | 12:45 |
-| JINDALSAW | 2026-07-16 | 14:10 | 257.50 | 249.10 | HIGH BREAKOUT | LONG | 258.30 | 254.93 | 265.05 | **✅ TARGET HIT** | +₹1201.74 | 14:15 |
-| IEX | 2026-07-16 | - | 120.70 | 117.50 | - | - | - | - | - | **No prime time entry** | - | - |
-| HSCL | 2026-07-16 | - | 684.50 | 674.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| GRAPHITE | 2026-07-16 | 11:00 | 633.60 | 620.40 | LOW SUPPORT | LONG | 621.55 | 620.31 | 638.10 | **✅ TARGET HIT** | +₹1223.23 | 13:25 |
-| MASTEK | 2026-07-16 | 10:15 | 1718.00 | 1677.90 | SKIPPED | - | 1743.60 | - | - | **Anti-Chasing / Touch Filter** | ₹0.00 | - |
-| ZYDUSWELL | 2026-07-16 | 10:20 | 587.00 | 573.25 | SKIPPED | - | 586.00 | - | - | **Shorts disabled (Intraday Gainer filter)** | ₹0.00 | - |
-| RRKABEL | 2026-07-16 | 11:45 | 2382.80 | 2284.00 | SKIPPED | - | 2375.20 | - | - | **Shorts disabled (Intraday Gainer filter)** | ₹0.00 | - |
-| SRF | 2026-07-16 | - | 2819.00 | 2738.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| IIFL | 2026-07-16 | - | 546.95 | 537.60 | - | - | - | - | - | **No prime time entry** | - | - |
-| ZEEL | 2026-07-16 | - | 103.85 | 101.06 | - | - | - | - | - | **No prime time entry** | - | - |
-| JSWDULUX | 2026-07-16 | 10:30 | 2968.90 | 2886.10 | SKIPPED | - | 2967.10 | - | - | **Shorts disabled (Intraday Gainer filter)** | ₹0.00 | - |
-| TANLA | 2026-07-16 | 10:55 | 572.60 | 542.50 | HIGH BREAKOUT | LONG | 573.80 | 572.76 | 587.65 | **✅ TARGET HIT** | +₹1103.90 | 11:50 |
-| AVANTIFEED | 2026-07-16 | - | 998.80 | 939.70 | - | - | - | - | - | **No prime time entry** | - | - |
-| SWSOLAR | 2026-07-16 | 10:55 | 244.22 | 238.42 | LOW BREAKDOWN | SHORT | 238.35 | 240.80 | 233.44 | **✅ TARGET HIT** | +₹927.59 | 13:05 |
-| FINOPB | 2026-07-16 | - | 185.50 | 168.30 | - | - | - | - | - | **No prime time entry** | - | - |
-| SIGNATURE | 2026-07-16 | - | 898.00 | 825.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| GROWW | 2026-07-16 | - | 219.62 | 201.67 | - | - | - | - | - | **No prime time entry** | - | - |
-| ITCHOTELS | 2026-07-16 | 10:25 | 184.40 | 182.01 | SKIPPED | - | 184.64 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
-| GVPIL | 2026-07-16 | 10:25 | 829.60 | 805.00 | SKIPPED | - | 831.00 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
-| NUVOCO | 2026-07-16 | - | 398.00 | 348.85 | - | - | - | - | - | **No prime time entry** | - | - |
-| AEGISVOPAK | 2026-07-16 | - | 289.90 | 279.14 | - | - | - | - | - | **No prime time entry** | - | - |
-| NAM-INDIA | 2026-07-16 | - | 1214.80 | 1188.90 | - | - | - | - | - | **No prime time entry** | - | - |
-| ICICIGI | 2026-07-16 | - | 1821.90 | 1790.90 | - | - | - | - | - | **No prime time entry** | - | - |
-| HDFCAMC | 2026-07-16 | - | 2767.30 | 2673.70 | - | - | - | - | - | **No prime time entry** | - | - |
-| ATHERENERG | 2026-07-16 | - | 1318.90 | 1225.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| NUVAMA | 2026-07-16 | - | 1955.00 | 1910.20 | - | - | - | - | - | **No prime time entry** | - | - |
-| ETERNAL | 2026-07-16 | - | 296.45 | 283.05 | - | - | - | - | - | **No prime time entry** | - | - |
-| ICICIPRULI | 2026-07-16 | - | 531.95 | 502.60 | - | - | - | - | - | **No prime time entry** | - | - |
-| ELECON | 2026-07-16 | 10:20 | 491.35 | 473.10 | LOW BREAKDOWN | SHORT | 472.40 | 473.21 | 461.54 | **✅ TARGET HIT** | +₹1042.24 | 13:20 |
-| JBCHEPHARM | 2026-07-16 | 12:55 | 2510.00 | 2441.30 | LOW BREAKDOWN | SHORT | 2440.40 | 2444.20 | 2389.77 | **✅ TARGET HIT** | +₹916.00 | 15:05 |
-| SWARAJENG | 2026-07-16 | - | 3815.60 | 3729.00 | - | - | - | - | - | **No prime time entry** | - | - |
-| POLICYBZR | 2026-07-16 | 11:50 | 1620.90 | 1571.60 | LOW BREAKDOWN | SHORT | 1569.90 | 1587.32 | 1535.07 | **OPEN (End of Day)** | ₹0.00 | - |
-| MASFIN | 2026-07-16 | 11:10 | 325.00 | 318.55 | LOW BREAKDOWN | SHORT | 317.80 | 321.74 | 309.93 | **OPEN (End of Day)** | ₹0.00 | - |
+| THYROCARE | 2026-07-20 | - | 531.15 | 514.10 | - | - | - | - | - | **No prime time entry** | - | - |
+| METROPOLIS | 2026-07-20 | - | 583.35 | 540.05 | - | - | - | - | - | **No prime time entry** | - | - |
+| IOLCP | 2026-07-20 | - | 164.70 | 146.63 | - | - | - | - | - | **No prime time entry** | - | - |
+| VMART | 2026-07-20 | 10:20 | 753.95 | 733.80 | HIGH BREAKOUT | LONG | 754.35 | 746.41 | 770.23 | **✅ TARGET HIT** | +₹947.46 | 13:05 |
+| SCHNEIDER | 2026-07-20 | 11:45 | 1335.30 | 1271.00 | HIGH BREAKOUT | LONG | 1342.30 | 1320.00 | 1386.90 | **OPEN (End of Day)** | ₹-298.93 | - |
+| TORNTPHARM | 2026-07-20 | 12:25 | 4932.90 | 4695.10 | HIGH BREAKOUT | LONG | 4935.90 | 4928.05 | 5040.56 | **OPEN (End of Day)** | +₹341.84 | - |
+| JSWENERGY | 2026-07-20 | - | 547.40 | 539.20 | - | - | - | - | - | **No prime time entry** | - | - |
+| GVPIL | 2026-07-20 | 14:30 | 829.90 | 782.25 | HIGH BREAKOUT | LONG | 832.55 | 821.60 | 854.45 | **OPEN (End of Day)** | ₹0.00 | - |
+| UNIONBANK | 2026-07-20 | - | 169.42 | 166.25 | - | - | - | - | - | **No prime time entry** | - | - |
+| NAVINFLUOR | 2026-07-20 | 10:35 | 7741.00 | 7502.00 | HIGH BREAKOUT | LONG | 7750.00 | 7737.04 | 7922.82 | **OPEN (End of Day)** | +₹686.22 | - |
+| VENKEYS | 2026-07-20 | 14:00 | 1484.00 | 1440.00 | SKIPPED | - | 1481.10 | - | - | **Shorts disabled (Intraday Gainer filter)** | ₹0.00 | - |
+| EMCURE | 2026-07-20 | 10:35 | 1814.00 | 1751.00 | HIGH BREAKOUT | LONG | 1825.90 | 1795.86 | 1885.98 | **OPEN (End of Day)** | +₹875.13 | - |
+| GABRIEL | 2026-07-20 | - | 1362.50 | 1322.80 | - | - | - | - | - | **No prime time entry** | - | - |
+| SAREGAMA | 2026-07-20 | - | 497.60 | 482.95 | - | - | - | - | - | **No prime time entry** | - | - |
+| MANYAVAR | 2026-07-20 | 10:25 | 402.45 | 391.25 | SKIPPED | - | 401.15 | - | - | **Shorts disabled (Intraday Gainer filter)** | ₹0.00 | - |
+| HERITGFOOD | 2026-07-20 | - | 338.00 | 319.10 | - | - | - | - | - | **No prime time entry** | - | - |
+| EPIGRAL | 2026-07-20 | 10:25 | 1069.90 | 1036.20 | SKIPPED | - | 1057.70 | - | - | **Shorts disabled (Intraday Gainer filter)** | ₹0.00 | - |
+| WABAG | 2026-07-20 | - | 2056.00 | 1966.30 | - | - | - | - | - | **No prime time entry** | - | - |
+| FLUOROCHEM | 2026-07-20 | - | 4169.90 | 4043.20 | - | - | - | - | - | **No prime time entry** | - | - |
+| HSCL | 2026-07-20 | - | 744.50 | 706.55 | - | - | - | - | - | **No prime time entry** | - | - |
+| RESPONIND | 2026-07-20 | - | 227.40 | 188.94 | - | - | - | - | - | **No prime time entry** | - | - |
+| MAPMYINDIA | 2026-07-20 | - | 1192.00 | 1160.50 | - | - | - | - | - | **No prime time entry** | - | - |
+| FINOPB | 2026-07-20 | - | 180.75 | 159.02 | - | - | - | - | - | **No prime time entry** | - | - |
+| CEATLTD | 2026-07-20 | 12:00 | 3654.30 | 3471.10 | SKIPPED | - | 3480.00 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| POONAWALLA | 2026-07-20 | 10:45 | 482.00 | 466.85 | LOW BREAKDOWN | SHORT | 464.15 | 471.52 | 449.41 | **OPEN (End of Day)** | ₹-356.38 | - |
+| CANFINHOME | 2026-07-20 | - | 910.85 | 885.05 | - | - | - | - | - | **No prime time entry** | - | - |
+| AUBANK | 2026-07-20 | - | 1037.00 | 1018.30 | - | - | - | - | - | **No prime time entry** | - | - |
+| KOLTEPATIL | 2026-07-20 | 10:20 | 393.90 | 380.05 | SKIPPED | - | 381.00 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| GUJENERGY | 2026-07-20 | - | 290.30 | 278.00 | - | - | - | - | - | **No prime time entry** | - | - |
+| DBREALTY | 2026-07-20 | - | 120.95 | 111.81 | - | - | - | - | - | **No prime time entry** | - | - |
+| KARURVYSYA | 2026-07-20 | 10:15 | 311.00 | 301.60 | HIGH REJECTION | SHORT | 310.10 | 310.77 | 301.14 | **✅ TARGET HIT** | +₹1344.15 | 14:40 |
+| IPCALAB | 2026-07-20 | 13:40 | 1944.90 | 1846.80 | SKIPPED | - | 1850.00 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| CAMPUS | 2026-07-20 | - | 259.70 | 225.50 | - | - | - | - | - | **No prime time entry** | - | - |
+| TEAMLEASE | 2026-07-20 | 12:00 | 1435.00 | 1387.70 | SKIPPED | - | 1438.00 | - | - | **Longs disabled (Intraday Loser filter)** | ₹0.00 | - |
+| SPANDANA | 2026-07-20 | - | 302.30 | 293.00 | - | - | - | - | - | **No prime time entry** | - | - |
+| SPARC | 2026-07-20 | 12:35 | 250.49 | 228.15 | LOW BREAKDOWN | SHORT | 227.80 | 230.43 | 222.54 | **OPEN (End of Day)** | ₹-143.62 | - |
+| SWSOLAR | 2026-07-20 | 10:35 | 232.00 | 216.26 | SKIPPED | - | 213.79 | - | - | **Anti-Chasing / Touch Filter** | ₹0.00 | - |
+| KPRMILL | 2026-07-20 | - | 1174.00 | 1116.00 | - | - | - | - | - | **No prime time entry** | - | - |
+| ITCHOTELS | 2026-07-20 | 10:40 | 177.65 | 168.74 | LOW BREAKDOWN | SHORT | 168.60 | 168.87 | 164.95 | **OPEN (End of Day)** | +₹392.04 | - |

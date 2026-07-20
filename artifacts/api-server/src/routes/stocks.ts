@@ -5675,126 +5675,125 @@ router.get("/momentum-picks", async (req, res) => {
     const TOUCH_BUFFER_PCT = 0.0015;
     const MAX_CHASE_PCT = 0.008;
 
-    let volumeShockers: any[] = [];
+    let momentumStocks: any[] = [];
     try {
       const isUrl = "https://intradayscreener.com/api/trackStocks/cash";
       const isRes = await fetch(isUrl, { headers: { Accept: "application/json" } });
       if (isRes.ok) {
         const data = await isRes.json() as any;
-        if (data && Array.isArray(data.intradayLosers)) {
-            const losers = data.intradayLosers.slice(0, 25);
-            const uniqueLosers = Array.from(new Map(losers.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
-            volumeShockers = uniqueLosers.map((s: any) => ({
-                symbol: s.symbol?.trim(),
-                ltp: s.ltp,
-                changePct: s.priceChangePct
-            })).filter(s => s.symbol && s.ltp > 100);
-        }
+        const gainers = Array.isArray(data?.intradayGainers) ? data.intradayGainers.slice(0, 15) : [];
+        const losers = Array.isArray(data?.intradayLosers) ? data.intradayLosers.slice(0, 15) : [];
+        const combined = [...gainers, ...losers];
+
+        const uniqueStocks = Array.from(new Map(combined.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+        momentumStocks = uniqueStocks.map((s: any) => ({
+            symbol: s.symbol?.trim(),
+            ltp: s.ltp,
+            changePct: s.priceChangePct
+        })).filter(s => s.symbol && s.ltp > 100);
       } else {
         req.log.warn(`IntradayScreener API responded with ${isRes.status}`);
       }
     } catch (err: any) {
-      req.log.error({ err }, "Failed to fetch IntradayScreener Losers");
+      req.log.error({ err }, "Failed to fetch IntradayScreener list");
     }
 
-    await Promise.all(
-      volumeShockers.map(async (stock) => {
-        try {
-            const candleData = await fetchCandles(stock.symbol);
-            if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) return;
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < momentumStocks.length; i += CHUNK_SIZE) {
+      const chunk = momentumStocks.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (stock) => {
+          try {
+              const candleData = await fetchCandles(stock.symbol);
+              if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) return;
 
-            const prevDayCandlesAll = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
-            if (prevDayCandlesAll.length === 0) return;
+              const prevDayCandlesAll = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
+              if (prevDayCandlesAll.length === 0) return;
 
-            const prevDates = Array.from(new Set(prevDayCandlesAll.map(c => getCandleCloseDateIST(c)))).sort();
-            const lastPrevDate = prevDates.at(-1);
-            if (!lastPrevDate) return;
+              const prevDates = Array.from(new Set(prevDayCandlesAll.map(c => getCandleCloseDateIST(c)))).sort();
+              const lastPrevDate = prevDates.at(-1);
+              if (!lastPrevDate) return;
 
-            const prevDayCandles = prevDayCandlesAll.filter(c => getCandleCloseDateIST(c) === lastPrevDate);
-            if (prevDayCandles.length === 0) return;
+              const prevDayCandles = prevDayCandlesAll.filter(c => getCandleCloseDateIST(c) === lastPrevDate);
+              if (prevDayCandles.length === 0) return;
 
-            const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
-            const prevLow = Math.min(...prevDayCandles.map((c) => c.l));
+              const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
+              const prevLow = Math.min(...prevDayCandles.map((c) => c.l));
 
-            const confirmedSession = getConfirmedCandles(candleData.sessionCandles);
-            if (confirmedSession.length === 0) return;
+              const confirmedSession = getConfirmedCandles(candleData.sessionCandles);
+              if (confirmedSession.length === 0) return;
 
-            const c = confirmedSession[confirmedSession.length - 1]; // latest confirmed 5m candle
-            const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
+              const c = confirmedSession[confirmedSession.length - 1]; // latest confirmed 5m candle
+              const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
 
-            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) return; // Prime Time only
+              if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) return; // Prime Time only
 
-            let setup = "";
-            let direction: "LONG" | "SHORT" | null = null;
-            let sl = 0;
-            let entryPrice = c.c;
+              let setup = "";
+              let direction: "LONG" | "SHORT" | null = null;
+              let sl = 0;
+              let entryPrice = c.c;
 
-            if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
-              if (c.c > prevHigh) {
-                // Anti-Chasing Filter: Skip if entry price has spiked > 0.8% above breakout point
-                if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
-                  setup = "HIGH BREAKOUT"; direction = "LONG";
-                  sl = Math.min(c.l, prevHigh * 0.999);
-                } else {
-                  req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
+              if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
+                if (c.c > prevHigh) {
+                  // Anti-Chasing Filter: Skip if entry price has spiked > 0.8% above breakout point
+                  if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
+                    setup = "HIGH BREAKOUT"; direction = "LONG";
+                    sl = Math.min(c.l, prevHigh * 0.999);
+                  } else {
+                    req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
+                  }
+                } else if (c.c < c.o) {
+                  setup = "HIGH REJECTION"; direction = "SHORT";
+                  sl = Math.max(c.h, prevHigh * 1.001);
                 }
-              } else if (c.c < c.o) {
-                setup = "HIGH REJECTION"; direction = "SHORT";
-                sl = Math.max(c.h, prevHigh * 1.001);
+                if (direction) entryPrice = c.c;
+              } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
+                if (c.c < prevLow) {
+                  // Anti-Chasing Filter: Skip if entry price has dropped > 0.8% below breakdown point
+                  if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
+                    setup = "LOW BREAKDOWN"; direction = "SHORT";
+                    sl = Math.max(c.h, prevLow * 1.001);
+                  } else {
+                    req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
+                  }
+                } else if (c.c > c.o) {
+                  setup = "LOW SUPPORT"; direction = "LONG";
+                  sl = Math.min(c.l, prevLow * 0.999);
+                }
+                if (direction) entryPrice = c.c;
               }
-              if (direction) entryPrice = c.c;
-            } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
-              if (c.c < prevLow) {
-                // Anti-Chasing Filter: Skip if entry price has dropped > 0.8% below breakdown point
-                if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
-                  setup = "LOW BREAKDOWN"; direction = "SHORT";
-                  sl = Math.max(c.h, prevLow * 1.001);
-                } else {
-                  req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
-                }
-              } else if (c.c > c.o) {
-                setup = "LOW SUPPORT"; direction = "LONG";
-                sl = Math.min(c.l, prevLow * 0.999);
+
+              if (direction) {
+                const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
+                const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+
+                topPickCandidates.push({
+                  symbol: stock.symbol,
+                  direction,
+                  entry: entryPrice,
+                  target: target,
+                  sl,
+                  setup,
+                  diagnostics: {
+                    prevHigh,
+                    prevLow,
+                    candleOpen: c.o,
+                    candleHigh: c.h,
+                    candleLow: c.l,
+                    candleClose: c.c,
+                    reason: setup,
+                    candleCloseTimeMs: (c.t + CANDLE_INTERVAL_SECS) * 1000,
+                  }
+                });
               }
-              if (direction) entryPrice = c.c;
-            }
-
-            if (direction) {
-              const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-              const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
-
-              topPickCandidates.push({
-                symbol: stock.symbol,
-                direction,
-                entry: entryPrice,
-                target: target,
-                sl,
-                setup,
-                diagnostics: {
-                  prevHigh,
-                  prevLow,
-                  candleOpen: c.o,
-                  candleHigh: c.h,
-                  candleLow: c.l,
-                  candleClose: c.c,
-                  reason: setup,
-                  candleCloseTimeMs: (c.t + CANDLE_INTERVAL_SECS) * 1000,
-                }
-              });
-            }
-    /* --- OLD INTRADAYSCREENER LOGIC END (COMMENTED OUT) ---
+          } catch (err) {
+            req.log.warn({ err, symbol: stock.symbol }, "Momentum scanner stock warning");
           }
-        } catch (err) {
-          req.log.warn({ err, sector: sector.name }, "Momentum scanner sector warning");
-        }
-      })
-    );
-    */
-        } catch (err) {
-          req.log.warn({ err, symbol: stock.symbol }, "Momentum scanner stock warning");
-        }
-      })
-    );
+        })
+      );
+      // Optional: Add small delay between chunks
+      await new Promise(res => setTimeout(res, 200));
+    }
 
     return res.json({
       fetchedAt: new Date().toISOString(),
