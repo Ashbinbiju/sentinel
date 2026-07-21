@@ -5674,6 +5674,7 @@ router.get("/momentum-picks", async (req, res) => {
     const topPickCandidates: any[] = [];
     const TOUCH_BUFFER_PCT = 0.0015;
     const MAX_CHASE_PCT = 0.008;
+    const SL_BUFFER_PCT = 0.01;
 
     let momentumStocks: any[] = [];
     try {
@@ -5724,6 +5725,9 @@ router.get("/momentum-picks", async (req, res) => {
               if (confirmedSession.length === 0) return;
 
               const c = confirmedSession[confirmedSession.length - 1]; // latest confirmed 5m candle
+              const prevC = confirmedSession.length > 1 ? confirmedSession[confirmedSession.length - 2] : prevDayCandles[prevDayCandles.length - 1];
+              const prevPrevC = confirmedSession.length > 2 ? confirmedSession[confirmedSession.length - 3] : (confirmedSession.length === 2 ? prevDayCandles[prevDayCandles.length - 1] : (prevDayCandles[prevDayCandles.length - 2] || prevDayCandles[prevDayCandles.length - 1]));
+
               const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
 
               if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) return; // Prime Time only
@@ -5733,35 +5737,54 @@ router.get("/momentum-picks", async (req, res) => {
               let sl = 0;
               let entryPrice = c.c;
 
-              if (c.h >= prevHigh * (1 - TOUCH_BUFFER_PCT)) {
-                if (c.c > prevHigh) {
-                  // Anti-Chasing Filter: Skip if entry price has spiked > 0.8% above breakout point
-                  if (c.c <= prevHigh * (1 + MAX_CHASE_PCT)) {
-                    setup = "HIGH BREAKOUT"; direction = "LONG";
-                    sl = Math.min(c.l, prevHigh * 0.999);
-                  } else {
-                    req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
-                  }
-                } else if (c.c < c.o) {
-                  setup = "HIGH REJECTION"; direction = "SHORT";
-                  sl = Math.max(c.h, prevHigh * 1.001);
+              // Breakout rules
+              const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
+              const touchedHighZone = c.l <= prevHigh * (1 + TOUCH_BUFFER_PCT) && c.h >= prevHigh;
+              const chasePctHigh = (c.c - prevHigh) / prevHigh;
+              const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
+
+              const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
+              const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
+              const chasePctLow = (prevLow - c.c) / prevLow;
+              const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
+
+              // Rejection rules
+              const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
+              const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
+              const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
+              const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
+
+              const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
+              const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
+              const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
+
+              const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
+              const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
+              const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
+
+              if (freshHighBreakout) {
+                if (touchedHighZone && chaseAllowedHigh) {
+                  setup = "HIGH BREAKOUT"; direction = "LONG";
+                  sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
+                } else {
+                  req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
                 }
-                if (direction) entryPrice = c.c;
-              } else if (c.l <= prevLow * (1 + TOUCH_BUFFER_PCT)) {
-                if (c.c < prevLow) {
-                  // Anti-Chasing Filter: Skip if entry price has dropped > 0.8% below breakdown point
-                  if (c.c >= prevLow * (1 - MAX_CHASE_PCT)) {
-                    setup = "LOW BREAKDOWN"; direction = "SHORT";
-                    sl = Math.max(c.h, prevLow * 1.001);
-                  } else {
-                    req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
-                  }
-                } else if (c.c > c.o) {
-                  setup = "LOW SUPPORT"; direction = "LONG";
-                  sl = Math.min(c.l, prevLow * 0.999);
+              } else if (freshLowBreakdown) {
+                if (touchedLowZone && chaseAllowedLow) {
+                  setup = "LOW BREAKDOWN"; direction = "SHORT";
+                  sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
+                } else {
+                  req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
                 }
-                if (direction) entryPrice = c.c;
+              } else if (validHighRejection) {
+                setup = "HIGH REJECTION"; direction = "SHORT";
+                sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
+              } else if (validLowSupport) {
+                setup = "LOW SUPPORT"; direction = "LONG";
+                sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
               }
+
+              if (direction) entryPrice = c.c;
 
               if (direction) {
                 const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
