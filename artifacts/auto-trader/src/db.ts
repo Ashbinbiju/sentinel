@@ -2,8 +2,7 @@ import fs from "fs";
 import { promises as fsPromises } from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
-import { db, tradesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, tradesTable, eq } from "@workspace/db";
 
 export type TradeState =
   | "SIGNAL_CREATED"
