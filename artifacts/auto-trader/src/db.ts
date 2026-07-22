@@ -38,6 +38,7 @@ export interface ActiveTrade {
   protectionConfirmed: boolean;
   protectionCancelled?: boolean;
   trailApplied: boolean;
+  requestedTrailStopPrice?: number;
   exitPrice?: number;
   realizedPnl?: number;
   createdAt: string;

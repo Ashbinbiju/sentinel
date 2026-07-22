@@ -79,7 +79,7 @@ export class ExecutionEngine {
           if (global.hasOwnProperty('partial5m')) (global as any).partial5m++;
           
           try {
-            const histRes = await axios.get(`${apiBaseUrl}/api/stocks/${ctx.symbol}/candles`);
+            const histRes = await axios.get(`${apiBaseUrl}/api/stocks/${ctx.symbol}/candles`, { timeout: 5000 });
             const restCandles = histRes.data?.sessionCandles;
             const recovered = restCandles?.find((rc: any) => Number(rc.t) === Number(c.t));
             
@@ -108,12 +108,19 @@ export class ExecutionEngine {
 
         const evaluateTask = async () => {
           try {
+            const candleClosedAtMs = (Number(c.t) + 300) * 1000;
+            const signalDelayMs = Date.now() - candleClosedAtMs;
+
             const prevHigh = ctx.prevHigh;
             const prevLow = ctx.prevLow;
             const slotIso = new Date(c.t * 1000).toISOString().substring(11, 16);
             const reject = (reason: string) => {
               console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
             };
+
+            if (c.isPartial === false && signalDelayMs > 30_000) {
+               return reject("STALE_RECOVERED_CANDLE");
+            }
 
             if (history.length < 3) {
                 return reject("INSUFFICIENT_HISTORY");
@@ -451,18 +458,17 @@ export class ExecutionEngine {
 
       if (reachedTrailRR) {
         console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
-        await TradeDB.updateState(trade.id, "TRAIL_REQUESTED");
+        await TradeDB.updateState(trade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: trailSLPrice });
         await this.syncActiveTrades();
         
         try {
           await this.broker.moveSuperOrderStopToBreakeven(trade.superOrderId, trailSLPrice, trade.trailingJump);
-          await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+          await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: trailSLPrice });
           await this.syncActiveTrades();
           this.notifier.sendTrailApplied(trade.symbol, trailSLPrice).catch(e => console.error(e));
         } catch (err: any) {
           console.error(`[ENGINE] Failed to trail Super Order for ${trade.symbol}:`, err.message);
-          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
-          await this.syncActiveTrades();
+          // Left as TRAIL_REQUESTED for broker reconciliation
         }
       }
     }
@@ -522,9 +528,16 @@ export class ExecutionEngine {
                   }
                   
                   const exitPrice = totalQty === trade.quantity ? totalValue / totalQty : undefined;
-                  if (!Number.isFinite(exitPrice) || Number(exitPrice) <= 0) continue;
+                  const filledQty = totalQty;
 
-                  await TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
+                  if (!Number.isFinite(exitPrice) || Number(exitPrice) <= 0 || !Number.isFinite(filledQty) || filledQty !== trade.quantity) continue;
+
+                  if (Number(pos?.netQty ?? 0) !== 0) {
+                      console.warn(`[ENGINE] Exit order traded but position not flat for ${trade.symbol}`);
+                      continue;
+                  }
+
+                  await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
                   await this.syncActiveTrades();
                   const pnl = trade.side === "BUY" ? (Number(exitPrice) - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - Number(exitPrice)) / trade.entryPrice;
                   this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, Number(exitPrice)).catch(e => console.error(e));
@@ -538,10 +551,10 @@ export class ExecutionEngine {
           console.error("[ENGINE] Critical error in reconcileExits:", e.message || e);
       }
     }).catch(e => console.error("[ENGINE] Maintenance queue error:", e));
-    return this.maintenanceQueue as Promise<void>;
+    return this.maintenanceQueue;
   }
 
-  public async reconcileUnknownOrders() {
+  public reconcileUnknownOrders(): Promise<void> {
     this.maintenanceQueue = this.maintenanceQueue.then(async () => {
       try {
         const unknownTrades = (await TradeDB.getOpenTrades()).filter(trade =>
@@ -557,11 +570,12 @@ export class ExecutionEngine {
               const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
               if (parent) {
                   const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
-                  const priceMatch = slLeg && Math.abs(Number(slLeg.price) - Number(trade.entryPrice)) < 0.001;
+                  const targetPrice = trade.requestedTrailStopPrice || trade.entryPrice;
+                  const priceMatch = slLeg && Math.abs(Number(slLeg.price) - Number(targetPrice)) < 0.001;
                   const statusMatch = slLeg && slLeg.orderStatus === "PENDING";
                   
                   if (priceMatch && statusMatch) {
-                      await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+                      await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: targetPrice });
                       await this.syncActiveTrades();
                   } else if (!statusMatch) {
                       await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
@@ -594,9 +608,10 @@ export class ExecutionEngine {
         console.error(`[ENGINE] Failed to reconcile unknown orders:`, err);
       }
     }).catch(e => console.error("[ENGINE] Maintenance queue error:", e));
+    return this.maintenanceQueue;
   }
 
-  public async reconcileExitOrders() {
+  public reconcileExitOrders(): Promise<void> {
     this.maintenanceQueue = this.maintenanceQueue.then(async () => {
       try {
         const exitTrades = (await TradeDB.getOpenTrades()).filter(
@@ -621,7 +636,21 @@ export class ExecutionEngine {
 
           if (exitOrder.orderStatus === "TRADED") {
               const exitPrice = Number(exitOrder.averageTradedPrice);
-              if (!Number.isFinite(exitPrice) || exitPrice <= 0) continue;
+              const filledQty = Number(exitOrder.filledQty);
+
+              if (!Number.isFinite(exitPrice) || exitPrice <= 0 || !Number.isFinite(filledQty) || filledQty !== trade.quantity) continue;
+
+              const positions = await this.broker.getPositions();
+              const position = positions.find(
+                  (p: any) =>
+                      p.tradingSymbol === trade.symbol &&
+                      (p.productType?.toUpperCase() as any || "INTRADAY") === (trade.productType || "INTRADAY")
+              );
+              
+              if (Number(position?.netQty ?? 0) !== 0) {
+                  console.warn(`[ENGINE] Exit order traded but position not flat for ${trade.symbol}`);
+                  continue;
+              }
 
               await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
               await this.syncActiveTrades();
@@ -636,6 +665,22 @@ export class ExecutionEngine {
               
               if (finalOrder?.orderStatus === "TRADED") {
                   const finalExitPrice = Number(finalOrder.averageTradedPrice);
+                  const filledQty = Number(finalOrder.filledQty);
+
+                  if (!Number.isFinite(finalExitPrice) || finalExitPrice <= 0 || !Number.isFinite(filledQty) || filledQty !== trade.quantity) continue;
+
+                  const positions = await this.broker.getPositions();
+                  const position = positions.find(
+                      (p: any) =>
+                          p.tradingSymbol === trade.symbol &&
+                          (p.productType?.toUpperCase() as any || "INTRADAY") === (trade.productType || "INTRADAY")
+                  );
+                  
+                  if (Number(position?.netQty ?? 0) !== 0) {
+                      console.warn(`[ENGINE] Final exit order traded but position not flat for ${trade.symbol}`);
+                      continue;
+                  }
+
                   await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
                   await this.syncActiveTrades();
                   const pnl = trade.side === "BUY" ? (finalExitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - finalExitPrice) / trade.entryPrice;
@@ -649,5 +694,6 @@ export class ExecutionEngine {
         console.error(`[ENGINE] Failed to reconcile exit orders:`, err);
       }
     }).catch(e => console.error("[ENGINE] Maintenance queue error:", e));
+    return this.maintenanceQueue;
   }
 }
