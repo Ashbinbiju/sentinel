@@ -127,7 +127,7 @@ async function runBacktest(screenerStocks: any[]) {
   for (let i = 1; i < dates.length; i++) {
     const prevDate = dates[i - 1];
     const today = dates[i];
-    if (today !== "2026-07-17") continue;
+    if (today !== "2026-07-22") continue;
 
     const timestamps = Array.from(timestampsByDate.get(today)!).sort((a, b) => a - b);
     

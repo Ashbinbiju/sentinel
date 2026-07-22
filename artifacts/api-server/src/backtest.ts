@@ -8,8 +8,12 @@ const STRUCTURAL_TRAIL_RR = 1.5;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
 const SLIPPAGE_PCT = 0.0005;
 const CHARGES_PCT_TURNOVER = 0.0005;
-const PRIME_TIME_START_MINUTES = 10 * 60 + 15;
-const PRIME_TIME_END_MINUTES = 14 * 60 + 30;
+
+const DRY_RUN_CAPITAL = 50000;
+const RISK_PER_TRADE = DRY_RUN_CAPITAL * 0.01;
+const MAX_DAILY_TRADES = 5;
+const MAX_DAILY_LOSS = -2500;
+const MAX_CONSECUTIVE_LOSSES = 3;
 
 let testCases: { symbol: string; date: string; category: string }[] = [];
 
@@ -35,19 +39,16 @@ const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 async function fetchCandlesWithRetry(sym: string, targetDate: string, retries = 3) {
     for (let i = 0; i < retries; i++) {
         try {
-            // Try Dhan first (isSwing = false)
             let data = await fetchCandles(sym, false);
             let hasSufficientHistory = false;
             
             if (data && data.historicalCandles && data.historicalCandles.length > 0) {
-                // We need candles from the day BEFORE targetDate to calculate PDH/PDL
-                hasSufficientHistory = data.historicalCandles.some(c => getCandleCloseDateIST(c) < targetDate);
+                hasSufficientHistory = data.historicalCandles.some((c: any) => getCandleCloseDateIST(c) < targetDate);
                 if (hasSufficientHistory) return data;
             }
 
             console.log(`[DATA] Dhan missing sufficient history for ${sym} (needs data before ${targetDate}). Falling back to Upstox...`);
             
-            // Fallback to Upstox (isSwing = true)
             data = await fetchCandles(sym, true);
             if (data && data.historicalCandles && data.historicalCandles.length > 0) {
                 return data;
@@ -58,6 +59,29 @@ async function fetchCandlesWithRetry(sym: string, targetDate: string, retries = 
         await delay(1000);
     }
     return null;
+}
+
+interface Trade {
+    symbol: string;
+    date: string;
+    setup: string;
+    direction: "LONG" | "SHORT";
+    entryTime: string;
+    entryTimeMins: number;
+    entryPrice: number;
+    initialSl: number;
+    slPrice: number;
+    targetPrice: number;
+    quantity: number;
+    exitTime?: string;
+    exitPrice?: number;
+    status: string;
+    pnl: number;
+    pnlInr: number;
+    trailApplied: boolean;
+    pdh: number;
+    pdl: number;
+    eodPrice?: number;
 }
 
 async function runBacktest() {
@@ -72,12 +96,12 @@ async function runBacktest() {
             
             const gainerCases = gainers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
                 symbol: s.symbol,
-                date: "2026-07-20",
+                date: "2026-07-22",
                 category: "GAINER"
             }));
             const loserCases = losers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
                 symbol: s.symbol,
-                date: "2026-07-20",
+                date: "2026-07-22",
                 category: "LOSER"
             }));
             testCases = [...gainerCases, ...loserCases];
@@ -91,60 +115,173 @@ async function runBacktest() {
         return;
     }
 
-    const results = [];
-
-    for (const { symbol: sym, date: TARGET_DATE, category } of testCases) {
-        console.log(`Fetching candles for ${sym} (${category}) for ${TARGET_DATE}...`);
-        
+    const testDate = "2026-07-22";
+    
+    // 1. Fetch all candles
+    const allCandlesBySymbol = new Map<string, any[]>();
+    const prevExtremes = new Map<string, {h: number, l: number}>();
+    
+    for (const { symbol: sym, date, category } of testCases) {
+        console.log(`Fetching candles for ${sym} (${category}) for ${testDate}...`);
         await delay(1500);
-        
-        const candleData = await fetchCandlesWithRetry(sym, TARGET_DATE, 3);
+        const candleData = await fetchCandlesWithRetry(sym, testDate, 3);
         if (!candleData || !candleData.historicalCandles || candleData.historicalCandles.length === 0) {
             console.log(`Failed to fetch accurate data for ${sym} after retries. Skipping.`);
             continue;
         }
-
+        
         const prevDates = Array.from(new Set(candleData.historicalCandles
             .map((c: any) => getCandleCloseDateIST(c))
-            .filter((d: string) => d < TARGET_DATE)
+            .filter((d: string) => d < testDate)
         )).sort();
         
         const lastPrevDate = prevDates.at(-1);
         if (!lastPrevDate) {
-            results.push({ Symbol: sym, Date: TARGET_DATE, Time: "-", PDH: "-", PDL: "-", Setup: "-", Direction: "-", Entry: "-", StopLoss: "-", Target: "-", Status: "⚠️ No prev-day data (date too old for API window)", HitTime: "-" });
+            console.log(`⚠️ No prev-day data for ${sym}`);
             continue;
         }
 
         const prevDayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === lastPrevDate);
         if (prevDayCandles.length === 0) {
-            results.push({ Symbol: sym, Date: TARGET_DATE, Time: "-", PDH: "-", PDL: "-", Setup: "-", Direction: "-", Entry: "-", StopLoss: "-", Target: "-", Status: "⚠️ No prev-day candles found", HitTime: "-" });
+            console.log(`⚠️ No prev-day candles found for ${sym}`);
             continue;
         }
 
         const prevHigh = Math.max(...prevDayCandles.map((c: any) => c.h));
         const prevLow = Math.min(...prevDayCandles.map((c: any) => c.l));
-
-        const targetDayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === TARGET_DATE);
-
-        let tradeTaken = false;
+        prevExtremes.set(sym, { h: prevHigh, l: prevLow });
         
-        for (let i = 0; i < targetDayCandles.length; i++) {
-            const c = targetDayCandles[i];
-            const prevC = i > 0 ? targetDayCandles[i-1] : prevDayCandles[prevDayCandles.length - 1];
-            const prevPrevC = i > 1 ? targetDayCandles[i-2] : (i === 1 ? prevDayCandles[prevDayCandles.length - 1] : (prevDayCandles[prevDayCandles.length - 2] || prevDayCandles[prevDayCandles.length - 1]));
-            const mins = getISTMinuteOfDay(c.t + 300); 
-            
-            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
-                continue; 
+        // Save today's candles
+        const targetDayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === testDate);
+        // Ensure they are sorted by time just in case
+        targetDayCandles.sort((a: any, b: any) => a.t - b.t);
+        allCandlesBySymbol.set(sym, targetDayCandles);
+    }
+    
+    // 2. Chronological processing
+    const timestampsSet = new Set<number>();
+    for (const candles of Array.from(allCandlesBySymbol.values())) {
+        for (const c of candles) {
+            timestampsSet.add(c.t);
+        }
+    }
+    const timestamps = Array.from(timestampsSet).sort((a, b) => a - b);
+    
+    let tradesTakenToday = 0;
+    let closedLosingTradesCount = 0;
+    let realizedPnlTodayInr = 0;
+    let killSwitchEngaged = false;
+    
+    const activeTrades = new Map<string, Trade>();
+    const completedTrades: Trade[] = [];
+    const skippedSetups: any[] = [];
+    
+    for (const ts of timestamps) {
+        const mins = getISTMinuteOfDay(ts + 300);
+        const hrMins = Math.floor(mins / 60).toString().padStart(2, '0') + ":" + (mins % 60).toString().padStart(2, '0');
+        
+        if (!killSwitchEngaged) {
+            if (realizedPnlTodayInr <= MAX_DAILY_LOSS || closedLosingTradesCount >= MAX_CONSECUTIVE_LOSSES) {
+                console.log(`[KILL SWITCH] Engaged at ${hrMins}. Squaring off!`);
+                killSwitchEngaged = true;
             }
-
+        }
+        
+        for (const [sym, todayCandles] of Array.from(allCandlesBySymbol.entries())) {
+            const cIndex = todayCandles.findIndex((c: any) => c.t === ts);
+            if (cIndex === -1) continue;
+            const c = todayCandles[cIndex];
+            
+            let activeTrade = activeTrades.get(sym);
+            
+            // EVALUATE ACTIVE TRADE
+            if (activeTrade) {
+                let exitPrice = 0;
+                let hit = false;
+                let statusMsg = "";
+                
+                if (killSwitchEngaged || mins >= 15 * 60 + 15) {
+                    exitPrice = c.c;
+                    hit = true;
+                    statusMsg = killSwitchEngaged ? "OPEN (Kill Switch Hit)" : "OPEN (End of Day)";
+                } else {
+                    if (activeTrade.direction === "LONG") {
+                        if (c.l <= activeTrade.slPrice) {
+                            exitPrice = activeTrade.slPrice;
+                            hit = true;
+                            statusMsg = activeTrade.slPrice === activeTrade.entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
+                        } else if (c.h >= activeTrade.targetPrice) {
+                            exitPrice = activeTrade.targetPrice;
+                            hit = true;
+                            statusMsg = "✅ TARGET HIT";
+                        }
+                    } else {
+                        if (c.h >= activeTrade.slPrice) {
+                            exitPrice = activeTrade.slPrice;
+                            hit = true;
+                            statusMsg = activeTrade.slPrice === activeTrade.entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
+                        } else if (c.l <= activeTrade.targetPrice) {
+                            exitPrice = activeTrade.targetPrice;
+                            hit = true;
+                            statusMsg = "✅ TARGET HIT";
+                        }
+                    }
+                    
+                    if (!hit && !activeTrade.trailApplied) {
+                        const r = Math.abs(activeTrade.entryPrice - activeTrade.slPrice);
+                        if (activeTrade.direction === "LONG" && c.h >= activeTrade.entryPrice + (r * STRUCTURAL_TRAIL_RR) && activeTrade.slPrice < activeTrade.entryPrice) {
+                            activeTrade.slPrice = activeTrade.entryPrice - (r * STRUCTURAL_TRAIL_RISK_BUFFER);
+                            activeTrade.trailApplied = true;
+                        } else if (activeTrade.direction === "SHORT" && c.l <= activeTrade.entryPrice - (r * STRUCTURAL_TRAIL_RR) && activeTrade.slPrice > activeTrade.entryPrice) {
+                            activeTrade.slPrice = activeTrade.entryPrice + (r * STRUCTURAL_TRAIL_RISK_BUFFER);
+                            activeTrade.trailApplied = true;
+                        }
+                    }
+                }
+                
+                if (hit) {
+                    activeTrade.exitPrice = exitPrice;
+                    activeTrade.exitTime = hrMins;
+                    activeTrade.status = statusMsg;
+                    
+                    const gross = activeTrade.direction === "LONG" 
+                        ? (exitPrice - activeTrade.entryPrice) / activeTrade.entryPrice
+                        : (activeTrade.entryPrice - exitPrice) / activeTrade.entryPrice;
+                        
+                    activeTrade.pnl = gross - (SLIPPAGE_PCT * 2) - CHARGES_PCT_TURNOVER;
+                    activeTrade.pnlInr = (activeTrade.pnl * activeTrade.entryPrice) * activeTrade.quantity;
+                    
+                    if (activeTrade.pnl > 0 && statusMsg.includes("TARGET")) {
+                        closedLosingTradesCount = 0;
+                    } else if (activeTrade.pnl < 0 && statusMsg.includes("STOP LOSS")) {
+                        closedLosingTradesCount++;
+                    }
+                    
+                    realizedPnlTodayInr += activeTrade.pnlInr;
+                    completedTrades.push(activeTrade);
+                    activeTrades.delete(sym);
+                }
+                continue;
+            }
+            
+            // EVALUATE NEW SETUP
+            if (killSwitchEngaged) continue;
+            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) continue;
+            if (cIndex < 2) continue;
+            
+            const extremes = prevExtremes.get(sym);
+            if (!extremes) continue;
+            const { h: prevHigh, l: prevLow } = extremes;
+            
+            const prevC = todayCandles[cIndex - 1];
+            const prevPrevC = todayCandles[cIndex - 2];
+            
             let setup = "";
-            let direction: string | null = null;
+            let direction: "LONG" | "SHORT" | null = null;
             let sl = 0;
             let entryPrice = c.c;
             let skippedReason = "";
-
-            // Breakout rules
+            
             const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
             const touchedHighZone = c.l <= prevHigh * (1 + TOUCH_BUFFER_PCT) && c.h >= prevHigh;
             const chasePctHigh = (c.c - prevHigh) / prevHigh;
@@ -155,7 +292,6 @@ async function runBacktest() {
             const chasePctLow = (prevLow - c.c) / prevLow;
             const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
 
-            // Rejection rules (must touch zone and reverse, approaching from the correct side)
             const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
             const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
             const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
@@ -173,14 +309,14 @@ async function runBacktest() {
                 if (touchedHighZone && chaseAllowedHigh) {
                     setup = "HIGH BREAKOUT"; direction = "LONG";
                     sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
-                } else {
+                } else if (freshHighBreakout) {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
             } else if (freshLowBreakdown) {
                 if (touchedLowZone && chaseAllowedLow) {
                     setup = "LOW BREAKDOWN"; direction = "SHORT";
                     sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
-                } else {
+                } else if (freshLowBreakdown) {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
             } else if (validHighRejection) {
@@ -190,7 +326,8 @@ async function runBacktest() {
                 setup = "LOW SUPPORT"; direction = "LONG";
                 sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
             }
-
+            
+            const category = testCases.find(tc => tc.symbol === sym)?.category;
             if (direction === "LONG" && category === "LOSER") {
                 direction = null;
                 skippedReason = "Longs disabled (Intraday Loser filter)";
@@ -198,141 +335,156 @@ async function runBacktest() {
                 direction = null;
                 skippedReason = "Shorts disabled (Intraday Gainer filter)";
             }
-
-            // Filter removed
-
-            if (direction) entryPrice = c.c;
-
+            
             if (direction) {
-                const hrMins = Math.floor(mins / 60).toString().padStart(2, '0') + ":" + (mins % 60).toString().padStart(2, '0');
+                if (tradesTakenToday >= MAX_DAILY_TRADES) {
+                    // Record it as skipped due to limit
+                    skippedSetups.push({
+                        Symbol: sym,
+                        Date: testDate,
+                        Time: hrMins,
+                        PDH: prevHigh.toFixed(2),
+                        PDL: prevLow.toFixed(2),
+                        Setup: setup,
+                        Direction: "-",
+                        Entry: entryPrice.toFixed(2),
+                        InitialSL: "-",
+                        ActiveSL: "-",
+                        Target: "-",
+                        Status: "SKIPPED (Max Daily Trades Reached)",
+                        HitTime: "-"
+                    });
+                    continue;
+                }
+                
                 const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
                 const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
-                const initialSl = sl;
+                let qty = Math.floor(RISK_PER_TRADE / risk);
+                if (qty < 1) qty = 1;
+                const maxLeveragedQty = Math.floor((DRY_RUN_CAPITAL * 5) / entryPrice);
+                qty = Math.min(qty, maxLeveragedQty);
                 
-                const entryIndex = targetDayCandles.indexOf(c);
-                const remainingCandles = targetDayCandles.slice(entryIndex + 1);
-                let exitStatus = "OPEN (End of Day)";
-                let hitTime = "-";
-
-                for (const rc of remainingCandles) {
-                    const rcMins = getISTMinuteOfDay(rc.t + 300);
-                    const rcTime = Math.floor(rcMins / 60).toString().padStart(2, '0') + ":" + (rcMins % 60).toString().padStart(2, '0');
-                    
-                    if (direction === "LONG") {
-                        if (rc.l <= sl) {
-                            exitStatus = sl === entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
-                            hitTime = rcTime;
-                            break;
-                        } else if (rc.h >= target) {
-                            exitStatus = "✅ TARGET HIT";
-                            hitTime = rcTime;
-                            break;
-                        } else if (rc.h >= entryPrice + (risk * STRUCTURAL_TRAIL_RR) && sl < entryPrice) {
-                            sl = entryPrice - (risk * STRUCTURAL_TRAIL_RISK_BUFFER); // Structural Trail
-                        }
-                    } else { 
-                        if (rc.h >= sl) {
-                            exitStatus = sl === entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
-                            hitTime = rcTime;
-                            break;
-                        } else if (rc.l <= target) {
-                            exitStatus = "✅ TARGET HIT";
-                            hitTime = rcTime;
-                            break;
-                        } else if (rc.l <= entryPrice - (risk * STRUCTURAL_TRAIL_RR) && sl > entryPrice) {
-                            sl = entryPrice + (risk * STRUCTURAL_TRAIL_RISK_BUFFER); // Structural Trail
-                        }
-                    }
+                if (qty > 0) {
+                    const newTrade: Trade = {
+                        symbol: sym,
+                        date: testDate,
+                        setup,
+                        direction,
+                        entryTime: hrMins,
+                        entryTimeMins: mins,
+                        entryPrice,
+                        initialSl: sl,
+                        slPrice: sl,
+                        targetPrice: target,
+                        quantity: qty,
+                        status: "OPEN",
+                        pnl: 0,
+                        pnlInr: 0,
+                        trailApplied: false,
+                        pdh: prevHigh,
+                        pdl: prevLow,
+                        eodPrice: todayCandles[todayCandles.length - 1].c
+                    };
+                    activeTrades.set(sym, newTrade);
+                    tradesTakenToday++;
                 }
-
-                const eodPrice = targetDayCandles[targetDayCandles.length - 1].c;
-                results.push({
+            } else if (skippedReason && !completedTrades.some(t => t.symbol === sym && t.entryTime === hrMins)) {
+                 // Only push skipped reason if it's the first time on this candle
+                 skippedSetups.push({
                     Symbol: sym,
-                    Date: TARGET_DATE,
-                    Time: hrMins,
-                    PDH: prevHigh.toFixed(2),
-                    PDL: prevLow.toFixed(2),
-                    Setup: setup,
-                    Direction: direction,
-                    Entry: entryPrice.toFixed(2),
-                    StopLoss: initialSl.toFixed(2) + (sl !== initialSl ? ` (Trailed: ${sl.toFixed(2)})` : ""),
-                    Target: target.toFixed(2),
-                    Status: exitStatus,
-                    HitTime: hitTime,
-                    EODPrice: eodPrice.toFixed(2)
-                });
-                tradeTaken = true;
-                break;
-            } else if (skippedReason) {
-                const hrMins = Math.floor(mins / 60).toString().padStart(2, '0') + ":" + (mins % 60).toString().padStart(2, '0');
-                results.push({
-                    Symbol: sym,
-                    Date: TARGET_DATE,
+                    Date: testDate,
                     Time: hrMins,
                     PDH: prevHigh.toFixed(2),
                     PDL: prevLow.toFixed(2),
                     Setup: "SKIPPED",
                     Direction: "-",
                     Entry: c.c.toFixed(2),
-                    StopLoss: "-",
+                    InitialSL: "-",
+                    ActiveSL: "-",
                     Target: "-",
                     Status: skippedReason,
                     HitTime: "-"
                 });
-                tradeTaken = true;
-                break;
             }
-        }
-        
-        if (!tradeTaken) {
-            results.push({
-                    Symbol: sym,
-                    Date: TARGET_DATE,
-                    Time: "-",
-                    PDH: prevHigh.toFixed(2),
-                    PDL: prevLow.toFixed(2),
-                    Setup: "-",
-                    Direction: "-",
-                    Entry: "-",
-                    StopLoss: "-",
-                    Target: "-",
-                    Status: "No prime time entry",
-                    HitTime: "-"
-            });
         }
     }
     
-    let md = `# Intraday Backtest Results\n\n`;
-    md += `Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x\n\n`;
-    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | SL | Target | Result | P&L (50k) | Exit Time |\n`;
-    md += `|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
-    for (const r of results) {
-        let pnlStr = "-";
-        if (r.Entry !== "-" && r.Status !== "No prime time entry") {
-            const entryPrice = parseFloat(r.Entry);
-            const qty = Math.floor(50000 / entryPrice);
-            let exitPrice = entryPrice;
-            if (r.Status === "✅ TARGET HIT") exitPrice = parseFloat(r.Target);
-            else if (r.Status === "❌ STOP LOSS HIT" || r.Status === "🛡️ BREAKEVEN HIT") exitPrice = parseFloat(r.StopLoss);
-            else if (r.Status === "OPEN (End of Day)" && r.EODPrice) exitPrice = parseFloat(r.EODPrice); // Force exit at EOD price
-            
-            let pnl = 0;
-            if (r.Direction === "LONG") pnl = (exitPrice - entryPrice) * qty;
-            else if (r.Direction === "SHORT") pnl = (entryPrice - exitPrice) * qty;
-            
-            if (pnl !== 0 || r.Status === "🛡️ BREAKEVEN HIT" || r.Status === "OPEN (End of Day)") {
-                const entryVal = entryPrice * qty;
-                const exitVal = exitPrice * qty;
-                const turnover = entryVal + exitVal;
-                const slippage = (entryVal * SLIPPAGE_PCT) + (exitVal * SLIPPAGE_PCT);
-                const charges = turnover * CHARGES_PCT_TURNOVER;
-                pnl = pnl - slippage - charges;
-            }
-            
-            pnlStr = pnl > 0 ? "+₹" + pnl.toFixed(2) : "₹" + pnl.toFixed(2);
-        }
-        md += `| ${r.Symbol} | ${r.Date} | ${r.Time} | ${r.PDH} | ${r.PDL} | ${r.Setup} | ${r.Direction} | ${r.Entry} | ${r.StopLoss} | ${r.Target} | **${r.Status}** | ${pnlStr} | ${r.HitTime} |\n`;
+    // Close out any remaining open trades at EOD
+    for (const [sym, t] of Array.from(activeTrades.entries())) {
+        t.exitPrice = t.eodPrice || t.entryPrice;
+        t.status = "OPEN (End of Day)";
+        t.exitTime = "-";
+        const gross = t.direction === "LONG" 
+            ? (t.exitPrice - t.entryPrice) / t.entryPrice
+            : (t.entryPrice - t.exitPrice) / t.entryPrice;
+        t.pnl = gross - (SLIPPAGE_PCT * 2) - CHARGES_PCT_TURNOVER;
+        t.pnlInr = (t.pnl * t.entryPrice) * t.quantity;
+        completedTrades.push(t);
     }
+    
+    // Combine all results and skipped setups for output
+    let md = `# Intraday Backtest Results (Chronological)\n\n`;
+    md += `Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x | Max Daily Trades: 5\n\n`;
+    md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | Initial SL | Active SL | Target | Result | P&L (50k) | Exit Time |\n`;
+    md += `|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
+    
+    const outputRows = [];
+    
+    for (const t of completedTrades) {
+        let pnlStr = "-";
+        let actualPnl = 0;
+        
+        const entryPrice = t.entryPrice;
+        const qty = Math.floor(DRY_RUN_CAPITAL / entryPrice); // Default 1x for reporting PNL like the old version
+        let exitPrice = t.exitPrice || t.entryPrice;
+        
+        if (t.direction === "LONG") actualPnl = (exitPrice - entryPrice) * qty;
+        else if (t.direction === "SHORT") actualPnl = (entryPrice - exitPrice) * qty;
+        
+        if (actualPnl !== 0 || t.status === "🛡️ BREAKEVEN HIT" || t.status.includes("OPEN")) {
+            const entryVal = entryPrice * qty;
+            const exitVal = exitPrice * qty;
+            const turnover = entryVal + exitVal;
+            const slippage = (entryVal * SLIPPAGE_PCT) + (exitVal * SLIPPAGE_PCT);
+            const charges = turnover * CHARGES_PCT_TURNOVER;
+            actualPnl = actualPnl - slippage - charges;
+        }
+        
+        pnlStr = actualPnl > 0 ? "+₹" + actualPnl.toFixed(2) : "₹" + actualPnl.toFixed(2);
+        
+        outputRows.push({
+             Time: t.entryTime,
+             Row: `| ${t.symbol} | ${t.date} | ${t.entryTime} | ${t.pdh.toFixed(2)} | ${t.pdl.toFixed(2)} | ${t.setup} | ${t.direction} | ${t.entryPrice.toFixed(2)} | ${t.initialSl.toFixed(2)} | ${t.slPrice !== t.initialSl ? 'Trailed to ' + t.slPrice.toFixed(2) : 'Initial SL'} | ${t.targetPrice.toFixed(2)} | **${t.status}** | ${pnlStr} | ${t.exitTime} |`
+        });
+    }
+    
+    for (const s of skippedSetups) {
+        outputRows.push({
+            Time: s.Time,
+            Row: `| ${s.Symbol} | ${s.Date} | ${s.Time} | ${s.PDH} | ${s.PDL} | ${s.Setup} | ${s.Direction} | ${s.Entry} | ${s.InitialSL} | ${s.ActiveSL} | ${s.Target} | **${s.Status}** | - | ${s.HitTime} |`
+        });
+    }
+    
+    // Fill in no prime time entries for symbols that did absolutely nothing
+    const tradedOrSkippedSymbols = new Set([...completedTrades.map(t => t.symbol), ...skippedSetups.map(s => s.Symbol)]);
+    for (const { symbol } of testCases) {
+        if (!tradedOrSkippedSymbols.has(symbol)) {
+            const ext = prevExtremes.get(symbol);
+            if (ext) {
+                outputRows.push({
+                    Time: "99:99",
+                    Row: `| ${symbol} | ${testDate} | - | ${ext.h.toFixed(2)} | ${ext.l.toFixed(2)} | - | - | - | - | - | - | **No prime time entry** | - | - |`
+                });
+            }
+        }
+    }
+    
+    // Sort rows by time so it looks chronological
+    outputRows.sort((a, b) => a.Time.localeCompare(b.Time));
+    for (const r of outputRows) {
+        md += r.Row + "\n";
+    }
+    
     writeFileSync("./backtest_results.md", md);
     console.log("Backtest complete.");
 }
