@@ -36,6 +36,11 @@ function parseScripMaster(csvData: string): void {
   // 15: SEM_SERIES
 
   let headers: string[] = [];
+  let exchIdIdx = -1;
+  let segmentIdx = -1;
+  let securityIdIdx = -1;
+  let tradingSymbolIdx = -1;
+  let seriesIdx = -1;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -43,17 +48,26 @@ function parseScripMaster(csvData: string): void {
     
     if (i === 0) {
       headers = line.split(',');
+      exchIdIdx = headers.indexOf('SEM_EXM_EXCH_ID');
+      segmentIdx = headers.indexOf('SEM_SEGMENT');
+      securityIdIdx = headers.indexOf('SEM_SMST_SECURITY_ID');
+      tradingSymbolIdx = headers.indexOf('SEM_TRADING_SYMBOL');
+      seriesIdx = headers.indexOf('SEM_SERIES');
       continue;
     }
     
     const cols = line.split(',');
-    if (cols.length < 16) continue;
+    // If we couldn't find headers, fallback to default indices to prevent crash
+    if (exchIdIdx === -1) {
+      exchIdIdx = 0; segmentIdx = 1; securityIdIdx = 2; tradingSymbolIdx = 9; seriesIdx = 14;
+    }
+    if (cols.length <= Math.max(exchIdIdx, segmentIdx, securityIdIdx, tradingSymbolIdx, seriesIdx)) continue;
     
-    const exchId = cols[0]; // SEM_EXM_EXCH_ID
-    const segment = cols[1]; // SEM_SEGMENT
-    const securityId = cols[2]; // SEM_SMST_SECURITY_ID
-    const tradingSymbol = cols[5]; // SEM_TRADING_SYMBOL
-    const series = cols[14]; // SEM_SERIES
+    const exchId = cols[exchIdIdx];
+    const segment = cols[segmentIdx];
+    const securityId = cols[securityIdIdx];
+    const tradingSymbol = cols[tradingSymbolIdx];
+    const series = cols[seriesIdx];
     
     // We want NSE Equity
     if (exchId === 'NSE' && segment === 'E' && (series === 'EQ' || series === 'BE' || series === 'SM')) {

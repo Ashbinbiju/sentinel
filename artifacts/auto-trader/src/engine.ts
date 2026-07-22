@@ -52,18 +52,7 @@ export class ExecutionEngine {
         const ctx = this.watchlist.get(securityId);
         if (!ctx) return; 
 
-        if (await this.getActiveOrPendingTrade(securityId)) {
-            return;
-        }
-
-        const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
-        const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
-          trade.state !== "REJECTED"
-        ).length;
-
-        if (tradesToday >= MAX_DAILY_TRADES) {
-            return;
-        }
+        // DB checks moved to after signal detection to save I/O and allow logging skipped setups
 
         const prevHigh = ctx.prevHigh;
         const prevLow = ctx.prevLow;
@@ -156,6 +145,22 @@ export class ExecutionEngine {
         if (direction) entryPrice = c.c;
 
         if (direction) {
+          const activeTrade = await this.getActiveOrPendingTrade(securityId);
+          if (activeTrade) {
+              console.warn(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol}: Blocked by existing trade in state ${activeTrade.state}.`);
+              return;
+          }
+
+          const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
+          const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
+            trade.state !== "REJECTED"
+          ).length;
+
+          if (tradesToday >= MAX_DAILY_TRADES) {
+              console.warn(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol}: Daily maximum trade limit reached (${tradesToday}/${MAX_DAILY_TRADES}).`);
+              return;
+          }
+
           console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
           await this.initiateTrade(ctx, direction, entryPrice, sl);
         }
