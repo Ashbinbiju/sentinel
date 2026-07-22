@@ -52,23 +52,10 @@ export class ExecutionEngine {
     this.blockingTrades.clear();
     this.protectedTrades.clear();
 
-    const blockingStates = new Set([
-      "SIGNAL_CREATED",
-      "ENTRY_SUBMITTING",
-      "ENTRY_PENDING",
-      "ENTRY_RECONCILIATION_REQUIRED",
-      "PROTECTION_CONFIRMED",
-      "TRAIL_REQUESTED",
-      "TRAIL_CONFIRMED",
-      "EXIT_RECONCILIATION_REQUIRED",
-      "REVERSAL_RECONCILIATION_REQUIRED"
-    ]);
-
     for (const trade of openTrades) {
-      if (blockingStates.has(trade.state)) {
-        this.blockingTrades.set(trade.securityId, trade);
-      }
-      if (trade.state === "PROTECTION_CONFIRMED") {
+      this.blockingTrades.set(trade.securityId, trade);
+      
+      if (trade.state === "PROTECTION_CONFIRMED" || trade.state === "TRAIL_CONFIRMED") {
         this.protectedTrades.set(trade.securityId, trade);
       }
     }
@@ -79,13 +66,13 @@ export class ExecutionEngine {
   }
 
   public evaluateClosedCandle(securityId: string, candle: Candle, history: Candle[]): void {
-    const evaluateTask = async () => {
+    const processCandle = async () => {
       try {
         const ctx = this.watchlist.get(securityId);
-        if (!ctx) return; 
+        if (!ctx) return null; 
 
         let c = candle;
-        const apiBaseUrl = process.env.SENTINEL_API_URL || "http://localhost:3000";
+        const apiBaseUrl = process.env.API_URL || "http://localhost:3000";
 
         if (c.isPartial) {
           console.log(`[CANDLE] CLOSED secId=${securityId} time=${new Date(c.t * 1000).toISOString()} partial=true`);
@@ -94,155 +81,171 @@ export class ExecutionEngine {
           try {
             const histRes = await axios.get(`${apiBaseUrl}/api/stocks/${ctx.symbol}/candles`);
             const restCandles = histRes.data?.sessionCandles;
-            const recovered = restCandles?.find((rc: any) => rc.t === c.t);
+            const recovered = restCandles?.find((rc: any) => Number(rc.t) === Number(c.t));
             
             if (recovered) {
               c = recovered;
               if (global.hasOwnProperty('recoveredCandles')) (global as any).recoveredCandles++;
+
+              const recoveredIndex = history.findIndex(item => Number(item.t) === Number(c.t));
+              if (recoveredIndex >= 0) {
+                history[recoveredIndex] = { ...recovered, isPartial: false };
+              }
             } else {
               console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${new Date(c.t * 1000).toISOString().substring(11, 16)} reason=PARTIAL_RECOVERY_FAILED`);
               if (global.hasOwnProperty('failedRecoveries')) (global as any).failedRecoveries++;
-              return;
+              return null;
             }
           } catch (err) {
             console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${new Date(c.t * 1000).toISOString().substring(11, 16)} reason=PARTIAL_RECOVERY_FAILED`);
             if (global.hasOwnProperty('failedRecoveries')) (global as any).failedRecoveries++;
-            return;
+            return null;
           }
         } else {
           console.log(`[CANDLE] CLOSED secId=${securityId} time=${new Date(c.t * 1000).toISOString()} partial=false`);
           if (global.hasOwnProperty('closed5m')) (global as any).closed5m++;
         }
 
-        const prevHigh = ctx.prevHigh;
-        const prevLow = ctx.prevLow;
-        const slotIso = new Date(c.t * 1000).toISOString().substring(11, 16);
-        const reject = (reason: string) => {
-          console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
-        };
+        const evaluateTask = async () => {
+          try {
+            const prevHigh = ctx.prevHigh;
+            const prevLow = ctx.prevLow;
+            const slotIso = new Date(c.t * 1000).toISOString().substring(11, 16);
+            const reject = (reason: string) => {
+              console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
+            };
 
-        if (history.length < 3) {
-            return reject("INSUFFICIENT_HISTORY");
-        }
-        
-        const prevC = history[history.length - 2];
-        const prevPrevC = history[history.length - 3];
-
-        const getEpochDateStr = (epochSecs: number) => {
-          const d = new Date(epochSecs * 1000);
-          d.setUTCHours(d.getUTCHours() + 5);
-          d.setUTCMinutes(d.getUTCMinutes() + 30);
-          return d.toISOString().slice(0, 10);
-        };
-
-        if (
-          getEpochDateStr(prevC.t) !== getEpochDateStr(c.t) || 
-          getEpochDateStr(prevPrevC.t) !== getEpochDateStr(c.t)
-        ) {
-          return reject("NOT_FRESH_CROSS");
-        }
-
-        const getISTMinuteOfDay = (epochSecs: number) => {
-          const d = new Date(epochSecs * 1000);
-          d.setUTCHours(d.getUTCHours() + 5);
-          d.setUTCMinutes(d.getUTCMinutes() + 30);
-          return d.getUTCHours() * 60 + d.getUTCMinutes();
-        };
-
-        const mins = getISTMinuteOfDay(c.t + 300);
-        if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
-            return reject("OUTSIDE_TIME");
-        }
-
-        console.log(`[ENGINE] EVALUATING ${ctx.symbol} slot=${slotIso} O=${c.o} H=${c.h} L=${c.l} C=${c.c} PDH=${prevHigh} PDL=${prevLow}`);
-
-        let setup = "";
-        let direction: "BUY" | "SELL" | null = null;
-        let sl = 0;
-        let entryPrice = c.c;
-
-        const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
-        const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
-        const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
-        const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
-
-        const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
-        const touchedHighZone = c.l <= zoneTopH && c.h >= prevHigh;
-        const chasePctHigh = (c.c - prevHigh) / prevHigh;
-        const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
-
-        const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
-        const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
-        const chasePctLow = (prevLow - c.c) / prevLow;
-        const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
-
-        const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
-        const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-        const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
-
-        const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
-        const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-        const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
-
-        if (freshHighBreakout) {
-            if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
-            if (touchedHighZone) {
-                setup = "HIGH BREAKOUT"; direction = "BUY";
-                sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
+            if (history.length < 3) {
+                return reject("INSUFFICIENT_HISTORY");
             }
-        } else if (freshLowBreakdown) {
-            if (!chaseAllowedLow) return reject("CHASE_BLOCK");
-            if (touchedLowZone) {
-                setup = "LOW BREAKDOWN"; direction = "SELL";
-                sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
+            
+            const prevC = history[history.length - 2];
+            const prevPrevC = history[history.length - 3];
+
+            const getEpochDateStr = (epochSecs: number) => {
+              const d = new Date(epochSecs * 1000);
+              d.setUTCHours(d.getUTCHours() + 5);
+              d.setUTCMinutes(d.getUTCMinutes() + 30);
+              return d.toISOString().slice(0, 10);
+            };
+
+            if (
+              getEpochDateStr(prevC.t) !== getEpochDateStr(c.t) || 
+              getEpochDateStr(prevPrevC.t) !== getEpochDateStr(c.t)
+            ) {
+              return reject("NOT_FRESH_CROSS");
             }
-        } else if (validHighRejection) {
-            setup = "HIGH REJECTION"; direction = "SELL";
-            sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
-        } else if (validLowSupport) {
-            setup = "LOW SUPPORT"; direction = "BUY";
-            sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
-        }
 
-        if (!direction) {
-            return reject("NO_SETUP");
-        }
+            const getISTMinuteOfDay = (epochSecs: number) => {
+              const d = new Date(epochSecs * 1000);
+              d.setUTCHours(d.getUTCHours() + 5);
+              d.setUTCMinutes(d.getUTCMinutes() + 30);
+              return d.getUTCHours() * 60 + d.getUTCMinutes();
+            };
 
-        if (direction === "BUY" && ctx.category === "LOSER") {
-            return reject("CATEGORY_BLOCK");
-        } else if (direction === "SELL" && ctx.category === "GAINER") {
-            return reject("CATEGORY_BLOCK");
-        }
+            const mins = getISTMinuteOfDay(c.t + 300);
+            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
+                return reject("OUTSIDE_TIME");
+            }
 
-        entryPrice = c.c;
+            console.log(`[ENGINE] EVALUATING ${ctx.symbol} slot=${slotIso} O=${c.o} H=${c.h} L=${c.l} C=${c.c} PDH=${prevHigh} PDL=${prevLow}`);
 
-        const activeTrade = this.getActiveOrPendingTrade(securityId);
-        if (activeTrade) {
-            return reject("ACTIVE_OR_PENDING_TRADE");
-        }
+            let setup = "";
+            let direction: "BUY" | "SELL" | null = null;
+            let sl = 0;
+            let entryPrice = c.c;
 
-        const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
-        const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
-          trade.state !== "REJECTED"
-        ).length;
+            const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
+            const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
+            const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
+            const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
 
-        if (tradesToday >= MAX_DAILY_TRADES) {
-            return reject("DAILY_LIMIT");
-        }
+            const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
+            const touchedHighZone = c.l <= zoneTopH && c.h >= prevHigh;
+            const chasePctHigh = (c.c - prevHigh) / prevHigh;
+            const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
 
-        console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
-        await this.initiateTrade(ctx, direction, entryPrice, sl);
+            const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
+            const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
+            const chasePctLow = (prevLow - c.c) / prevLow;
+            const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
+
+            const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
+            const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
+            const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
+
+            const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
+            const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
+            const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
+
+            if (freshHighBreakout) {
+                if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
+                if (touchedHighZone) {
+                    setup = "HIGH BREAKOUT"; direction = "BUY";
+                    sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
+                }
+            } else if (freshLowBreakdown) {
+                if (!chaseAllowedLow) return reject("CHASE_BLOCK");
+                if (touchedLowZone) {
+                    setup = "LOW BREAKDOWN"; direction = "SELL";
+                    sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
+                }
+            } else if (validHighRejection) {
+                setup = "HIGH REJECTION"; direction = "SELL";
+                sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
+            } else if (validLowSupport) {
+                setup = "LOW SUPPORT"; direction = "BUY";
+                sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
+            }
+
+            if (!direction) {
+                return reject("NO_SETUP");
+            }
+
+            if (direction === "BUY" && ctx.category === "LOSER") {
+                return reject("CATEGORY_BLOCK");
+            } else if (direction === "SELL" && ctx.category === "GAINER") {
+                return reject("CATEGORY_BLOCK");
+            }
+
+            entryPrice = c.c;
+
+            const activeTrade = this.getActiveOrPendingTrade(securityId);
+            if (activeTrade) {
+                return reject("ACTIVE_OR_PENDING_TRADE");
+            }
+
+            const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
+            const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
+              trade.state !== "REJECTED"
+            ).length;
+
+            if (tradesToday >= MAX_DAILY_TRADES) {
+                return reject("DAILY_LIMIT");
+            }
+
+            console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
+            await this.initiateTrade(ctx, direction, entryPrice, sl);
+          } catch (err: any) {
+            console.error(`[ENGINE] evaluateClosedCandle error for ${securityId}:`, err);
+          }
+        };
+        return evaluateTask;
       } catch (err: any) {
-        console.error(`[ENGINE] evaluateClosedCandle error for ${securityId}:`, err);
+        console.error(`[ENGINE] processCandle error for ${securityId}:`, err);
+        return null;
       }
     };
 
-    const queuedAt = Date.now();
-    this.candleQueue = this.candleQueue.then(async () => {
-      const lag = Date.now() - queuedAt;
-      if (lag > (global as any).maxCandleQueueLagMs || 0) (global as any).maxCandleQueueLagMs = lag;
-      await evaluateTask();
-    }).catch(e => console.error("[ENGINE] Candle queue error:", e));
+    processCandle().then((evalTask) => {
+      if (!evalTask) return;
+      const queuedAt = Date.now();
+      this.candleQueue = this.candleQueue.then(async () => {
+        const lag = Date.now() - queuedAt;
+        if (lag > (global as any).maxCandleQueueLagMs || 0) (global as any).maxCandleQueueLagMs = lag;
+        await evalTask();
+      }).catch(e => console.error("[ENGINE] Candle queue error:", e));
+    });
   }
 
   private roundToTick(val: number): number {
@@ -462,16 +465,6 @@ export class ExecutionEngine {
           await this.syncActiveTrades();
         }
       }
-    } else if (ltp >= trade.targetPrice) {
-      console.log(`[ENGINE] TGT REACHED for ${trade.symbol} at ${ltp}. Initiating full exit...`);
-      await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitPrice: ltp });
-      await this.syncActiveTrades();
-      await this.initiateExit(trade, ltp, "TARGET");
-    } else if (ltp <= trade.stopLossPrice) {
-      console.log(`[ENGINE] SL HIT for ${trade.symbol} at ${ltp}. Initiating full exit...`);
-      await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitPrice: ltp });
-      await this.syncActiveTrades();
-      await this.initiateExit(trade, ltp, "STOP_LOSS");
     }
   }
 
@@ -537,7 +530,7 @@ export class ExecutionEngine {
                   this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, Number(exitPrice)).catch(e => console.error(e));
               } else if (pos && ((trade.side === "BUY" && netQty < 0) || (trade.side === "SELL" && netQty > 0))) {
                   console.error(`[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`);
-                  await TradeDB.updateState(trade.id, "EXITED");
+                  await TradeDB.updateState(trade.id, "REVERSAL_RECONCILIATION_REQUIRED");
                   await this.syncActiveTrades();
               }
           }
@@ -607,7 +600,7 @@ export class ExecutionEngine {
     this.maintenanceQueue = this.maintenanceQueue.then(async () => {
       try {
         const exitTrades = (await TradeDB.getOpenTrades()).filter(
-          t => t.state === "EXIT_RECONCILIATION_REQUIRED" || t.state === "REVERSAL_RECONCILIATION_REQUIRED"
+          trade => trade.state === "EXIT_RECONCILIATION_REQUIRED" && Boolean(trade.exitCorrelationId)
         );
 
         if (exitTrades.length === 0) return;
