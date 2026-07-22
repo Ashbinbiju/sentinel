@@ -14,6 +14,7 @@ module.exports = {
       script: "pnpm",
       args: "--filter @workspace/auto-trader start",
       kill_timeout: 7000,
+      cron_restart: "15 3 * * *", // 03:15 UTC = 08:45 AM IST
       env: {
         NODE_ENV: "production",
       }
