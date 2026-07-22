@@ -349,14 +349,17 @@ async function main() {
     candleEngine.prepareForReconnect();
   });
 
-  broker.onTick(async (tick) => {
+  broker.onTick((tick) => {
     candleEngine.processTick(tick);
-    await executionEngine.evaluateLiveTick(tick.securityId, tick.ltp);
+    executionEngine.evaluateLiveTick(tick.securityId, tick.ltp);
   });
 
   // Start internal timers
   candleEngine.start();
   await broker.connectWebSocket();
+
+  // Initial trade sync
+  await executionEngine.syncActiveTrades();
 
   // Polling / Safety Loop
   let lastWatchlistFetchMs = 0;
@@ -415,6 +418,7 @@ async function main() {
             }
           }
 
+          await executionEngine.syncActiveTrades();
           lastWatchlistFetchMs = Date.now();
         }
       }
@@ -424,9 +428,9 @@ async function main() {
         continue;
       }
 
-      // Reconcile unknown accepted orders
       await executionEngine.reconcileUnknownOrders();
       await executionEngine.reconcileExitOrders();
+      await executionEngine.syncActiveTrades();
 
       let activeTrades = (await TradeDB.getOpenTrades());
 

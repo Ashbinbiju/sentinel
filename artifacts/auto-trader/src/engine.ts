@@ -1,3 +1,4 @@
+import axios from "axios";
 import { ActiveTrade, TradeDB, TradeState } from "./db";
 import { Candle } from "./candle-engine";
 import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
@@ -38,30 +39,95 @@ export class ExecutionEngine {
     console.log(`[ENGINE] Watchlist set with ${list.length} symbols.`);
   }
 
-  private async getActiveOrPendingTrade(securityId: string) {
-    return (await TradeDB.getOpenTrades()).find(
-      t => t.securityId === securityId
-    );
+  private candleQueue: Promise<void> = Promise.resolve();
+  private tickQueue: Promise<void> = Promise.resolve();
+  private maintenanceQueue: Promise<void> = Promise.resolve();
+
+  private blockingTrades = new Map<string, ActiveTrade>();
+  private protectedTrades = new Map<string, ActiveTrade>();
+
+  public async syncActiveTrades() {
+    const openTrades = await TradeDB.getOpenTrades();
+    
+    this.blockingTrades.clear();
+    this.protectedTrades.clear();
+
+    const blockingStates = new Set([
+      "SIGNAL_CREATED",
+      "ENTRY_SUBMITTING",
+      "ENTRY_PENDING",
+      "ENTRY_RECONCILIATION_REQUIRED",
+      "PROTECTION_CONFIRMED",
+      "TRAIL_REQUESTED",
+      "TRAIL_CONFIRMED",
+      "EXIT_RECONCILIATION_REQUIRED",
+      "REVERSAL_RECONCILIATION_REQUIRED"
+    ]);
+
+    for (const trade of openTrades) {
+      if (blockingStates.has(trade.state)) {
+        this.blockingTrades.set(trade.securityId, trade);
+      }
+      if (trade.state === "PROTECTION_CONFIRMED") {
+        this.protectedTrades.set(trade.securityId, trade);
+      }
+    }
   }
 
-  private evaluationQueue: Promise<void> = Promise.resolve();
+  private getActiveOrPendingTrade(securityId: string): ActiveTrade | undefined {
+    return this.blockingTrades.get(securityId);
+  }
 
-  public async evaluateClosedCandle(securityId: string, candle: Candle, history: Candle[]) {
+  public evaluateClosedCandle(securityId: string, candle: Candle, history: Candle[]): void {
     const evaluateTask = async () => {
       try {
         const ctx = this.watchlist.get(securityId);
         if (!ctx) return; 
 
-        // DB checks moved to after signal detection to save I/O and allow logging skipped setups
+        let c = candle;
+        const apiBaseUrl = process.env.SENTINEL_API_URL || "http://localhost:3000";
+
+        if (c.isPartial) {
+          console.log(`[CANDLE] CLOSED secId=${securityId} time=${new Date(c.t * 1000).toISOString()} partial=true`);
+          if (global.hasOwnProperty('partial5m')) (global as any).partial5m++;
+          
+          try {
+            const histRes = await axios.get(`${apiBaseUrl}/api/stocks/${ctx.symbol}/candles`);
+            const restCandles = histRes.data?.sessionCandles;
+            const recovered = restCandles?.find((rc: any) => rc.t === c.t);
+            
+            if (recovered) {
+              c = recovered;
+              if (global.hasOwnProperty('recoveredCandles')) (global as any).recoveredCandles++;
+            } else {
+              console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${new Date(c.t * 1000).toISOString().substring(11, 16)} reason=PARTIAL_RECOVERY_FAILED`);
+              if (global.hasOwnProperty('failedRecoveries')) (global as any).failedRecoveries++;
+              return;
+            }
+          } catch (err) {
+            console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${new Date(c.t * 1000).toISOString().substring(11, 16)} reason=PARTIAL_RECOVERY_FAILED`);
+            if (global.hasOwnProperty('failedRecoveries')) (global as any).failedRecoveries++;
+            return;
+          }
+        } else {
+          console.log(`[CANDLE] CLOSED secId=${securityId} time=${new Date(c.t * 1000).toISOString()} partial=false`);
+          if (global.hasOwnProperty('closed5m')) (global as any).closed5m++;
+        }
 
         const prevHigh = ctx.prevHigh;
         const prevLow = ctx.prevLow;
-        const c = candle;
-        if (history.length < 3) return;
+        const slotIso = new Date(c.t * 1000).toISOString().substring(11, 16);
+        const reject = (reason: string) => {
+          console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
+        };
+
+        if (history.length < 3) {
+            return reject("INSUFFICIENT_HISTORY");
+        }
+        
         const prevC = history[history.length - 2];
         const prevPrevC = history[history.length - 3];
 
-        // Prevent cross-session signals (and implicitly skip 9:15-9:20 volatility)
         const getEpochDateStr = (epochSecs: number) => {
           const d = new Date(epochSecs * 1000);
           d.setUTCHours(d.getUTCHours() + 5);
@@ -73,7 +139,7 @@ export class ExecutionEngine {
           getEpochDateStr(prevC.t) !== getEpochDateStr(c.t) || 
           getEpochDateStr(prevPrevC.t) !== getEpochDateStr(c.t)
         ) {
-          return;
+          return reject("NOT_FRESH_CROSS");
         }
 
         const getISTMinuteOfDay = (epochSecs: number) => {
@@ -85,8 +151,10 @@ export class ExecutionEngine {
 
         const mins = getISTMinuteOfDay(c.t + 300);
         if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
-            return;
+            return reject("OUTSIDE_TIME");
         }
+
+        console.log(`[ENGINE] EVALUATING ${ctx.symbol} slot=${slotIso} O=${c.o} H=${c.h} L=${c.l} C=${c.c} PDH=${prevHigh} PDL=${prevLow}`);
 
         let setup = "";
         let direction: "BUY" | "SELL" | null = null;
@@ -117,12 +185,14 @@ export class ExecutionEngine {
         const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
 
         if (freshHighBreakout) {
-            if (touchedHighZone && chaseAllowedHigh) {
+            if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
+            if (touchedHighZone) {
                 setup = "HIGH BREAKOUT"; direction = "BUY";
                 sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
             }
         } else if (freshLowBreakdown) {
-            if (touchedLowZone && chaseAllowedLow) {
+            if (!chaseAllowedLow) return reject("CHASE_BLOCK");
+            if (touchedLowZone) {
                 setup = "LOW BREAKDOWN"; direction = "SELL";
                 sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
             }
@@ -134,42 +204,45 @@ export class ExecutionEngine {
             sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
         }
 
+        if (!direction) {
+            return reject("NO_SETUP");
+        }
+
         if (direction === "BUY" && ctx.category === "LOSER") {
-            direction = null;
-            // console.log(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol} (Longs disabled for Intraday Loser filter)`);
+            return reject("CATEGORY_BLOCK");
         } else if (direction === "SELL" && ctx.category === "GAINER") {
-            direction = null;
-            // console.log(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol} (Shorts disabled for Intraday Gainer filter)`);
+            return reject("CATEGORY_BLOCK");
         }
 
-        if (direction) entryPrice = c.c;
+        entryPrice = c.c;
 
-        if (direction) {
-          const activeTrade = await this.getActiveOrPendingTrade(securityId);
-          if (activeTrade) {
-              console.warn(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol}: Blocked by existing trade in state ${activeTrade.state}.`);
-              return;
-          }
-
-          const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
-          const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
-            trade.state !== "REJECTED"
-          ).length;
-
-          if (tradesToday >= MAX_DAILY_TRADES) {
-              console.warn(`[ENGINE] SKIPPED ${setup} for ${ctx.symbol}: Daily maximum trade limit reached (${tradesToday}/${MAX_DAILY_TRADES}).`);
-              return;
-          }
-
-          console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
-          await this.initiateTrade(ctx, direction, entryPrice, sl);
+        const activeTrade = this.getActiveOrPendingTrade(securityId);
+        if (activeTrade) {
+            return reject("ACTIVE_OR_PENDING_TRADE");
         }
+
+        const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
+        const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
+          trade.state !== "REJECTED"
+        ).length;
+
+        if (tradesToday >= MAX_DAILY_TRADES) {
+            return reject("DAILY_LIMIT");
+        }
+
+        console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
+        await this.initiateTrade(ctx, direction, entryPrice, sl);
       } catch (err: any) {
         console.error(`[ENGINE] evaluateClosedCandle error for ${securityId}:`, err);
       }
     };
 
-    this.evaluationQueue = this.evaluationQueue.then(evaluateTask);
+    const queuedAt = Date.now();
+    this.candleQueue = this.candleQueue.then(async () => {
+      const lag = Date.now() - queuedAt;
+      if (lag > (global as any).maxCandleQueueLagMs || 0) (global as any).maxCandleQueueLagMs = lag;
+      await evaluateTask();
+    }).catch(e => console.error("[ENGINE] Candle queue error:", e));
   }
 
   private roundToTick(val: number): number {
@@ -247,15 +320,17 @@ export class ExecutionEngine {
       try {
         superOrderId = await this.broker.placeSuperOrder(orderInput);
         await TradeDB.updateState(newTrade.id, "ENTRY_PENDING", { superOrderId });
+        await this.syncActiveTrades();
       } catch (err: any) {
         console.error(`[ENGINE] Failed to POST Super Order for ${ctx.symbol}:`, err.message);
         await TradeDB.updateState(newTrade.id, "ENTRY_RECONCILIATION_REQUIRED");
+        await this.syncActiveTrades();
         return;
       }
 
-      // Verify execution and protection via order book polling
       if (process.env.DRY_RUN === "true") {
           await TradeDB.updateState(newTrade.id, "PROTECTION_CONFIRMED", { protectionConfirmed: true });
+          await this.syncActiveTrades();
           return;
       }
 
@@ -272,31 +347,23 @@ export class ExecutionEngine {
 
       while (retries < 10 && !confirmed) {
           retries++;
-          await new Promise(r => setTimeout(r, 2000)); // Poll every 2s
+          await new Promise(r => setTimeout(r, 2000));
 
           try {
               const orders = await this.broker.getSuperOrderList();
-              
               const parent = orders.find(
                 order => order.orderId === superOrderId || order.correlationId === tradeId
               );
 
               if (parent && (parent.orderStatus === "REJECTED" || parent.orderStatus === "CANCELLED")) {
                   await TradeDB.updateState(tradeId, "REJECTED");
+                  await this.syncActiveTrades();
                   return;
               }
 
-              const stopLeg = parent?.legDetails?.find(
-                leg => leg.legName === "STOP_LOSS_LEG"
-              );
-
-              const entryLeg = parent?.legDetails?.find(
-                leg => leg.legName === "ENTRY_LEG"
-              );
-
-              const targetLeg = parent?.legDetails?.find(
-                leg => leg.legName === "TARGET_LEG"
-              );
+              const stopLeg = parent?.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
+              const entryLeg = parent?.legDetails?.find(leg => leg.legName === "ENTRY_LEG");
+              const targetLeg = parent?.legDetails?.find(leg => leg.legName === "TARGET_LEG");
 
               const isLegPending = stopLeg?.orderStatus === "PENDING";
               const isLegTraded = stopLeg?.orderStatus === "TRADED" || targetLeg?.orderStatus === "TRADED";
@@ -315,6 +382,7 @@ export class ExecutionEngine {
 
                   if (!Number.isFinite(actualFillPrice) || actualFillPrice <= 0 || actualFilledQty !== trade.quantity) {
                       await TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
+                      await this.syncActiveTrades();
                       break;
                   }
 
@@ -324,6 +392,7 @@ export class ExecutionEngine {
                       quantity: actualFilledQty,
                       productType: (parent.productType?.toUpperCase() as any) || trade.productType || "INTRADAY"
                   });
+                  await this.syncActiveTrades();
                   confirmed = true;
                   console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
                   this.notifier.sendTradeEntry(trade.symbol, trade.side, actualFillPrice, trade.targetPrice, trade.stopLossPrice).catch(e => console.error(e));
@@ -336,56 +405,92 @@ export class ExecutionEngine {
       if (!confirmed) {
           console.warn(`[ENGINE] Failed to verify protection for ${tradeId} after 20s.`);
           await TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
+          await this.syncActiveTrades();
       }
   }
 
-  public async evaluateLiveTick(securityId: string, ltp: number) {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._evaluateLiveTick(securityId, ltp)).catch(e => console.error(e));
+  public evaluateLiveTick(securityId: string, ltp: number): void {
+    const queuedTrade = this.protectedTrades.get(securityId);
+    if (!queuedTrade) return;
+
+    const queuedAt = Date.now();
+    this.tickQueue = this.tickQueue
+      .then(async () => {
+        const lag = Date.now() - queuedAt;
+        if (lag > (global as any).maxTickQueueLagMs || 0) (global as any).maxTickQueueLagMs = lag;
+
+        const currentTrade = this.protectedTrades.get(securityId);
+        if (!currentTrade || currentTrade.id !== queuedTrade.id) return;
+        
+        await this._evaluateLiveTick(securityId, ltp, currentTrade);
+      })
+      .catch((error) => {
+        console.error("[ENGINE] Tick queue error:", error);
+      });
   }
 
-  private async _evaluateLiveTick(securityId: string, ltp: number) {
-    const trade = await this.getActiveOrPendingTrade(securityId);
-    if (!trade || trade.state !== "PROTECTION_CONFIRMED") return;
+  private async _evaluateLiveTick(securityId: string, ltp: number, trade: ActiveTrade) {
+    if (trade.state !== "PROTECTION_CONFIRMED" && trade.state !== "TRAIL_CONFIRMED") return;
 
-    // Evaluate Structural Trail Rule
     const risk = Math.abs(trade.entryPrice - trade.stopLossPrice);
-    let reachedTrailRR = false;
-    let trailSLPrice = trade.entryPrice;
+    
+    if (trade.state === "PROTECTION_CONFIRMED" && !trade.trailApplied) {
+      let reachedTrailRR = false;
+      let trailSLPrice = trade.entryPrice;
 
-    if (trade.side === "BUY" && ltp >= trade.entryPrice + (risk * STRUCTURAL_TRAIL_RR)) {
-      reachedTrailRR = true;
-      trailSLPrice = this.roundToTick(trade.entryPrice - (risk * STRUCTURAL_TRAIL_RISK_BUFFER)); // Trail below entry to structural floor
-    } else if (trade.side === "SELL" && ltp <= trade.entryPrice - (risk * STRUCTURAL_TRAIL_RR)) {
-      reachedTrailRR = true;
-      trailSLPrice = this.roundToTick(trade.entryPrice + (risk * STRUCTURAL_TRAIL_RISK_BUFFER));
-    }
-
-    if (reachedTrailRR && !trade.trailApplied) {
-      console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
-      await TradeDB.updateState(trade.id, "TRAIL_REQUESTED");
-      
-      try {
-        await this.broker.moveSuperOrderStopToBreakeven(
-          trade.superOrderId,
-          trailSLPrice,
-          trade.trailingJump
-        );
-        await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
-        this.notifier.sendTrailApplied(trade.symbol, trailSLPrice).catch(e => console.error(e));
-      } catch (err) {
-        console.error(`[ENGINE] Failed to move SL to breakeven for ${trade.symbol}`, err);
-        await TradeDB.updateState(trade.id, "PROTECTION_CONFIRMED");
+      if (trade.side === "BUY" && ltp >= trade.entryPrice + (risk * STRUCTURAL_TRAIL_RR)) {
+        reachedTrailRR = true;
+        trailSLPrice = this.roundToTick(trade.entryPrice - (risk * STRUCTURAL_TRAIL_RISK_BUFFER));
+      } else if (trade.side === "SELL" && ltp <= trade.entryPrice - (risk * STRUCTURAL_TRAIL_RR)) {
+        reachedTrailRR = true;
+        trailSLPrice = this.roundToTick(trade.entryPrice + (risk * STRUCTURAL_TRAIL_RISK_BUFFER));
       }
+
+      if (reachedTrailRR) {
+        console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
+        await TradeDB.updateState(trade.id, "TRAIL_REQUESTED");
+        await this.syncActiveTrades();
+        
+        try {
+          await this.broker.moveSuperOrderStopToBreakeven(trade.superOrderId, trailSLPrice, trade.trailingJump);
+          await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+          await this.syncActiveTrades();
+          this.notifier.sendTrailApplied(trade.symbol, trailSLPrice).catch(e => console.error(e));
+        } catch (err: any) {
+          console.error(`[ENGINE] Failed to trail Super Order for ${trade.symbol}:`, err.message);
+          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+          await this.syncActiveTrades();
+        }
+      }
+    } else if (ltp >= trade.targetPrice) {
+      console.log(`[ENGINE] TGT REACHED for ${trade.symbol} at ${ltp}. Initiating full exit...`);
+      await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitPrice: ltp });
+      await this.syncActiveTrades();
+      await this.initiateExit(trade, ltp, "TARGET");
+    } else if (ltp <= trade.stopLossPrice) {
+      console.log(`[ENGINE] SL HIT for ${trade.symbol} at ${ltp}. Initiating full exit...`);
+      await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitPrice: ltp });
+      await this.syncActiveTrades();
+      await this.initiateExit(trade, ltp, "STOP_LOSS");
+    }
+  }
+
+  private async initiateExit(trade: ActiveTrade, exitPrice: number, reason: string) {
+    try {
+      const pnl = trade.side === "BUY" ? (exitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - exitPrice) / trade.entryPrice;
+      await TradeDB.markTradeClosed(trade.id, reason, exitPrice);
+      await this.syncActiveTrades();
+      
+      this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, exitPrice).catch(e => console.error(e));
+    } catch (err: any) {
+      console.error(`[ENGINE] Critical error exiting trade ${trade.symbol}:`, err.message);
+      await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+      await this.syncActiveTrades();
     }
   }
 
   public reconcileExits(): Promise<void> {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExits()).catch(e => console.error(e)) as Promise<void>;
-    return this.evaluationQueue;
-  }
-
-  private async _reconcileExits() {
-      // Background task to mark EXITED if target/SL hit externally
+    this.maintenanceQueue = this.maintenanceQueue.then(async () => {
       const activeTrades = (await TradeDB.getOpenTrades()).filter(t => 
           t.state === "PROTECTION_CONFIRMED" || 
           t.state === "TRAIL_CONFIRMED" || 
@@ -412,7 +517,6 @@ export class ExecutionEngine {
 
               if (positionAbsentOrFlat && parent?.orderStatus === "CLOSED" && triggeredLeg) {
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
-                  
                   const trades = await this.broker.getTradesByOrderId(triggeredLeg.orderId);
                   
                   let totalValue = 0;
@@ -425,193 +529,132 @@ export class ExecutionEngine {
                   }
                   
                   const exitPrice = totalQty === trade.quantity ? totalValue / totalQty : undefined;
-                  
-                  if (!Number.isFinite(exitPrice) || Number(exitPrice) <= 0) {
-                      console.warn(`[ENGINE] Incomplete exit executions for ${trade.symbol}: ${totalQty}/${trade.quantity}`);
-                      continue;
-                  }
+                  if (!Number.isFinite(exitPrice) || Number(exitPrice) <= 0) continue;
 
                   await TradeDB.markTradeClosed(trade.id, "BROKER EXIT", exitPrice);
+                  await this.syncActiveTrades();
                   const pnl = trade.side === "BUY" ? (Number(exitPrice) - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - Number(exitPrice)) / trade.entryPrice;
                   this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, Number(exitPrice)).catch(e => console.error(e));
-              } else if (
-                pos && (
-                  (trade.side === "BUY" && netQty < 0) ||
-                  (trade.side === "SELL" && netQty > 0)
-                )
-              ) {
-                  console.error(
-                    `[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`
-                  );
-                
-                  await TradeDB.updateState(
-                    trade.id,
-                    "REVERSAL_RECONCILIATION_REQUIRED"
-                  );
+              } else if (pos && ((trade.side === "BUY" && netQty < 0) || (trade.side === "SELL" && netQty > 0))) {
+                  console.error(`[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`);
+                  await TradeDB.updateState(trade.id, "EXITED");
+                  await this.syncActiveTrades();
               }
           }
       } catch (e: any) {
           console.error("[ENGINE] Critical error in reconcileExits:", e.message || e);
       }
+    }).catch(e => console.error("[ENGINE] Maintenance queue error:", e));
+    return this.maintenanceQueue as Promise<void>;
   }
 
-  public reconcileUnknownOrders(): Promise<void> {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileUnknownOrders()).catch(e => console.error(e)) as Promise<void>;
-    return this.evaluationQueue;
-  }
+  public async reconcileUnknownOrders() {
+    this.maintenanceQueue = this.maintenanceQueue.then(async () => {
+      try {
+        const unknownTrades = (await TradeDB.getOpenTrades()).filter(trade =>
+          ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "TRAIL_REQUESTED"].includes(trade.state)
+        );
 
-  private async _reconcileUnknownOrders(): Promise<void> {
-    const unknownTrades = (await TradeDB.getOpenTrades()).filter(trade =>
-      ["ENTRY_SUBMITTING", "ENTRY_RECONCILIATION_REQUIRED", "TRAIL_REQUESTED"].includes(trade.state)
-    );
+        if (unknownTrades.length === 0) return;
 
-    if (unknownTrades.length === 0) return;
+        const brokerOrders = await this.broker.getSuperOrderList();
 
-    try {
-      const brokerOrders = await this.broker.getSuperOrderList();
+        for (const trade of unknownTrades) {
+          if (trade.state === "TRAIL_REQUESTED") {
+              const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
+              if (parent) {
+                  const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
+                  const priceMatch = slLeg && Math.abs(Number(slLeg.price) - Number(trade.entryPrice)) < 0.001;
+                  const statusMatch = slLeg && slLeg.orderStatus === "PENDING";
+                  
+                  if (priceMatch && statusMatch) {
+                      await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
+                      await this.syncActiveTrades();
+                  } else if (!statusMatch) {
+                      await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
+                      await this.syncActiveTrades();
+                  }
+              }
+              continue;
+          }
 
-      for (const trade of unknownTrades) {
-        if (trade.state === "TRAIL_REQUESTED") {
-            const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
-            if (parent) {
-                const slLeg = parent.legDetails?.find(leg => leg.legName === "STOP_LOSS_LEG");
-                const priceMatch = slLeg && Math.abs(Number(slLeg.price) - Number(trade.entryPrice)) < 0.001;
-                const statusMatch = slLeg && slLeg.orderStatus === "PENDING";
-                
-                if (priceMatch && statusMatch) {
-                    await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true });
-                    console.log(`[ENGINE] Recovered breakeven state for ${trade.symbol}`);
-                } else if (!statusMatch) {
-                    console.warn(`[ENGINE] Breakeven not applied for ${trade.symbol} (SL status: ${slLeg?.orderStatus}). Escalating to ENTRY_RECONCILIATION_REQUIRED`);
-                    await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
-                } else {
-                    console.warn(`[ENGINE] Breakeven price mismatch for ${trade.symbol}. Leaving in TRAIL_REQUESTED.`);
-                }
-            } else {
-                console.warn(`[ENGINE] Parent missing for breakeven recovery of ${trade.symbol}. Escalating to ENTRY_RECONCILIATION_REQUIRED`);
-                await TradeDB.updateState(trade.id, "ENTRY_RECONCILIATION_REQUIRED");
-            }
-            continue;
+          const parent = brokerOrders.find(order => order.correlationId === trade.correlationId);
+          if (!parent) continue;
+
+          const verifyAttempts = (trade.verifyAttempts || 0) + 1;
+          await TradeDB.updateState(trade.id, "ENTRY_PENDING", {
+            superOrderId: parent.orderId,
+            verifyAttempts,
+            productType: (parent.productType?.toUpperCase() as any) || trade.productType || "INTRADAY",
+          });
+
+          if (verifyAttempts > 5) {
+              await TradeDB.updateState(trade.id, "REJECTED");
+              await this.syncActiveTrades();
+              continue;
+          }
+
+          await this.verifyOrderExecution(trade.id, parent.orderId);
+          await this.syncActiveTrades();
         }
-
-        const parent = brokerOrders.find(order => order.correlationId === trade.correlationId);
-
-        if (!parent) continue;
-
-        const verifyAttempts = (trade.verifyAttempts || 0) + 1;
-        await TradeDB.updateState(trade.id, "ENTRY_PENDING", {
-          superOrderId: parent.orderId,
-          verifyAttempts,
-          productType: (parent.productType?.toUpperCase() as any) || trade.productType || "INTRADAY",
-        });
-
-        if (verifyAttempts > 5) {
-            console.error(`[ENGINE] Abandoning verification for ${trade.id} after ${verifyAttempts} attempts. Moving to REJECTED.`);
-            await TradeDB.updateState(trade.id, "REJECTED");
-            continue;
-        }
-
-        await this.verifyOrderExecution(trade.id, parent.orderId);
+      } catch (err) {
+        console.error(`[ENGINE] Failed to reconcile unknown orders:`, err);
       }
-    } catch (e) {
-      console.error("[ENGINE] Failed to run reconcileUnknownOrders", e);
-    }
+    }).catch(e => console.error("[ENGINE] Maintenance queue error:", e));
   }
 
-  public reconcileExitOrders(): Promise<void> {
-    this.evaluationQueue = this.evaluationQueue.then(() => this._reconcileExitOrders()).catch(e => console.error(e)) as Promise<void>;
-    return this.evaluationQueue;
-  }
+  public async reconcileExitOrders() {
+    this.maintenanceQueue = this.maintenanceQueue.then(async () => {
+      try {
+        const exitTrades = (await TradeDB.getOpenTrades()).filter(
+          t => t.state === "EXIT_RECONCILIATION_REQUIRED" || t.state === "REVERSAL_RECONCILIATION_REQUIRED"
+        );
 
-  private async _reconcileExitOrders(): Promise<void> {
-    const exitTrades = (await TradeDB.getOpenTrades()).filter(trade => 
-      trade.state === "EXIT_RECONCILIATION_REQUIRED" && trade.exitCorrelationId
-    );
+        if (exitTrades.length === 0) return;
 
-    if (exitTrades.length === 0) return;
+        const orders = await this.broker.getOrderBook();
 
-    try {
-      const orders = await this.broker.getOrderBook();
+        for (const trade of exitTrades) {
+          let exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
+          if (!exitOrder && trade.exitCorrelationId) {
+              exitOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId) || undefined;
+          }
 
-      for (const trade of exitTrades) {
-        let exitOrder = orders.find(order => order.correlationId === trade.exitCorrelationId);
+          if (!exitOrder) {
+              const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
+              await TradeDB.updateState(trade.id, undefined, { exitNotFoundCount: notFoundCount });
+              continue;
+          }
 
-        if (!exitOrder && trade.exitCorrelationId) {
-            exitOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId) || undefined;
+          if (exitOrder.orderStatus === "TRADED") {
+              const exitPrice = Number(exitOrder.averageTradedPrice);
+              if (!Number.isFinite(exitPrice) || exitPrice <= 0) continue;
+
+              await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
+              await this.syncActiveTrades();
+              const pnl = trade.side === "BUY" ? (exitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - exitPrice) / trade.entryPrice;
+              this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, exitPrice).catch(e => console.error(e));
+          } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
+              await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
+          } else {
+              await this.broker.cancelOrder(exitOrder.orderId);
+              await this.broker.waitForOrderTerminal(exitOrder.orderId);
+              const finalOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId || "");
+              
+              if (finalOrder?.orderStatus === "TRADED") {
+                  const finalExitPrice = Number(finalOrder.averageTradedPrice);
+                  await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
+                  await this.syncActiveTrades();
+                  const pnl = trade.side === "BUY" ? (finalExitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - finalExitPrice) / trade.entryPrice;
+                  this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, finalExitPrice).catch(e => console.error(e));
+              } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(finalOrder?.orderStatus ?? "")) {
+                  await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
+              }
+          }
         }
-
-        if (!exitOrder) {
-            const notFoundCount = (trade.exitNotFoundCount || 0) + 1;
-            console.error(`[EMERGENCY] Exit ${trade.exitCorrelationId} missing from broker (count ${notFoundCount}). MANUAL OPERATOR RESOLUTION REQUIRED to avoid unflattened exposure.`);
-            await TradeDB.updateState(trade.id, undefined, { exitNotFoundCount: notFoundCount });
-            continue;
-        }
-
-        if (exitOrder.orderStatus === "TRADED") {
-            const exitPrice = Number(exitOrder.averageTradedPrice);
-            const filledQty = Number(exitOrder.filledQty);
-
-            if (
-                !Number.isFinite(exitPrice) ||
-                exitPrice <= 0 ||
-                !Number.isFinite(filledQty) ||
-                filledQty !== Number(exitOrder.quantity)
-            ) {
-                continue;
-            }
-
-            const positions = await this.broker.getPositions();
-            const position = resolveTradePosition(positions, trade);
-
-            if (Number(position?.netQty ?? 0) !== 0) {
-                continue;
-            }
-
-            await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", exitPrice);
-            const pnl = trade.side === "BUY" ? (exitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - exitPrice) / trade.entryPrice;
-            this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, exitPrice).catch(e => console.error(e));
-        } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(exitOrder.orderStatus)) {
-            await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
-        } else {
-            console.log(`[ENGINE] Cancelling pending exit order for ${trade.symbol}`);
-            await this.broker.cancelOrder(exitOrder.orderId);
-            await this.broker.waitForOrderTerminal(exitOrder.orderId);
-            
-            if (!trade.exitCorrelationId) {
-                continue;
-            }
-            const finalOrder = await this.broker.getOrderByCorrelationId(trade.exitCorrelationId);
-            
-            if (finalOrder?.orderStatus === "TRADED") {
-                const finalExitPrice = Number(finalOrder.averageTradedPrice);
-                const finalFilledQty = Number(finalOrder.filledQty);
-
-                if (
-                    !Number.isFinite(finalExitPrice) ||
-                    finalExitPrice <= 0 ||
-                    !Number.isFinite(finalFilledQty) ||
-                    finalFilledQty !== Number(finalOrder.quantity)
-                ) {
-                    continue;
-                }
-
-                const positions = await this.broker.getPositions();
-                const position = resolveTradePosition(positions, trade);
-
-                if (Number(position?.netQty ?? 0) !== 0) {
-                    continue;
-                }
-
-                await TradeDB.markTradeClosed(trade.id, "SQUARED OFF", finalExitPrice);
-                const pnl = trade.side === "BUY" ? (finalExitPrice - trade.entryPrice) / trade.entryPrice : (trade.entryPrice - finalExitPrice) / trade.entryPrice;
-                this.notifier.sendTradeExit(trade.symbol, trade.side, pnl, finalExitPrice).catch(e => console.error(e));
-            } else if (["CANCELLED", "REJECTED", "EXPIRED"].includes(finalOrder?.orderStatus ?? "")) {
-                await TradeDB.updateState(trade.id, undefined, { exitCorrelationId: "", exitNotFoundCount: 0 });
-            }
-        }
+      } catch (err) {
+        console.error(`[ENGINE] Failed to reconcile exit orders:`, err);
       }
-    } catch (e) {
-      console.error("[ENGINE] Failed to run reconcileExitOrders", e);
-    }
+    }).catch(e => console.error("[ENGINE] Maintenance queue error:", e));
   }
 }

@@ -26,12 +26,23 @@ export class CandleEngine extends EventEmitter {
   public isContinuityValid: boolean = false;
   private intervalTimer: NodeJS.Timeout | null = null;
 
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private tickCount: number = 0;
+  private uniqueSymbols: Set<string> = new Set();
+
   constructor() {
     super();
+    (global as any).closed5m = 0;
+    (global as any).partial5m = 0;
+    (global as any).recoveredCandles = 0;
+    (global as any).failedRecoveries = 0;
+    (global as any).maxCandleQueueLagMs = 0;
+    (global as any).maxTickQueueLagMs = 0;
   }
 
   public start() {
     if (this.intervalTimer) clearInterval(this.intervalTimer);
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     
     this.intervalTimer = setInterval(() => {
       if (!this.isContinuityValid) return;
@@ -40,12 +51,38 @@ export class CandleEngine extends EventEmitter {
       this.checkClosures(this.current1m, this.candles1m, 60, nowMs, "1m");
       this.checkClosures(this.current5m, this.candles5m, 300, nowMs, "5m");
     }, 1000);
+
+    this.heartbeatTimer = setInterval(() => {
+      if (!this.isContinuityValid) return;
+      console.log(
+        `[FEED] ticks=${this.tickCount} ` +
+        `uniqueSymbols=${this.uniqueSymbols.size} ` +
+        `closed5m=${(global as any).closed5m} ` +
+        `partial5m=${(global as any).partial5m} ` +
+        `recovered=${(global as any).recoveredCandles} ` +
+        `failed=${(global as any).failedRecoveries} ` +
+        `candleQueueLagMs=${(global as any).maxCandleQueueLagMs} ` +
+        `tickQueueLagMs=${(global as any).maxTickQueueLagMs}`
+      );
+      this.tickCount = 0;
+      this.uniqueSymbols.clear();
+      (global as any).closed5m = 0;
+      (global as any).partial5m = 0;
+      (global as any).recoveredCandles = 0;
+      (global as any).failedRecoveries = 0;
+      (global as any).maxCandleQueueLagMs = 0;
+      (global as any).maxTickQueueLagMs = 0;
+    }, 60000);
   }
 
   public stop() {
     if (this.intervalTimer) {
       clearInterval(this.intervalTimer);
       this.intervalTimer = null;
+    }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
   }
 
@@ -89,7 +126,7 @@ export class CandleEngine extends EventEmitter {
     }
     history.push({ ...candle });
     
-    if (label === "5m" && !candle.isPartial) {
+    if (label === "5m") {
       this.emit("onCandleClosed", securityId, candle, history);
     }
   }
@@ -108,6 +145,9 @@ export class CandleEngine extends EventEmitter {
       return;
     }
     this.lastExchangeTimestamp.set(tick.securityId, tick.exchangeTimestampMs);
+
+    this.tickCount++;
+    this.uniqueSymbols.add(tick.securityId);
 
     const d = new Date(tick.exchangeTimestampMs);
     const utcHours = d.getUTCHours();
