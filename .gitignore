@@ -61,3 +61,7 @@ Thumbs.db
 error.log
 artifacts/*/error.log
 trades.json
+
+# Security & Scratch Files
+.dhan_token
+scratch-*.ts
