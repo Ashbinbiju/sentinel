@@ -180,18 +180,26 @@ export class CandleEngine extends EventEmitter {
     }
     this.lastExchangeTimestamp.set(tick.securityId, tick.exchangeTimestampMs);
 
+    // Dhan sends local IST time epoch instead of true UTC epoch. 
+    // If the timestamp is ~5.5 hours in the future, correct it.
+    let realExchangeTimeMs = tick.exchangeTimestampMs;
+    const apparentSkew = realExchangeTimeMs - Date.now();
+    if (apparentSkew > 19000000 && apparentSkew < 20000000) {
+      realExchangeTimeMs -= 19800000; // subtract 5 hours 30 minutes
+    }
+
     this.tickCount++;
     this.uniqueSymbols.add(tick.securityId);
-    this.sampleExchangeTimestampMs = tick.exchangeTimestampMs;
+    this.sampleExchangeTimestampMs = realExchangeTimeMs;
 
-    const exchangeDate = new Date(tick.exchangeTimestampMs);
+    const exchangeDate = new Date(realExchangeTimeMs);
     const istMinutes =
       exchangeDate.getUTCHours() * 60 +
       exchangeDate.getUTCMinutes() +
       330;
 
     const timestampSkewMs = Math.abs(
-      Date.now() - tick.exchangeTimestampMs
+      Date.now() - realExchangeTimeMs
     );
 
     if (timestampSkewMs > 5 * 60 * 1000) {
@@ -205,7 +213,7 @@ export class CandleEngine extends EventEmitter {
 
     this.acceptedTicks++;
 
-    const epochSecs = Math.floor(tick.exchangeTimestampMs / 1000);
+    const epochSecs = Math.floor(realExchangeTimeMs / 1000);
     const slot1m = Math.floor(epochSecs / 60) * 60;
     const slot5m = Math.floor(epochSecs / 300) * 300;
 
