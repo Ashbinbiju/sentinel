@@ -32,6 +32,7 @@ export class CandleEngine extends EventEmitter {
   private acceptedTicks = 0;
   private marketTimeRejectedTicks = 0;
   private sampleExchangeTimestampMs = 0;
+  private abnormalTimestampSkews = 0;
 
   constructor() {
     super();
@@ -64,6 +65,12 @@ export class CandleEngine extends EventEmitter {
         `uniqueSymbols=${this.uniqueSymbols.size} ` +
         `current5m=${this.current5m.size} ` +
         `closed5m=${(global as any).closed5m} ` +
+        `partial5m=${(global as any).partial5m} ` +
+        `recovered=${(global as any).recoveredCandles} ` +
+        `failed=${(global as any).failedRecoveries} ` +
+        `candleQueueLagMs=${(global as any).maxCandleQueueLagMs} ` +
+        `tickQueueLagMs=${(global as any).maxTickQueueLagMs} ` +
+        `abnormalSkews=${this.abnormalTimestampSkews} ` +
         `exchangeTime=${this.sampleExchangeTimestampMs ? new Date(this.sampleExchangeTimestampMs).toISOString() : "NONE"} ` +
         `serverTime=${new Date().toISOString()}`
       );
@@ -72,6 +79,7 @@ export class CandleEngine extends EventEmitter {
       this.acceptedTicks = 0;
       this.marketTimeRejectedTicks = 0;
       this.sampleExchangeTimestampMs = 0;
+      this.abnormalTimestampSkews = 0;
       (global as any).closed5m = 0;
       (global as any).partial5m = 0;
       (global as any).recoveredCandles = 0;
@@ -187,13 +195,7 @@ export class CandleEngine extends EventEmitter {
     );
 
     if (timestampSkewMs > 5 * 60 * 1000) {
-      console.warn(
-        `[FEED] Abnormal exchange timestamp ` +
-        `secId=${tick.securityId} ` +
-        `exchange=${new Date(tick.exchangeTimestampMs).toISOString()} ` +
-        `server=${new Date().toISOString()} ` +
-        `skewMs=${timestampSkewMs}`
-      );
+      this.abnormalTimestampSkews++;
     }
 
     if (istMinutes < 555 || istMinutes >= 930) {
