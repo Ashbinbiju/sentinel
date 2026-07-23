@@ -103,7 +103,6 @@ export class ExecutionEngine {
           }
         } else {
           console.log(`[CANDLE] CLOSED secId=${securityId} time=${new Date(c.t * 1000).toISOString()} partial=false`);
-          if (global.hasOwnProperty('closed5m')) (global as any).closed5m++;
         }
 
         const evaluateTask = async () => {

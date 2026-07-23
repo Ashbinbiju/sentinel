@@ -304,9 +304,15 @@ async function main() {
         const epochSecs = Math.floor(Date.now() / 1000);
         const currentSlot5m = Math.floor(epochSecs / 300) * 300;
         const expectedLastClosed5m = currentSlot5m - 300;
+        const currentMins = getISTMinutes();
 
-        if (Number(lastCandle.t) !== expectedLastClosed5m) {
-          console.warn(`[BOT] Stale backfill for ${item.symbol}. Last candle is ${lastCandle.t}, expected ${expectedLastClosed5m}`);
+        if (currentMins >= 9 * 60 + 20) {
+          if (Number(lastCandle.t) !== expectedLastClosed5m) {
+            console.warn(
+              `[BOT] Stale backfill for ${item.symbol}. ` +
+              `Last=${lastCandle.t}, expected=${expectedLastClosed5m}`
+            );
+          }
         }
 
         const hasGap = candles.some(
@@ -386,6 +392,23 @@ async function main() {
           const newWatchlist = await getDailyWatchlist(watchlist);
           const currentSymbols = new Set(watchlist.map(w => w.symbol));
           const addedSymbols = newWatchlist.filter(w => !currentSymbols.has(w.symbol));
+
+          const newSecurityIds = new Set(newWatchlist.map(item => item.securityId));
+          const openTrades = await TradeDB.getOpenTrades();
+          const protectedSecurityIds = new Set(openTrades.map(trade => trade.securityId));
+
+          const removedSecurityIds = watchlist
+            .filter(item =>
+              !newSecurityIds.has(item.securityId) &&
+              !protectedSecurityIds.has(item.securityId)
+            )
+            .map(item => item.securityId);
+
+          if (removedSecurityIds.length > 0) {
+            console.log(`[BOT] Unsubscribing from ${removedSecurityIds.length} removed symbols.`);
+            broker.unsubscribeFromSecurityIds(removedSecurityIds);
+            candleEngine.removeSymbols(removedSecurityIds);
+          }
 
           watchlist = newWatchlist;
           executionEngine.setWatchlist(watchlist);

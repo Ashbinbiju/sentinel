@@ -29,6 +29,9 @@ export class CandleEngine extends EventEmitter {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private tickCount: number = 0;
   private uniqueSymbols: Set<string> = new Set();
+  private acceptedTicks = 0;
+  private marketTimeRejectedTicks = 0;
+  private sampleExchangeTimestampMs = 0;
 
   constructor() {
     super();
@@ -56,16 +59,19 @@ export class CandleEngine extends EventEmitter {
       if (!this.isContinuityValid) return;
       console.log(
         `[FEED] ticks=${this.tickCount} ` +
+        `acceptedTicks=${this.acceptedTicks} ` +
+        `marketTimeRejected=${this.marketTimeRejectedTicks} ` +
         `uniqueSymbols=${this.uniqueSymbols.size} ` +
+        `current5m=${this.current5m.size} ` +
         `closed5m=${(global as any).closed5m} ` +
-        `partial5m=${(global as any).partial5m} ` +
-        `recovered=${(global as any).recoveredCandles} ` +
-        `failed=${(global as any).failedRecoveries} ` +
-        `candleQueueLagMs=${(global as any).maxCandleQueueLagMs} ` +
-        `tickQueueLagMs=${(global as any).maxTickQueueLagMs}`
+        `exchangeTime=${this.sampleExchangeTimestampMs ? new Date(this.sampleExchangeTimestampMs).toISOString() : "NONE"} ` +
+        `serverTime=${new Date().toISOString()}`
       );
       this.tickCount = 0;
       this.uniqueSymbols.clear();
+      this.acceptedTicks = 0;
+      this.marketTimeRejectedTicks = 0;
+      this.sampleExchangeTimestampMs = 0;
       (global as any).closed5m = 0;
       (global as any).partial5m = 0;
       (global as any).recoveredCandles = 0;
@@ -93,6 +99,17 @@ export class CandleEngine extends EventEmitter {
     this.current5m.clear();
     this.cumulativeVolume.clear();
     this.lastExchangeTimestamp.clear();
+  }
+
+  public removeSymbols(securityIds: string[]): void {
+    for (const securityId of securityIds) {
+      this.current1m.delete(securityId);
+      this.current5m.delete(securityId);
+      this.candles1m.delete(securityId);
+      this.candles5m.delete(securityId);
+      this.cumulativeVolume.delete(securityId);
+      this.lastExchangeTimestamp.delete(securityId);
+    }
   }
 
   private checkClosures(
@@ -127,6 +144,15 @@ export class CandleEngine extends EventEmitter {
     history.push({ ...candle });
     
     if (label === "5m") {
+      (global as any).closed5m++;
+
+      console.log(
+        `[CANDLE_ENGINE] FINALIZED ` +
+        `secId=${securityId} ` +
+        `slot=${new Date(candle.t * 1000).toISOString()} ` +
+        `partial=${Boolean(candle.isPartial)}`
+      );
+
       this.emit("onCandleClosed", securityId, candle, history);
     }
   }
@@ -148,15 +174,34 @@ export class CandleEngine extends EventEmitter {
 
     this.tickCount++;
     this.uniqueSymbols.add(tick.securityId);
+    this.sampleExchangeTimestampMs = tick.exchangeTimestampMs;
 
-    const d = new Date(tick.exchangeTimestampMs);
-    const utcHours = d.getUTCHours();
-    const utcMinutes = d.getUTCMinutes();
-    const istMinutes = utcHours * 60 + utcMinutes + 330; 
-    
+    const exchangeDate = new Date(tick.exchangeTimestampMs);
+    const istMinutes =
+      exchangeDate.getUTCHours() * 60 +
+      exchangeDate.getUTCMinutes() +
+      330;
+
+    const timestampSkewMs = Math.abs(
+      Date.now() - tick.exchangeTimestampMs
+    );
+
+    if (timestampSkewMs > 5 * 60 * 1000) {
+      console.warn(
+        `[FEED] Abnormal exchange timestamp ` +
+        `secId=${tick.securityId} ` +
+        `exchange=${new Date(tick.exchangeTimestampMs).toISOString()} ` +
+        `server=${new Date().toISOString()} ` +
+        `skewMs=${timestampSkewMs}`
+      );
+    }
+
     if (istMinutes < 555 || istMinutes >= 930) {
+      this.marketTimeRejectedTicks++;
       return; 
     }
+
+    this.acceptedTicks++;
 
     const epochSecs = Math.floor(tick.exchangeTimestampMs / 1000);
     const slot1m = Math.floor(epochSecs / 60) * 60;

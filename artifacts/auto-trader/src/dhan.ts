@@ -135,7 +135,15 @@ export class DhanBroker extends EventEmitter {
       await this.getAccountBalance();
       console.log("[BROKER] Dhan access token is valid.");
     } catch (err: any) {
-      if (err.response && err.response.status === 401) {
+      const authError = err?.response?.data;
+
+      const authenticationFailed =
+        err?.response?.status === 401 ||
+        err?.response?.status === 403 ||
+        authError?.errorCode === "DH-901" ||
+        authError?.errorType === "Invalid_Authentication";
+
+      if (authenticationFailed) {
         console.warn("[BROKER] Token invalid or missing. Attempting automated login via PIN + TOTP...");
         
         if (!this.pin || !this.totpSecret) {
