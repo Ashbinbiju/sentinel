@@ -200,15 +200,40 @@ export class CandleEngine extends EventEmitter {
 
   public backfill(securityId: string, history: Candle[]) {
     if (!history || history.length === 0) return;
-    this.candles5m.set(securityId, [...history]);
 
+    // The last candle from the API may still be in-progress (the current 5m slot).
+    // We must NOT mark it as finalized, or the idempotency guard will reject
+    // all live ticks for that slot, preventing candles from ever closing.
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    const currentLiveSlot = Math.floor(nowEpoch / 300) * 300;
     const latest = history[history.length - 1];
 
-    if (latest) {
-      this.lastFinalized5mSlot.set(
-        securityId,
-        Number(latest.t)
-      );
+    if (latest && Number(latest.t) === currentLiveSlot) {
+      // The last candle is the in-progress slot — don't finalize it.
+      // Store all prior candles as closed history.
+      const closedHistory = history.slice(0, -1);
+      this.candles5m.set(securityId, closedHistory);
+
+      // Seed the current bucket so live ticks continue building this candle.
+      this.current5m.set(securityId, { ...latest });
+
+      // Set the watermark to the last truly closed candle.
+      if (closedHistory.length > 0) {
+        this.lastFinalized5mSlot.set(
+          securityId,
+          Number(closedHistory[closedHistory.length - 1].t)
+        );
+      }
+    } else {
+      // All candles are already closed (e.g., bot started between slots).
+      this.candles5m.set(securityId, [...history]);
+
+      if (latest) {
+        this.lastFinalized5mSlot.set(
+          securityId,
+          Number(latest.t)
+        );
+      }
     }
   }
 
