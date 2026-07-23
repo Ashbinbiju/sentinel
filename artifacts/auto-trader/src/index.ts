@@ -176,8 +176,8 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
         }
 
         if (netQty === 0) {
-          console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
-          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+          console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Force closing ghost trade.`);
+          await TradeDB.markTradeClosed(trade.id, "ORPHANED_FLAT_POSITION", trade.entryPrice);
           continue tradeLoop;
         }
 
@@ -244,8 +244,8 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
         if (!positionFlat) {
           console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
         } else {
-          console.log(`[BOT] Position flat after terminal non-traded status. Escalating to EXIT_RECONCILIATION_REQUIRED.`);
-          await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED");
+          console.log(`[BOT] Position flat after terminal non-traded status for ${trade.symbol}. Force closing ghost trade.`);
+          await TradeDB.markTradeClosed(trade.id, "ORPHANED_FLAT_POSITION", trade.entryPrice);
           continue tradeLoop;
         }
       }
