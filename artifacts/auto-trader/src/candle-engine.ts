@@ -22,6 +22,9 @@ export class CandleEngine extends EventEmitter {
   
   private cumulativeVolume: Map<string, number> = new Map();
   private lastExchangeTimestamp: Map<string, number> = new Map();
+
+  private lastFinalized1mSlot: Map<string, number> = new Map();
+  private lastFinalized5mSlot: Map<string, number> = new Map();
   
   public isContinuityValid: boolean = false;
   private intervalTimer: NodeJS.Timeout | null = null;
@@ -107,6 +110,8 @@ export class CandleEngine extends EventEmitter {
     this.current5m.clear();
     this.cumulativeVolume.clear();
     this.lastExchangeTimestamp.clear();
+    this.lastFinalized1mSlot.clear();
+    this.lastFinalized5mSlot.clear();
   }
 
   public removeSymbols(securityIds: string[]): void {
@@ -117,6 +122,8 @@ export class CandleEngine extends EventEmitter {
       this.candles5m.delete(securityId);
       this.cumulativeVolume.delete(securityId);
       this.lastExchangeTimestamp.delete(securityId);
+      this.lastFinalized1mSlot.delete(securityId);
+      this.lastFinalized5mSlot.delete(securityId);
     }
   }
 
@@ -142,6 +149,23 @@ export class CandleEngine extends EventEmitter {
     closedMap: Map<string, Candle[]>,
     label: "1m" | "5m"
   ) {
+    const finalizedSlots =
+      label === "5m"
+        ? this.lastFinalized5mSlot
+        : this.lastFinalized1mSlot;
+
+    const previousFinalizedSlot = finalizedSlots.get(securityId);
+
+    if (
+      previousFinalizedSlot !== undefined &&
+      candle.t <= previousFinalizedSlot
+    ) {
+      currentMap.delete(securityId);
+      return;
+    }
+
+    finalizedSlots.set(securityId, candle.t);
+
     currentMap.delete(securityId);
     
     let history = closedMap.get(securityId);
@@ -149,7 +173,16 @@ export class CandleEngine extends EventEmitter {
       history = [];
       closedMap.set(securityId, history);
     }
-    history.push({ ...candle });
+    
+    const existingIndex = history.findIndex(
+      item => Number(item.t) === Number(candle.t)
+    );
+
+    if (existingIndex >= 0) {
+      history[existingIndex] = { ...candle };
+    } else {
+      history.push({ ...candle });
+    }
     
     if (label === "5m") {
       (global as any).closed5m++;
@@ -168,6 +201,15 @@ export class CandleEngine extends EventEmitter {
   public backfill(securityId: string, history: Candle[]) {
     if (!history || history.length === 0) return;
     this.candles5m.set(securityId, [...history]);
+
+    const latest = history[history.length - 1];
+
+    if (latest) {
+      this.lastFinalized5mSlot.set(
+        securityId,
+        Number(latest.t)
+      );
+    }
   }
 
   public processTick(tick: DhanMarketTick) {
@@ -242,6 +284,20 @@ export class CandleEngine extends EventEmitter {
     vol: number,
     intervalSecs: number
   ) {
+    const finalizedSlots =
+      intervalSecs === 300
+        ? this.lastFinalized5mSlot
+        : this.lastFinalized1mSlot;
+
+    const lastFinalizedSlot = finalizedSlots.get(securityId);
+
+    if (
+      lastFinalizedSlot !== undefined &&
+      slot <= lastFinalizedSlot
+    ) {
+      return;
+    }
+
     let current = currentMap.get(securityId);
 
     if (!current) {

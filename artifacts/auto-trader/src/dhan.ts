@@ -94,6 +94,7 @@ export class DhanBroker extends EventEmitter {
   private ws: WebSocket | null = null;
   private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
   private pingInterval: NodeJS.Timeout | null = null;
+  private subscribedSymbols: Set<string> = new Set();
   
   constructor() {
     super();
@@ -517,6 +518,7 @@ export class DhanBroker extends EventEmitter {
     const wsUrl = `wss://api-feed.dhan.co?version=2&token=${this.accessToken}&clientId=${this.clientId}&authType=2`;
     
     this.ws = new WebSocket(wsUrl);
+    this.subscribedSymbols.clear();
     
     this.ws.on("open", () => {
       console.log("[BROKER] Dhan WebSocket Connected.");
@@ -722,9 +724,12 @@ export class DhanBroker extends EventEmitter {
     }
     if (securityIds.length === 0) return;
 
+    const newSymbols = securityIds.filter(id => !this.subscribedSymbols.has(id));
+    if (newSymbols.length === 0) return;
+
     const chunkSize = 100;
-    for (let i = 0; i < securityIds.length; i += chunkSize) {
-      const chunk = securityIds.slice(i, i + chunkSize);
+    for (let i = 0; i < newSymbols.length; i += chunkSize) {
+      const chunk = newSymbols.slice(i, i + chunkSize);
       
       const payload = {
         RequestCode: 17, // Subscribe to Quote
@@ -736,9 +741,10 @@ export class DhanBroker extends EventEmitter {
       };
       
       this.ws.send(JSON.stringify(payload));
+      chunk.forEach(id => this.subscribedSymbols.add(id));
     }
     
-    console.log(`[BROKER] Subscribed to ${securityIds.length} securityIds for Quote stream.`);
+    console.log(`[BROKER] Subscribed to ${newSymbols.length} securityIds for Quote stream.`);
   }
 
   unsubscribeFromSecurityIds(securityIds: string[]) {
@@ -759,6 +765,7 @@ export class DhanBroker extends EventEmitter {
       };
       
       this.ws.send(JSON.stringify(payload));
+      chunk.forEach(id => this.subscribedSymbols.delete(id));
     }
   }
 }

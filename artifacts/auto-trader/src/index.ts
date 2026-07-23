@@ -279,8 +279,17 @@ async function main() {
     await executionEngine.evaluateClosedCandle(securityId, candle, history);
   });
 
-  const initAndRecover = async () => {
-    candleEngine.prepareForReconnect();
+  let recoveryPromise: Promise<void> | null = null;
+  let initialRecoveryComplete = false;
+  let lastWatchlistFetchMs = 0;
+
+  const initAndRecover = (): Promise<void> => {
+    if (recoveryPromise) {
+      return recoveryPromise;
+    }
+
+    recoveryPromise = (async () => {
+      candleEngine.prepareForReconnect();
 
     if (watchlist.length === 0) {
       console.log(`[BOT] Fetching Watchlist & Historical Context...`);
@@ -340,10 +349,18 @@ async function main() {
       candleEngine.isContinuityValid = true;
       console.log(`[BOT] CandleEngine Continuity Validated for ${successfulSymbols.length} stocks. Ready for live trading.`);
       broker.subscribeToSecurityIds(successfulSymbols);
+
+      initialRecoveryComplete = true;
+      lastWatchlistFetchMs = Date.now();
     } else {
       console.warn(`[BOT] Backfill failed for all stocks. Skipping continuity validation. Retrying in 60s.`);
     }
-  };
+  })().finally(() => {
+    recoveryPromise = null;
+  });
+
+  return recoveryPromise;
+};
 
   broker.on("onReconnect", async () => {
     console.log(`[BOT] WebSocket reconnected. Initiating backfill...`);
@@ -368,8 +385,6 @@ async function main() {
   await executionEngine.syncActiveTrades();
 
   // Polling / Safety Loop
-  let lastWatchlistFetchMs = 0;
-
   while (!isShuttingDown) {
     try {
       const todayStr = getISTDateStr();
@@ -385,8 +400,13 @@ async function main() {
       const nowMs = Date.now();
 
       // Periodically refresh the watchlist every 3 minutes during market hours
-      if (currentMins >= 9 * 60 + 15 && currentMins < 15 * 60 + 30) {
-        if (nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000) {
+      if (
+        initialRecoveryComplete &&
+        recoveryPromise === null &&
+        currentMins >= 9 * 60 + 15 && 
+        currentMins < 15 * 60 + 30 &&
+        nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000
+      ) {
           console.log(`[BOT] Scheduled Watchlist Refresh (3-min interval).`);
 
           const newWatchlist = await getDailyWatchlist(watchlist);
@@ -443,7 +463,6 @@ async function main() {
 
           await executionEngine.syncActiveTrades();
           lastWatchlistFetchMs = Date.now();
-        }
       }
 
       if (!isMarketOpenIST() && !DRY_RUN && (await TradeDB.getOpenTrades()).length === 0) {
