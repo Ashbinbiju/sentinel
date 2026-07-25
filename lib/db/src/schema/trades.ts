@@ -80,3 +80,20 @@ export const swingTradesTable = pgTable("swing_trades", {
 });
 
 export type SwingTrade = typeof swingTradesTable.$inferSelect;
+
+export const watchlistSnapshotsTable = pgTable("watchlist_snapshots", {
+  id: serial("id").primaryKey(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  time: text("time").notNull(), // HH:MM
+  symbol: text("symbol").notNull(),
+  category: text("category").notNull(), // GAINER | LOSER
+  ltp: numeric("ltp"),
+  priceChangePct: numeric("price_change_pct"),
+  prevHigh: numeric("prev_high"),
+  prevLow: numeric("prev_low"),
+  recordedAt: timestamp("recorded_at", { mode: "string", withTimezone: true }).notNull(),
+});
+
+export type WatchlistSnapshot = typeof watchlistSnapshotsTable.$inferSelect;
+export type InsertWatchlistSnapshot = typeof watchlistSnapshotsTable.$inferInsert;
+

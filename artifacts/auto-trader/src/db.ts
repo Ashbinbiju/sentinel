@@ -2,7 +2,8 @@ import fs from "fs";
 import { promises as fsPromises } from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
-import { db, tradesTable, eq } from "@workspace/db";
+import { db, tradesTable, watchlistSnapshotsTable, eq } from "@workspace/db";
+
 
 export type TradeState =
   | "SIGNAL_CREATED"
@@ -240,5 +241,33 @@ export const TradeDB = {
         }
       }
     });
+  },
+
+  recordWatchlistSnapshot: async (snapshot: {
+    date: string;
+    time: string;
+    symbol: string;
+    category: string;
+    ltp?: number;
+    priceChangePct?: number;
+    prevHigh?: number;
+    prevLow?: number;
+  }) => {
+    try {
+      await db.insert(watchlistSnapshotsTable).values({
+        date: snapshot.date,
+        time: snapshot.time,
+        symbol: snapshot.symbol,
+        category: snapshot.category,
+        ltp: snapshot.ltp ? snapshot.ltp.toString() : null,
+        priceChangePct: snapshot.priceChangePct ? snapshot.priceChangePct.toString() : null,
+        prevHigh: snapshot.prevHigh ? snapshot.prevHigh.toString() : null,
+        prevLow: snapshot.prevLow ? snapshot.prevLow.toString() : null,
+        recordedAt: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      console.error("[DB] Failed to record watchlist snapshot:", e.message);
+    }
   }
 };
+

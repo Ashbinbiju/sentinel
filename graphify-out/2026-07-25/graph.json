@@ -243,7 +243,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "api_server_package_dependencies_drizzle_orm",
-      "community": 197,
+      "community": 210,
       "norm_label": "drizzle-orm"
     },
     {
@@ -253,7 +253,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "api_server_package_dependencies_express",
-      "community": 209,
+      "community": 36,
       "norm_label": "express"
     },
     {
@@ -547,30 +547,30 @@
       "norm_label": "backtest.ts"
     },
     {
-      "label": "MC_HEADERS",
+      "label": "formatMinsToIST()",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L1",
+      "source_location": "L23",
       "_origin": "ast",
-      "id": "scripts_backtest_mc_headers",
+      "id": "scripts_backtest_formatminstoist",
       "community": 93,
-      "norm_label": "mc_headers"
+      "norm_label": "formatminstoist()"
     },
     {
-      "label": "Candle",
+      "label": "testCases",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L9",
+      "source_location": "L29",
       "_origin": "ast",
-      "id": "scripts_backtest_candle",
+      "id": "scripts_backtest_testcases",
       "community": 93,
-      "norm_label": "candle"
+      "norm_label": "testcases"
     },
     {
       "label": "getISTDateStr()",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L19",
+      "source_location": "L32",
       "_origin": "ast",
       "id": "scripts_backtest_getistdatestr",
       "community": 93,
@@ -580,37 +580,47 @@
       "label": "getISTMinuteOfDay()",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L23",
+      "source_location": "L38",
       "_origin": "ast",
       "id": "scripts_backtest_getistminuteofday",
       "community": 93,
       "norm_label": "getistminuteofday()"
     },
     {
-      "label": "roundToTick()",
+      "label": "getCandleCloseDateIST()",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L29",
+      "source_location": "L45",
       "_origin": "ast",
-      "id": "scripts_backtest_roundtotick",
+      "id": "scripts_backtest_getcandleclosedateist",
       "community": 93,
-      "norm_label": "roundtotick()"
+      "norm_label": "getcandleclosedateist()"
     },
     {
-      "label": "fetchCandles()",
+      "label": "delay()",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L33",
+      "source_location": "L49",
       "_origin": "ast",
-      "id": "scripts_backtest_fetchcandles",
+      "id": "scripts_backtest_delay",
       "community": 93,
-      "norm_label": "fetchcandles()"
+      "norm_label": "delay()"
+    },
+    {
+      "label": "fetchCandlesWithRetry()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L51",
+      "_origin": "ast",
+      "id": "scripts_backtest_fetchcandleswithretry",
+      "community": 93,
+      "norm_label": "fetchcandleswithretry()"
     },
     {
       "label": "Trade",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L70",
+      "source_location": "L76",
       "_origin": "ast",
       "id": "scripts_backtest_trade",
       "community": 93,
@@ -620,21 +630,11 @@
       "label": "runBacktest()",
       "file_type": "code",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L88",
+      "source_location": "L99",
       "_origin": "ast",
       "id": "scripts_backtest_runbacktest",
       "community": 93,
       "norm_label": "runbacktest()"
-    },
-    {
-      "label": "main()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L363",
-      "_origin": "ast",
-      "id": "scripts_backtest_main",
-      "community": 93,
-      "norm_label": "main()"
     },
     {
       "label": "backtest_trend.ts",
@@ -1097,93 +1097,13 @@
       "norm_label": "debugtcs()"
     },
     {
-      "label": "analyze_friday.ts",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_friday.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_analyze_friday",
-      "community": 197,
-      "norm_label": "analyze_friday.ts"
-    },
-    {
-      "label": "main()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_friday.ts",
-      "source_location": "L4",
-      "_origin": "ast",
-      "id": "src_analyze_friday_main",
-      "community": 197,
-      "norm_label": "main()"
-    },
-    {
-      "label": "analyze_losing_trades.ts",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L1",
-      "_origin": "ast",
-      "id": "src_analyze_losing_trades",
-      "community": 23,
-      "norm_label": "analyze_losing_trades.ts"
-    },
-    {
-      "label": "getISTMinuteOfDay()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L3",
-      "_origin": "ast",
-      "id": "src_analyze_losing_trades_getistminuteofday",
-      "community": 23,
-      "norm_label": "getistminuteofday()"
-    },
-    {
-      "label": "getISTTimeStr()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L10",
-      "_origin": "ast",
-      "id": "src_analyze_losing_trades_getisttimestr",
-      "community": 23,
-      "norm_label": "getisttimestr()"
-    },
-    {
-      "label": "getISTDateStr()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L16",
-      "_origin": "ast",
-      "id": "src_analyze_losing_trades_getistdatestr",
-      "community": 23,
-      "norm_label": "getistdatestr()"
-    },
-    {
-      "label": "analyzeSymbol()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L22",
-      "_origin": "ast",
-      "id": "src_analyze_losing_trades_analyzesymbol",
-      "community": 23,
-      "norm_label": "analyzesymbol()"
-    },
-    {
-      "label": "main()",
-      "file_type": "code",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L55",
-      "_origin": "ast",
-      "id": "src_analyze_losing_trades_main",
-      "community": 23,
-      "norm_label": "main()"
-    },
-    {
       "label": "app.ts",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/app.ts",
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_api_server_src_app_ts_src_app",
-      "community": 209,
+      "community": 36,
       "norm_label": "app.ts"
     },
     {
@@ -1193,7 +1113,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_api_server_src_app_ts_src_app_app",
-      "community": 209,
+      "community": 36,
       "norm_label": "app"
     },
     {
@@ -1203,7 +1123,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_app_req",
-      "community": 209,
+      "community": 36,
       "norm_label": "req()"
     },
     {
@@ -1213,7 +1133,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_app_res",
-      "community": 209,
+      "community": 36,
       "norm_label": "res()"
     },
     {
@@ -1223,7 +1143,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_app_limiter",
-      "community": 209,
+      "community": 36,
       "norm_label": "limiter"
     },
     {
@@ -1237,10 +1157,20 @@
       "norm_label": "backtest.ts"
     },
     {
+      "label": "formatMinsToIST()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/backtest.ts",
+      "source_location": "L23",
+      "_origin": "ast",
+      "id": "src_backtest_formatminstoist",
+      "community": 133,
+      "norm_label": "formatminstoist()"
+    },
+    {
       "label": "testCases",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L19",
+      "source_location": "L29",
       "_origin": "ast",
       "id": "src_backtest_testcases",
       "community": 133,
@@ -1250,7 +1180,7 @@
       "label": "getISTDateStr()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L21",
+      "source_location": "L32",
       "_origin": "ast",
       "id": "src_backtest_getistdatestr",
       "community": 133,
@@ -1260,7 +1190,7 @@
       "label": "getISTMinuteOfDay()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L27",
+      "source_location": "L38",
       "_origin": "ast",
       "id": "src_backtest_getistminuteofday",
       "community": 133,
@@ -1270,7 +1200,7 @@
       "label": "getCandleCloseDateIST()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L34",
+      "source_location": "L45",
       "_origin": "ast",
       "id": "src_backtest_getcandleclosedateist",
       "community": 133,
@@ -1280,7 +1210,7 @@
       "label": "delay()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L38",
+      "source_location": "L49",
       "_origin": "ast",
       "id": "src_backtest_delay",
       "community": 133,
@@ -1290,7 +1220,7 @@
       "label": "fetchCandlesWithRetry()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L40",
+      "source_location": "L51",
       "_origin": "ast",
       "id": "src_backtest_fetchcandleswithretry",
       "community": 133,
@@ -1300,7 +1230,7 @@
       "label": "Trade",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L65",
+      "source_location": "L76",
       "_origin": "ast",
       "id": "src_backtest_trade",
       "community": 133,
@@ -1310,7 +1240,7 @@
       "label": "runBacktest()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L88",
+      "source_location": "L99",
       "_origin": "ast",
       "id": "src_backtest_runbacktest",
       "community": 133,
@@ -1323,7 +1253,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_api_server_src_index_ts_src_index",
-      "community": 112,
+      "community": 36,
       "norm_label": "index.ts"
     },
     {
@@ -1333,7 +1263,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "src_index_port",
-      "community": 112,
+      "community": 36,
       "norm_label": "port"
     },
     {
@@ -1343,7 +1273,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "src_index_server",
-      "community": 112,
+      "community": 36,
       "norm_label": "server"
     },
     {
@@ -1353,7 +1283,7 @@
       "source_location": "L27",
       "_origin": "ast",
       "id": "artifacts_api_server_src_index_ts_src_index_shutdown",
-      "community": 112,
+      "community": 36,
       "norm_label": "shutdown()"
     },
     {
@@ -1363,7 +1293,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "lib_logger",
-      "community": 112,
+      "community": 36,
       "norm_label": "logger.ts"
     },
     {
@@ -1373,7 +1303,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "lib_logger_logger",
-      "community": 112,
+      "community": 36,
       "norm_label": "logger"
     },
     {
@@ -1493,7 +1423,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_health",
-      "community": 209,
+      "community": 36,
       "norm_label": "health.ts"
     },
     {
@@ -1503,7 +1433,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "routes_health_router",
-      "community": 209,
+      "community": 36,
       "norm_label": "router"
     },
     {
@@ -1513,7 +1443,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "routes_index",
-      "community": 209,
+      "community": 36,
       "norm_label": "index.ts"
     },
     {
@@ -1523,7 +1453,7 @@
       "source_location": "L5",
       "_origin": "ast",
       "id": "routes_index_router",
-      "community": 209,
+      "community": 36,
       "norm_label": "router"
     },
     {
@@ -1543,7 +1473,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "routes_stocks_router",
-      "community": 209,
+      "community": 36,
       "norm_label": "router"
     },
     {
@@ -1983,7 +1913,7 @@
       "source_location": "L613",
       "_origin": "ast",
       "id": "routes_stocks_technicalindicatorimpact",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalindicatorimpact"
     },
     {
@@ -2803,7 +2733,7 @@
       "source_location": "L2449",
       "_origin": "ast",
       "id": "routes_stocks_numberornull",
-      "community": 14,
+      "community": 112,
       "norm_label": "numberornull()"
     },
     {
@@ -2813,7 +2743,7 @@
       "source_location": "L2454",
       "_origin": "ast",
       "id": "routes_stocks_booleanornull",
-      "community": 14,
+      "community": 112,
       "norm_label": "booleanornull()"
     },
     {
@@ -2833,7 +2763,7 @@
       "source_location": "L2491",
       "_origin": "ast",
       "id": "routes_stocks_normalizetechnicaltrend",
-      "community": 14,
+      "community": 112,
       "norm_label": "normalizetechnicaltrend()"
     },
     {
@@ -2843,7 +2773,7 @@
       "source_location": "L2499",
       "_origin": "ast",
       "id": "routes_stocks_technicalstageadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalstageadjustment()"
     },
     {
@@ -2853,7 +2783,7 @@
       "source_location": "L2508",
       "_origin": "ast",
       "id": "routes_stocks_technicalrsadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalrsadjustment()"
     },
     {
@@ -2863,7 +2793,7 @@
       "source_location": "L2518",
       "_origin": "ast",
       "id": "routes_stocks_technicalemaadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalemaadjustment()"
     },
     {
@@ -2873,7 +2803,7 @@
       "source_location": "L2532",
       "_origin": "ast",
       "id": "routes_stocks_technicaladxadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicaladxadjustment()"
     },
     {
@@ -2883,7 +2813,7 @@
       "source_location": "L2547",
       "_origin": "ast",
       "id": "routes_stocks_technicalvolumeadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalvolumeadjustment()"
     },
     {
@@ -2893,7 +2823,7 @@
       "source_location": "L2557",
       "_origin": "ast",
       "id": "routes_stocks_technicalmacdadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalmacdadjustment()"
     },
     {
@@ -2903,7 +2833,7 @@
       "source_location": "L2563",
       "_origin": "ast",
       "id": "routes_stocks_technicalvolumetrendadjustment",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalvolumetrendadjustment()"
     },
     {
@@ -2913,7 +2843,7 @@
       "source_location": "L2570",
       "_origin": "ast",
       "id": "routes_stocks_technicalindicatortext",
-      "community": 14,
+      "community": 112,
       "norm_label": "technicalindicatortext()"
     },
     {
@@ -3003,7 +2933,7 @@
       "source_location": "L2729",
       "_origin": "ast",
       "id": "routes_stocks_indextrendadxtext",
-      "community": 14,
+      "community": 112,
       "norm_label": "indextrendadxtext()"
     },
     {
@@ -3013,7 +2943,7 @@
       "source_location": "L2734",
       "_origin": "ast",
       "id": "routes_stocks_indextrendadxvalue",
-      "community": 14,
+      "community": 112,
       "norm_label": "indextrendadxvalue()"
     },
     {
@@ -3053,7 +2983,7 @@
       "source_location": "L2815",
       "_origin": "ast",
       "id": "routes_stocks_fetchinsidertradingrows",
-      "community": 160,
+      "community": 25,
       "norm_label": "fetchinsidertradingrows()"
     },
     {
@@ -3063,7 +2993,7 @@
       "source_location": "L2841",
       "_origin": "ast",
       "id": "routes_stocks_insidertransactiondirection",
-      "community": 160,
+      "community": 14,
       "norm_label": "insidertransactiondirection()"
     },
     {
@@ -3073,7 +3003,7 @@
       "source_location": "L2848",
       "_origin": "ast",
       "id": "routes_stocks_parseinsiderdatems",
-      "community": 160,
+      "community": 14,
       "norm_label": "parseinsiderdatems()"
     },
     {
@@ -3083,7 +3013,7 @@
       "source_location": "L2861",
       "_origin": "ast",
       "id": "routes_stocks_roleweightforinsidercategory",
-      "community": 160,
+      "community": 0,
       "norm_label": "roleweightforinsidercategory()"
     },
     {
@@ -3093,7 +3023,7 @@
       "source_location": "L2868",
       "_origin": "ast",
       "id": "routes_stocks_insidervaluescore",
-      "community": 160,
+      "community": 0,
       "norm_label": "insidervaluescore()"
     },
     {
@@ -3103,7 +3033,7 @@
       "source_location": "L2882",
       "_origin": "ast",
       "id": "routes_stocks_formatinsidervalue",
-      "community": 160,
+      "community": 14,
       "norm_label": "formatinsidervalue()"
     },
     {
@@ -3113,7 +3043,7 @@
       "source_location": "L2888",
       "_origin": "ast",
       "id": "routes_stocks_formatshortistdatefromms",
-      "community": 160,
+      "community": 14,
       "norm_label": "formatshortistdatefromms()"
     },
     {
@@ -3133,7 +3063,7 @@
       "source_location": "L2900",
       "_origin": "ast",
       "id": "routes_stocks_buildinsideractivitymap",
-      "community": 160,
+      "community": 14,
       "norm_label": "buildinsideractivitymap()"
     },
     {
@@ -3143,7 +3073,7 @@
       "source_location": "L2959",
       "_origin": "ast",
       "id": "routes_stocks_fetchinsideractivitymap",
-      "community": 160,
+      "community": 25,
       "norm_label": "fetchinsideractivitymap()"
     },
     {
@@ -3223,7 +3153,7 @@
       "source_location": "L3062",
       "_origin": "ast",
       "id": "routes_stocks_marketstatsindustrylookup",
-      "community": 14,
+      "community": 112,
       "norm_label": "marketstatsindustrylookup()"
     },
     {
@@ -3233,7 +3163,7 @@
       "source_location": "L3070",
       "_origin": "ast",
       "id": "routes_stocks_marketstatsforsector",
-      "community": 14,
+      "community": 112,
       "norm_label": "marketstatsforsector()"
     },
     {
@@ -3243,7 +3173,7 @@
       "source_location": "L3078",
       "_origin": "ast",
       "id": "routes_stocks_marketstatssectortext",
-      "community": 14,
+      "community": 112,
       "norm_label": "marketstatssectortext()"
     },
     {
@@ -3253,7 +3183,7 @@
       "source_location": "L3088",
       "_origin": "ast",
       "id": "routes_stocks_marketstatssectoradvanceratio",
-      "community": 14,
+      "community": 112,
       "norm_label": "marketstatssectoradvanceratio()"
     },
     {
@@ -3263,7 +3193,7 @@
       "source_location": "L3096",
       "_origin": "ast",
       "id": "routes_stocks_marketstatssectoravgchange",
-      "community": 14,
+      "community": 112,
       "norm_label": "marketstatssectoravgchange()"
     },
     {
@@ -4663,7 +4593,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies",
-      "community": 21,
+      "community": 160,
       "norm_label": "dependencies"
     },
     {
@@ -4673,7 +4603,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_workspace_db",
-      "community": 21,
+      "community": 160,
       "norm_label": "@workspace/db"
     },
     {
@@ -4683,7 +4613,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_axios",
-      "community": 21,
+      "community": 160,
       "norm_label": "axios"
     },
     {
@@ -4693,7 +4623,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_dotenv",
-      "community": 21,
+      "community": 160,
       "norm_label": "dotenv"
     },
     {
@@ -4703,7 +4633,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_drizzle_orm",
-      "community": 21,
+      "community": 210,
       "norm_label": "drizzle-orm"
     },
     {
@@ -4713,7 +4643,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_totp_generator",
-      "community": 21,
+      "community": 160,
       "norm_label": "totp-generator"
     },
     {
@@ -4723,7 +4653,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_ws",
-      "community": 21,
+      "community": 160,
       "norm_label": "ws"
     },
     {
@@ -4733,7 +4663,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies",
-      "community": 21,
+      "community": 197,
       "norm_label": "devdependencies"
     },
     {
@@ -4743,7 +4673,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_node",
-      "community": 21,
+      "community": 197,
       "norm_label": "@types/node"
     },
     {
@@ -4753,7 +4683,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_totp_generator",
-      "community": 21,
+      "community": 197,
       "norm_label": "@types/totp-generator"
     },
     {
@@ -4763,7 +4693,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_ws",
-      "community": 21,
+      "community": 197,
       "norm_label": "@types/ws"
     },
     {
@@ -4773,7 +4703,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_tsx",
-      "community": 21,
+      "community": 197,
       "norm_label": "tsx"
     },
     {
@@ -4783,7 +4713,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_typescript",
-      "community": 21,
+      "community": 197,
       "norm_label": "typescript"
     },
     {
@@ -5410,7 +5340,7 @@
       "label": "WatchlistContext",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L17",
+      "source_location": "L18",
       "_origin": "ast",
       "id": "src_engine_watchlistcontext",
       "community": 43,
@@ -5420,7 +5350,7 @@
       "label": "ExecutionEngine",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L25",
+      "source_location": "L26",
       "_origin": "ast",
       "id": "src_engine_executionengine",
       "community": 166,
@@ -5430,7 +5360,7 @@
       "label": ".constructor()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L30",
+      "source_location": "L31",
       "_origin": "ast",
       "id": "src_engine_executionengine_constructor",
       "community": 166,
@@ -5440,7 +5370,7 @@
       "label": ".setWatchlist()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L35",
+      "source_location": "L36",
       "_origin": "ast",
       "id": "src_engine_executionengine_setwatchlist",
       "community": 166,
@@ -5450,7 +5380,7 @@
       "label": ".syncActiveTrades()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L50",
+      "source_location": "L51",
       "_origin": "ast",
       "id": "src_engine_executionengine_syncactivetrades",
       "community": 166,
@@ -5460,7 +5390,7 @@
       "label": ".getActiveOrPendingTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L65",
+      "source_location": "L66",
       "_origin": "ast",
       "id": "src_engine_executionengine_getactiveorpendingtrade",
       "community": 166,
@@ -5470,7 +5400,7 @@
       "label": ".evaluateClosedCandle()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L69",
+      "source_location": "L70",
       "_origin": "ast",
       "id": "src_engine_executionengine_evaluateclosedcandle",
       "community": 166,
@@ -5480,7 +5410,7 @@
       "label": ".roundToTick()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L266",
+      "source_location": "L267",
       "_origin": "ast",
       "id": "src_engine_executionengine_roundtotick",
       "community": 166,
@@ -5490,7 +5420,7 @@
       "label": ".initiateTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L270",
+      "source_location": "L271",
       "_origin": "ast",
       "id": "src_engine_executionengine_initiatetrade",
       "community": 166,
@@ -5500,7 +5430,7 @@
       "label": ".verifyOrderExecution()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L362",
+      "source_location": "L363",
       "_origin": "ast",
       "id": "src_engine_executionengine_verifyorderexecution",
       "community": 166,
@@ -5510,7 +5440,7 @@
       "label": ".evaluateLiveTick()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L430",
+      "source_location": "L431",
       "_origin": "ast",
       "id": "src_engine_executionengine_evaluatelivetick",
       "community": 166,
@@ -5520,7 +5450,7 @@
       "label": ".initiateExit()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L485",
+      "source_location": "L487",
       "_origin": "ast",
       "id": "src_engine_executionengine_initiateexit",
       "community": 166,
@@ -5530,7 +5460,7 @@
       "label": ".reconcileExits()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L499",
+      "source_location": "L501",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileexits",
       "community": 166,
@@ -5540,7 +5470,7 @@
       "label": ".reconcileUnknownOrders()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L565",
+      "source_location": "L567",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileunknownorders",
       "community": 166,
@@ -5550,7 +5480,7 @@
       "label": ".reconcileExitOrders()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L622",
+      "source_location": "L624",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileexitorders",
       "community": 166,
@@ -6533,7 +6463,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "dataframe",
-      "community": 7,
+      "community": 29,
       "norm_label": "dataframe"
     },
     {
@@ -6753,7 +6683,7 @@
       "source_location": "L2764",
       "_origin": "ast",
       "id": "artifacts_dd_setup_holding_metrics",
-      "community": 7,
+      "community": 29,
       "norm_label": "setup_holding_metrics()"
     },
     {
@@ -6763,7 +6693,7 @@
       "source_location": "L2857",
       "_origin": "ast",
       "id": "artifacts_dd_setup_type_win_rate_table",
-      "community": 7,
+      "community": 29,
       "norm_label": "setup_type_win_rate_table()"
     },
     {
@@ -7013,7 +6943,7 @@
       "source_location": "L3711",
       "_origin": "ast",
       "id": "artifacts_dd_holding_period_expectancy",
-      "community": 7,
+      "community": 29,
       "norm_label": "holding_period_expectancy()"
     },
     {
@@ -8733,7 +8663,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "mockup_sandbox_package_devdependencies_react",
-      "community": 4,
+      "community": 12,
       "norm_label": "react"
     },
     {
@@ -11153,7 +11083,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label",
-      "community": 12,
+      "community": 215,
       "norm_label": "label.tsx"
     },
     {
@@ -11163,7 +11093,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label_labelvariants",
-      "community": 12,
+      "community": 215,
       "norm_label": "labelvariants"
     },
     {
@@ -11173,7 +11103,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label_label",
-      "community": 12,
+      "community": 215,
       "norm_label": "label"
     },
     {
@@ -11563,7 +11493,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group",
-      "community": 215,
+      "community": 12,
       "norm_label": "radio-group.tsx"
     },
     {
@@ -11573,7 +11503,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroup",
-      "community": 215,
+      "community": 12,
       "norm_label": "radiogroup"
     },
     {
@@ -11583,7 +11513,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroupitem",
-      "community": 215,
+      "community": 12,
       "norm_label": "radiogroupitem"
     },
     {
@@ -11623,7 +11553,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area",
-      "community": 12,
+      "community": 216,
       "norm_label": "scroll-area.tsx"
     },
     {
@@ -11633,7 +11563,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area_scrollarea",
-      "community": 12,
+      "community": 216,
       "norm_label": "scrollarea"
     },
     {
@@ -11643,7 +11573,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area_scrollbar",
-      "community": 12,
+      "community": 216,
       "norm_label": "scrollbar"
     },
     {
@@ -14043,7 +13973,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "components_ticker",
-      "community": 18,
+      "community": 209,
       "norm_label": "ticker.tsx"
     },
     {
@@ -14053,7 +13983,7 @@
       "source_location": "L4",
       "_origin": "ast",
       "id": "components_ticker_ticker",
-      "community": 18,
+      "community": 209,
       "norm_label": "ticker()"
     },
     {
@@ -17693,7 +17623,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "lib_format_parseutctimestamp",
-      "community": 16,
+      "community": 18,
       "norm_label": "parseutctimestamp()"
     },
     {
@@ -17703,7 +17633,7 @@
       "source_location": "L34",
       "_origin": "ast",
       "id": "lib_format_toisttime",
-      "community": 16,
+      "community": 18,
       "norm_label": "toisttime()"
     },
     {
@@ -18393,7 +18323,7 @@
       "source_location": "L480",
       "_origin": "ast",
       "id": "pages_swing_swing",
-      "community": 16,
+      "community": 18,
       "norm_label": "swing()"
     },
     {
@@ -19683,7 +19613,7 @@
       "source_location": "L132",
       "_origin": "ast",
       "id": "generated_api_getgetmarketindicesquerykey",
-      "community": 18,
+      "community": 209,
       "norm_label": "getgetmarketindicesquerykey()"
     },
     {
@@ -19693,7 +19623,7 @@
       "source_location": "L136",
       "_origin": "ast",
       "id": "generated_api_getgetmarketindicesqueryoptions",
-      "community": 18,
+      "community": 209,
       "norm_label": "getgetmarketindicesqueryoptions()"
     },
     {
@@ -19723,7 +19653,7 @@
       "source_location": "L171",
       "_origin": "ast",
       "id": "generated_api_usegetmarketindices",
-      "community": 18,
+      "community": 209,
       "norm_label": "usegetmarketindices()"
     },
     {
@@ -20623,7 +20553,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "generated_api_healthcheckresponse",
-      "community": 209,
+      "community": 36,
       "norm_label": "healthcheckresponse"
     },
     {
@@ -22183,7 +22113,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "lib_db_src_index_ts_src_index",
-      "community": 197,
+      "community": 22,
       "norm_label": "index.ts"
     },
     {
@@ -22193,7 +22123,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_index_pool",
-      "community": 197,
+      "community": 22,
       "norm_label": "pool"
     },
     {
@@ -22203,7 +22133,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "src_index_db",
-      "community": 197,
+      "community": 22,
       "norm_label": "db"
     },
     {
@@ -22213,7 +22143,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "schema_index",
-      "community": 197,
+      "community": 22,
       "norm_label": "index.ts"
     },
     {
@@ -22263,7 +22193,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "schema_trades_tradestable",
-      "community": 197,
+      "community": 22,
       "norm_label": "tradestable"
     },
     {
@@ -22333,7 +22263,7 @@
       "source_location": "L54",
       "_origin": "ast",
       "id": "schema_trades_swingtradestable",
-      "community": 197,
+      "community": 22,
       "norm_label": "swingtradestable"
     },
     {
@@ -22537,10 +22467,30 @@
       "norm_label": "typecheck"
     },
     {
-      "label": "private",
+      "label": "start:aws",
+      "file_type": "code",
+      "source_file": "package.json",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "package_scripts_start_aws",
+      "community": 46,
+      "norm_label": "start:aws"
+    },
+    {
+      "label": "restart:aws",
       "file_type": "code",
       "source_file": "package.json",
       "source_location": "L11",
+      "_origin": "ast",
+      "id": "package_scripts_restart_aws",
+      "community": 46,
+      "norm_label": "restart:aws"
+    },
+    {
+      "label": "private",
+      "file_type": "code",
+      "source_file": "package.json",
+      "source_location": "L14",
       "_origin": "ast",
       "id": "package_private",
       "community": 46,
@@ -22550,7 +22500,7 @@
       "label": "devDependencies",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L12",
+      "source_location": "L15",
       "_origin": "ast",
       "id": "package_devdependencies",
       "community": 46,
@@ -22560,7 +22510,7 @@
       "label": "typescript",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L13",
+      "source_location": "L16",
       "_origin": "ast",
       "id": "package_devdependencies_typescript",
       "community": 46,
@@ -22570,7 +22520,7 @@
       "label": "prettier",
       "file_type": "code",
       "source_file": "package.json",
-      "source_location": "L14",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "package_devdependencies_prettier",
       "community": 46,
@@ -22830,37 +22780,37 @@
       "label": "dependencies",
       "file_type": "code",
       "source_file": "scripts/package.json",
-      "source_location": "L10",
+      "source_location": "L11",
       "_origin": "ast",
       "id": "scripts_package_dependencies",
-      "community": 56,
+      "community": 210,
       "norm_label": "dependencies"
     },
     {
       "label": "@workspace/db",
       "file_type": "code",
       "source_file": "scripts/package.json",
-      "source_location": "L11",
+      "source_location": "L12",
       "_origin": "ast",
       "id": "scripts_package_dependencies_workspace_db",
-      "community": 56,
+      "community": 210,
       "norm_label": "@workspace/db"
     },
     {
       "label": "drizzle-orm",
       "file_type": "code",
       "source_file": "scripts/package.json",
-      "source_location": "L12",
+      "source_location": "L13",
       "_origin": "ast",
       "id": "scripts_package_dependencies_drizzle_orm",
-      "community": 56,
+      "community": 210,
       "norm_label": "drizzle-orm"
     },
     {
       "label": "devDependencies",
       "file_type": "code",
       "source_file": "scripts/package.json",
-      "source_location": "L14",
+      "source_location": "L15",
       "_origin": "ast",
       "id": "scripts_package_devdependencies",
       "community": 56,
@@ -22870,7 +22820,7 @@
       "label": "@types/node",
       "file_type": "code",
       "source_file": "scripts/package.json",
-      "source_location": "L15",
+      "source_location": "L16",
       "_origin": "ast",
       "id": "scripts_package_devdependencies_types_node",
       "community": 56,
@@ -22880,7 +22830,7 @@
       "label": "tsx",
       "file_type": "code",
       "source_file": "scripts/package.json",
-      "source_location": "L16",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "scripts_package_devdependencies_tsx",
       "community": 56,
@@ -22921,17 +22871,17 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_check_db",
-      "community": 197,
+      "community": 22,
       "norm_label": "check_db.ts"
     },
     {
       "label": "main()",
       "file_type": "code",
       "source_file": "scripts/src/check_db.ts",
-      "source_location": "L4",
+      "source_location": "L5",
       "_origin": "ast",
       "id": "src_check_db_main",
-      "community": 197,
+      "community": 22,
       "norm_label": "main()"
     },
     {
@@ -22995,24 +22945,104 @@
       "norm_label": "rootdir"
     },
     {
-      "label": "types",
+      "label": "module",
       "file_type": "code",
       "source_file": "scripts/tsconfig.json",
       "source_location": "L6",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_module",
+      "community": 119,
+      "norm_label": "module"
+    },
+    {
+      "label": "moduleResolution",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_moduleresolution",
+      "community": 119,
+      "norm_label": "moduleresolution"
+    },
+    {
+      "label": "target",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L8",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_target",
+      "community": 119,
+      "norm_label": "target"
+    },
+    {
+      "label": "lib",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L9",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_lib",
+      "community": 119,
+      "norm_label": "lib"
+    },
+    {
+      "label": "types",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L10",
       "_origin": "ast",
       "id": "scripts_tsconfig_compileroptions_types",
       "community": 119,
       "norm_label": "types"
     },
     {
+      "label": "allowSyntheticDefaultImports",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L11",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_allowsyntheticdefaultimports",
+      "community": 119,
+      "norm_label": "allowsyntheticdefaultimports"
+    },
+    {
+      "label": "esModuleInterop",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L12",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_esmoduleinterop",
+      "community": 119,
+      "norm_label": "esmoduleinterop"
+    },
+    {
+      "label": "strict",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L13",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_compileroptions_strict",
+      "community": 119,
+      "norm_label": "strict"
+    },
+    {
       "label": "include",
       "file_type": "code",
       "source_file": "scripts/tsconfig.json",
-      "source_location": "L8",
+      "source_location": "L15",
       "_origin": "ast",
       "id": "scripts_tsconfig_include",
       "community": 119,
       "norm_label": "include"
+    },
+    {
+      "label": "exclude",
+      "file_type": "code",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "scripts_tsconfig_exclude",
+      "community": 119,
+      "norm_label": "exclude"
     },
     {
       "label": "test-angel.mjs",
@@ -23822,7 +23852,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 41,
+      "community": 111,
       "norm_label": "pnpm-workspace.yaml",
       "id": "pnpm_workspace_config"
     },
@@ -23900,7 +23930,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 209,
+      "community": 36,
       "norm_label": "express",
       "id": "express"
     },
@@ -23913,7 +23943,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 197,
+      "community": 210,
       "norm_label": "drizzle orm",
       "id": "drizzle_orm"
     },
@@ -24537,24 +24567,55 @@
       "target": "scripts_backtest_run_fetchcandles"
     },
     {
-      "relation": "contains",
+      "relation": "imports",
+      "context": "import",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L10",
+      "source_location": "L1",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "scripts_backtest",
-      "target": "scripts_backtest_candle"
+      "target": "routes_stocks_fetchcandles",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L29",
+      "source_location": "L49",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "scripts_backtest",
-      "target": "scripts_backtest_fetchcandles"
+      "target": "scripts_backtest_delay",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L51",
+      "weight": 1.0,
+      "source": "scripts_backtest",
+      "target": "scripts_backtest_fetchcandleswithretry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L23",
+      "weight": 1.0,
+      "source": "scripts_backtest",
+      "target": "scripts_backtest_formatminstoist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L45",
+      "weight": 1.0,
+      "source": "scripts_backtest",
+      "target": "scripts_backtest_getcandleclosedateist",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -24580,36 +24641,6 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L363",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "scripts_backtest",
-      "target": "scripts_backtest_main"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L2",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "scripts_backtest",
-      "target": "scripts_backtest_mc_headers"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L29",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "scripts_backtest",
-      "target": "scripts_backtest_roundtotick"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/scripts/backtest.ts",
       "source_location": "L71",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -24620,11 +24651,43 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "scripts_backtest",
+      "target": "scripts_backtest_testcases",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
       "source_location": "L56",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "scripts_backtest",
       "target": "scripts_backtest_trade"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L451",
+      "weight": 1.0,
+      "source": "scripts_backtest_runbacktest",
+      "target": "scripts_backtest_formatminstoist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "scripts_backtest_getcandleclosedateist",
+      "target": "scripts_backtest_getistdatestr",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -24653,33 +24716,44 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L203",
+      "source_location": "L71",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "scripts_backtest_runbacktest",
-      "target": "scripts_backtest_roundtotick"
+      "source": "scripts_backtest_fetchcandleswithretry",
+      "target": "scripts_backtest_delay",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L79",
+      "source_location": "L138",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "scripts_backtest_runbacktest",
-      "target": "scripts_backtest_fetchcandles"
+      "target": "scripts_backtest_delay",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "artifacts/api-server/scripts/backtest.ts",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "scripts_backtest_fetchcandleswithretry",
+      "target": "routes_stocks_fetchcandles"
     },
     {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/scripts/backtest.ts",
-      "source_location": "L373",
+      "source_location": "L139",
       "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "scripts_backtest_main",
-      "target": "scripts_backtest_runbacktest"
+      "source": "scripts_backtest_runbacktest",
+      "target": "scripts_backtest_fetchcandleswithretry",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -25192,132 +25266,6 @@
       "target": "scripts_debug_tcs_fetchcandles"
     },
     {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_friday.ts",
-      "source_location": "L2",
-      "weight": 1.0,
-      "source": "src_analyze_friday",
-      "target": "drizzle_orm",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_friday.ts",
-      "source_location": "L4",
-      "weight": 1.0,
-      "source": "src_analyze_friday",
-      "target": "src_analyze_friday_main",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_friday.ts",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "src_analyze_friday",
-      "target": "src_index_db",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports_from",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "routes_stocks",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "imports",
-      "context": "import",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L1",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "routes_stocks_fetchcandles",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L22",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "src_analyze_losing_trades_analyzesymbol",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L16",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "src_analyze_losing_trades_getistdatestr",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L3",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "src_analyze_losing_trades_getistminuteofday",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L10",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "src_analyze_losing_trades_getisttimestr",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L55",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades",
-      "target": "src_analyze_losing_trades_main",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L24",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades_analyzesymbol",
-      "target": "routes_stocks_fetchcandles",
-      "confidence_score": 1.0
-    },
-    {
-      "relation": "calls",
-      "context": "call",
-      "confidence": "EXTRACTED",
-      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
-      "source_location": "L56",
-      "weight": 1.0,
-      "source": "src_analyze_losing_trades_main",
-      "target": "src_analyze_losing_trades_analyzesymbol",
-      "confidence_score": 1.0
-    },
-    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/app.ts",
@@ -25458,6 +25406,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/backtest.ts",
+      "source_location": "L23",
+      "weight": 1.0,
+      "source": "src_backtest",
+      "target": "src_backtest_formatminstoist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/backtest.ts",
       "source_location": "L29",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -25513,6 +25471,17 @@
       "confidence_score": 1.0,
       "source": "src_backtest",
       "target": "src_backtest_trade"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/backtest.ts",
+      "source_location": "L451",
+      "weight": 1.0,
+      "source": "src_backtest_runbacktest",
+      "target": "src_backtest_formatminstoist",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -58414,6 +58383,26 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "package.json",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "package_scripts",
+      "target": "package_scripts_restart_aws",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "package.json",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "package_scripts",
+      "target": "package_scripts_start_aws",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "package.json",
       "source_location": "L9",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -58506,9 +58495,9 @@
       "source_file": "scratch/fetch-fridays-trades.mjs",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scratch_fetch_fridays_trades",
-      "target": "scratch_fetch_fridays_trades_envpath",
-      "confidence_score": 1.0
+      "target": "scratch_fetch_fridays_trades_envpath"
     },
     {
       "relation": "contains",
@@ -58516,9 +58505,9 @@
       "source_file": "scratch/fetch-fridays-trades.mjs",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scratch_fetch_fridays_trades",
-      "target": "scratch_fetch_fridays_trades_pool",
-      "confidence_score": 1.0
+      "target": "scratch_fetch_fridays_trades_pool"
     },
     {
       "relation": "contains",
@@ -58526,9 +58515,9 @@
       "source_file": "scratch/fetch-fridays-trades.mjs",
       "source_location": "L26",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scratch_fetch_fridays_trades",
-      "target": "scratch_fetch_fridays_trades_run",
-      "confidence_score": 1.0
+      "target": "scratch_fetch_fridays_trades_run"
     },
     {
       "relation": "contains",
@@ -58768,6 +58757,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "scripts/tsconfig.json",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "scripts_tsconfig",
+      "target": "scripts_tsconfig_exclude",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
       "source_location": "L2",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -58788,6 +58787,56 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "scripts/tsconfig.json",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_allowsyntheticdefaultimports",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_esmoduleinterop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_lib",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L6",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_module",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L7",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_moduleresolution",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
       "source_location": "L4",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -58803,6 +58852,26 @@
       "confidence_score": 1.0,
       "source": "scripts_tsconfig_compileroptions",
       "target": "scripts_tsconfig_compileroptions_rootdir"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_strict",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scripts/tsconfig.json",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "scripts_tsconfig_compileroptions",
+      "target": "scripts_tsconfig_compileroptions_target",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -59588,5 +59657,5 @@
       "source_file": "render.yaml"
     }
   ],
-  "built_at_commit": "f34a3723458fb377cc080bf617c81df35ef054f4"
+  "built_at_commit": "50f822ba7b8fdba14caa62bb61186d11d9f27cae"
 }

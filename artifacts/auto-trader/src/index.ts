@@ -97,8 +97,25 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
   } catch (err: any) {
     console.error(`[BOT] Failed to fetch watchlist:`, err.message);
   }
+
+  if (list.length > 0) {
+    const todayStr = getISTDateStr();
+    const timeStr = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().substring(11, 16);
+    for (const item of list) {
+      TradeDB.recordWatchlistSnapshot({
+        date: todayStr,
+        time: timeStr,
+        symbol: item.symbol,
+        category: item.category,
+        prevHigh: item.prevHigh,
+        prevLow: item.prevLow,
+      }).catch(() => {});
+    }
+  }
+
   return list;
 }
+
 
 async function reconcileAfterSquareOff(executionEngine: ExecutionEngine): Promise<void> {
   await executionEngine.reconcileExitOrders();
