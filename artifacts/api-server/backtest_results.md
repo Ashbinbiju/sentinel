@@ -4,14 +4,14 @@ Prime Time: 09:30–11:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward
 
 | Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | Initial SL | Active SL | Target | Result | P&L (50k) | Exit Time |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| GVT&D | 2026-07-24 | 09:30 | 4528.50 | 4306.80 | LOW BREAKDOWN | SHORT | 4297.20 | 4349.87 | Trailed to 4299.83 | 4191.86 | **✅ TARGET HIT** | +₹890.01 | 11:40 |
+| GVT&D | 2026-07-24 | 09:30 | 4528.50 | 4306.80 | LOW BREAKDOWN | SHORT | 4297.20 | 4371.40 | Trailed to 4304.62 | 4148.80 | **✅ TARGET HIT** | +₹851.75 | 13:25 |
 | PSPPROJECT | 2026-07-24 | 09:30 | 1066.40 | 984.10 | SKIPPED | - | 981.70 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
-| ACE | 2026-07-24 | 09:35 | 1007.20 | 957.80 | HIGH BREAKOUT | LONG | 1009.90 | 997.13 | Trailed to 1009.26 | 1035.44 | **🛡️ BREAKEVEN HIT** | ₹-83.98 | 09:50 |
-| RRKABEL | 2026-07-24 | 09:35 | 2467.80 | 2360.00 | LOW SUPPORT | LONG | 2360.80 | 2332.90 | Trailed to 2359.40 | 2416.61 | **✅ TARGET HIT** | +₹888.56 | 12:10 |
-| GAEL | 2026-07-24 | 09:35 | 144.51 | 138.33 | LOW SUPPORT | LONG | 138.76 | 136.74 | Trailed to 138.66 | 142.80 | **✅ TARGET HIT** | +₹945.84 | 12:35 |
+| RRKABEL | 2026-07-24 | 09:35 | 2467.80 | 2360.00 | LOW SUPPORT | LONG | 2360.80 | 2321.11 | Trailed to 2356.83 | 2440.17 | **✅ TARGET HIT** | +₹909.99 | 12:15 |
+| GAEL | 2026-07-24 | 09:35 | 144.51 | 138.33 | LOW SUPPORT | LONG | 138.76 | 136.05 | Trailed to 138.49 | 144.18 | **✅ TARGET HIT** | +₹958.74 | 12:45 |
+| ACE | 2026-07-24 | 09:35 | 1007.20 | 957.80 | HIGH BREAKOUT | LONG | 1009.90 | 992.09 | Trailed to 1008.12 | 1045.52 | **✅ TARGET HIT** | +₹954.83 | 14:20 |
 | SPANDANA | 2026-07-24 | 09:35 | 298.95 | 278.45 | SKIPPED | - | 270.50 | - | - | - | **Anti-Chasing / Touch Filter** | - | - |
 | WESTLIFE | 2026-07-24 | 09:35 | 502.00 | 471.80 | SKIPPED | - | 474.80 | - | - | - | **Longs disabled (Intraday Loser filter)** | - | - |
-| GALLANTT | 2026-07-24 | 09:40 | 579.90 | 535.00 | LOW BREAKDOWN | SHORT | 532.35 | 540.35 | Trailed to 532.75 | 516.35 | **🛡️ BREAKEVEN HIT** | ₹-74.31 | 10:50 |
+| GALLANTT | 2026-07-24 | 09:40 | 579.90 | 535.00 | LOW BREAKDOWN | SHORT | 532.35 | 543.02 | Trailed to 533.42 | 511.00 | **🛡️ BREAKEVEN HIT** | ₹-85.84 | 10:50 |
 | GODFRYPHLP | 2026-07-24 | 09:40 | 2079.90 | 2037.00 | SKIPPED | - | 2035.10 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
 | KPITTECH | 2026-07-24 | 09:45 | 555.80 | 548.00 | LOW SUPPORT | - | 549.35 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | LALPATHLAB | 2026-07-24 | 09:45 | 1707.70 | 1669.10 | SKIPPED | - | 1668.50 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
@@ -32,7 +32,6 @@ Prime Time: 09:30–11:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward
 | TATAELXSI | 2026-07-24 | 10:30 | 3430.40 | 3378.00 | SKIPPED | - | 3375.00 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
 | KPITTECH | 2026-07-24 | 10:35 | 555.80 | 548.00 | LOW SUPPORT | - | 549.55 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | ROUTE | 2026-07-24 | 10:35 | 649.95 | 567.90 | SKIPPED | - | 570.00 | - | - | - | **Longs disabled (Intraday Loser filter)** | - | - |
-| ACE | 2026-07-24 | 10:40 | 1007.20 | 957.80 | HIGH BREAKOUT | - | 1009.80 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | GODFRYPHLP | 2026-07-24 | 10:40 | 2079.90 | 2037.00 | LOW SUPPORT | - | 2040.90 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | MAHLOG | 2026-07-24 | 10:45 | 402.90 | 388.40 | HIGH BREAKOUT | - | 403.70 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | GODFRYPHLP | 2026-07-24 | 10:45 | 2079.90 | 2037.00 | LOW SUPPORT | - | 2048.20 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
@@ -41,7 +40,6 @@ Prime Time: 09:30–11:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward
 | WESTLIFE | 2026-07-24 | 11:00 | 502.00 | 471.80 | LOW BREAKDOWN | - | 470.90 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | PVRINOX | 2026-07-24 | 11:05 | 1044.40 | 981.10 | SKIPPED | - | 1047.45 | - | - | - | **Long upper rejection wick** | - | - |
 | ASTRAL | 2026-07-24 | 11:10 | 1433.30 | 1402.10 | HIGH BREAKOUT | - | 1433.50 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
-| ACE | 2026-07-24 | 11:25 | 1007.20 | 957.80 | HIGH BREAKOUT | - | 1008.70 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | MAHLOG | 2026-07-24 | 11:25 | 402.90 | 388.40 | HIGH BREAKOUT | - | 403.50 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | PVRINOX | 2026-07-24 | 11:25 | 1044.40 | 981.10 | SKIPPED | - | 1043.30 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
 | KPITTECH | 2026-07-24 | 11:30 | 555.80 | 548.00 | SKIPPED | - | 553.10 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |

@@ -8,10 +8,11 @@ import { Notifier } from "./notifier";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
-const SL_BUFFER_PCT = 0.01;
+const SL_BUFFER_PCT = 0.015;
 const STRUCTURAL_TRAIL_RR = 1.0;
-const STRUCTURAL_TRAIL_RISK_BUFFER = 0.05;
+const STRUCTURAL_TRAIL_RISK_BUFFER = 0.10;
 const NSE_TICK_SIZE = 0.05;
+
 
 
 export interface WatchlistContext {

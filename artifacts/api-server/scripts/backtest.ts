@@ -3,17 +3,22 @@ import { writeFileSync } from "fs";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
-const SL_BUFFER_PCT = 0.01; // Increased for breathing space
+const SL_BUFFER_PCT = 0.015; // Increased to 1.5% for SL breathing space
 const STRUCTURAL_TRAIL_RR = 1.0;
-const STRUCTURAL_TRAIL_RISK_BUFFER = 0.05;
+const STRUCTURAL_TRAIL_RISK_BUFFER = 0.10; // 10% risk buffer on trailed SL
 const SLIPPAGE_PCT = 0.0005;
 const CHARGES_PCT_TURNOVER = 0.0005;
 
 
+
 const DRY_RUN_CAPITAL = 50000;
 const RISK_PER_TRADE = DRY_RUN_CAPITAL * 0.01;
+const MAX_DAILY_TRADES = 5;
+const MAX_DAILY_LOSS = -2500;
+const MAX_CONSECUTIVE_LOSSES = 3;
 const ENTRY_START_MINS = 9 * 60 + 30;
 const ENTRY_END_MINS = 11 * 60 + 30;
+
 
 function formatMinsToIST(mins: number): string {
   const h = Math.floor(mins / 60).toString().padStart(2, '0');
