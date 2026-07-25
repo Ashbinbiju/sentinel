@@ -1097,13 +1097,93 @@
       "norm_label": "debugtcs()"
     },
     {
+      "label": "analyze_friday.ts",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_friday.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_analyze_friday",
+      "community": 197,
+      "norm_label": "analyze_friday.ts"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_friday.ts",
+      "source_location": "L4",
+      "_origin": "ast",
+      "id": "src_analyze_friday_main",
+      "community": 197,
+      "norm_label": "main()"
+    },
+    {
+      "label": "analyze_losing_trades.ts",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "src_analyze_losing_trades",
+      "community": 23,
+      "norm_label": "analyze_losing_trades.ts"
+    },
+    {
+      "label": "getISTMinuteOfDay()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L3",
+      "_origin": "ast",
+      "id": "src_analyze_losing_trades_getistminuteofday",
+      "community": 23,
+      "norm_label": "getistminuteofday()"
+    },
+    {
+      "label": "getISTTimeStr()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L10",
+      "_origin": "ast",
+      "id": "src_analyze_losing_trades_getisttimestr",
+      "community": 23,
+      "norm_label": "getisttimestr()"
+    },
+    {
+      "label": "getISTDateStr()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L16",
+      "_origin": "ast",
+      "id": "src_analyze_losing_trades_getistdatestr",
+      "community": 23,
+      "norm_label": "getistdatestr()"
+    },
+    {
+      "label": "analyzeSymbol()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L22",
+      "_origin": "ast",
+      "id": "src_analyze_losing_trades_analyzesymbol",
+      "community": 23,
+      "norm_label": "analyzesymbol()"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L55",
+      "_origin": "ast",
+      "id": "src_analyze_losing_trades_main",
+      "community": 23,
+      "norm_label": "main()"
+    },
+    {
       "label": "app.ts",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/app.ts",
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_api_server_src_app_ts_src_app",
-      "community": 112,
+      "community": 209,
       "norm_label": "app.ts"
     },
     {
@@ -1113,7 +1193,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_api_server_src_app_ts_src_app_app",
-      "community": 112,
+      "community": 209,
       "norm_label": "app"
     },
     {
@@ -1123,7 +1203,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "src_app_req",
-      "community": 112,
+      "community": 209,
       "norm_label": "req()"
     },
     {
@@ -1133,7 +1213,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_app_res",
-      "community": 112,
+      "community": 209,
       "norm_label": "res()"
     },
     {
@@ -1143,7 +1223,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_app_limiter",
-      "community": 112,
+      "community": 209,
       "norm_label": "limiter"
     },
     {
@@ -1153,87 +1233,87 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_backtest",
-      "community": 23,
+      "community": 133,
       "norm_label": "backtest.ts"
     },
     {
       "label": "testCases",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L18",
+      "source_location": "L19",
       "_origin": "ast",
       "id": "src_backtest_testcases",
-      "community": 23,
+      "community": 133,
       "norm_label": "testcases"
     },
     {
       "label": "getISTDateStr()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L20",
+      "source_location": "L21",
       "_origin": "ast",
       "id": "src_backtest_getistdatestr",
-      "community": 23,
+      "community": 133,
       "norm_label": "getistdatestr()"
     },
     {
       "label": "getISTMinuteOfDay()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L26",
+      "source_location": "L27",
       "_origin": "ast",
       "id": "src_backtest_getistminuteofday",
-      "community": 23,
+      "community": 133,
       "norm_label": "getistminuteofday()"
     },
     {
       "label": "getCandleCloseDateIST()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L33",
+      "source_location": "L34",
       "_origin": "ast",
       "id": "src_backtest_getcandleclosedateist",
-      "community": 23,
+      "community": 133,
       "norm_label": "getcandleclosedateist()"
     },
     {
       "label": "delay()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L37",
+      "source_location": "L38",
       "_origin": "ast",
       "id": "src_backtest_delay",
-      "community": 23,
+      "community": 133,
       "norm_label": "delay()"
     },
     {
       "label": "fetchCandlesWithRetry()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L39",
+      "source_location": "L40",
       "_origin": "ast",
       "id": "src_backtest_fetchcandleswithretry",
-      "community": 23,
+      "community": 133,
       "norm_label": "fetchcandleswithretry()"
     },
     {
       "label": "Trade",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L64",
+      "source_location": "L65",
       "_origin": "ast",
       "id": "src_backtest_trade",
-      "community": 23,
+      "community": 133,
       "norm_label": "trade"
     },
     {
       "label": "runBacktest()",
       "file_type": "code",
       "source_file": "artifacts/api-server/src/backtest.ts",
-      "source_location": "L87",
+      "source_location": "L88",
       "_origin": "ast",
       "id": "src_backtest_runbacktest",
-      "community": 23,
+      "community": 133,
       "norm_label": "runbacktest()"
     },
     {
@@ -2653,7 +2733,7 @@
       "source_location": "L2329",
       "_origin": "ast",
       "id": "routes_stocks_fetchmoneycontroldailycandles",
-      "community": 23,
+      "community": 63,
       "norm_label": "fetchmoneycontroldailycandles()"
     },
     {
@@ -2673,7 +2753,7 @@
       "source_location": "L2406",
       "_origin": "ast",
       "id": "routes_stocks_fetchdailycandles",
-      "community": 23,
+      "community": 63,
       "norm_label": "fetchdailycandles()"
     },
     {
@@ -2683,7 +2763,7 @@
       "source_location": "L2424",
       "_origin": "ast",
       "id": "routes_stocks_normalizeequitysymbol",
-      "community": 25,
+      "community": 63,
       "norm_label": "normalizeequitysymbol()"
     },
     {
@@ -2743,7 +2823,7 @@
       "source_location": "L2462",
       "_origin": "ast",
       "id": "routes_stocks_fetchtechnicalindicatorrows",
-      "community": 25,
+      "community": 63,
       "norm_label": "fetchtechnicalindicatorrows()"
     },
     {
@@ -2853,7 +2933,7 @@
       "source_location": "L2638",
       "_origin": "ast",
       "id": "routes_stocks_buildtechnicalindicatormap",
-      "community": 25,
+      "community": 63,
       "norm_label": "buildtechnicalindicatormap()"
     },
     {
@@ -2863,7 +2943,7 @@
       "source_location": "L2648",
       "_origin": "ast",
       "id": "routes_stocks_fetchtechnicalindicatormap",
-      "community": 25,
+      "community": 63,
       "norm_label": "fetchtechnicalindicatormap()"
     },
     {
@@ -3973,7 +4053,7 @@
       "source_location": "L4829",
       "_origin": "ast",
       "id": "routes_stocks_isopenswingtradestatus",
-      "community": 25,
+      "community": 63,
       "norm_label": "isopenswingtradestatus()"
     },
     {
@@ -4013,7 +4093,7 @@
       "source_location": "L4861",
       "_origin": "ast",
       "id": "routes_stocks_preferredopenswingtrade",
-      "community": 25,
+      "community": 63,
       "norm_label": "preferredopenswingtrade()"
     },
     {
@@ -4023,7 +4103,7 @@
       "source_location": "L4874",
       "_origin": "ast",
       "id": "routes_stocks_dedupeopenswingtrades",
-      "community": 25,
+      "community": 63,
       "norm_label": "dedupeopenswingtrades()"
     },
     {
@@ -4163,7 +4243,7 @@
       "source_location": "L5976",
       "_origin": "ast",
       "id": "routes_stocks_getcachedcandledata",
-      "community": 17,
+      "community": 23,
       "norm_label": "getcachedcandledata()"
     },
     {
@@ -5330,7 +5410,7 @@
       "label": "WatchlistContext",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L16",
+      "source_location": "L17",
       "_origin": "ast",
       "id": "src_engine_watchlistcontext",
       "community": 43,
@@ -5340,7 +5420,7 @@
       "label": "ExecutionEngine",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L24",
+      "source_location": "L25",
       "_origin": "ast",
       "id": "src_engine_executionengine",
       "community": 166,
@@ -5350,7 +5430,7 @@
       "label": ".constructor()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L29",
+      "source_location": "L30",
       "_origin": "ast",
       "id": "src_engine_executionengine_constructor",
       "community": 166,
@@ -5360,7 +5440,7 @@
       "label": ".setWatchlist()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L34",
+      "source_location": "L35",
       "_origin": "ast",
       "id": "src_engine_executionengine_setwatchlist",
       "community": 166,
@@ -5370,7 +5450,7 @@
       "label": ".syncActiveTrades()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L49",
+      "source_location": "L50",
       "_origin": "ast",
       "id": "src_engine_executionengine_syncactivetrades",
       "community": 166,
@@ -5380,7 +5460,7 @@
       "label": ".getActiveOrPendingTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L64",
+      "source_location": "L65",
       "_origin": "ast",
       "id": "src_engine_executionengine_getactiveorpendingtrade",
       "community": 166,
@@ -5390,7 +5470,7 @@
       "label": ".evaluateClosedCandle()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L68",
+      "source_location": "L69",
       "_origin": "ast",
       "id": "src_engine_executionengine_evaluateclosedcandle",
       "community": 166,
@@ -5400,7 +5480,7 @@
       "label": ".roundToTick()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L257",
+      "source_location": "L266",
       "_origin": "ast",
       "id": "src_engine_executionengine_roundtotick",
       "community": 166,
@@ -5410,7 +5490,7 @@
       "label": ".initiateTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L261",
+      "source_location": "L270",
       "_origin": "ast",
       "id": "src_engine_executionengine_initiatetrade",
       "community": 166,
@@ -5420,7 +5500,7 @@
       "label": ".verifyOrderExecution()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L353",
+      "source_location": "L362",
       "_origin": "ast",
       "id": "src_engine_executionengine_verifyorderexecution",
       "community": 166,
@@ -5430,7 +5510,7 @@
       "label": ".evaluateLiveTick()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L421",
+      "source_location": "L430",
       "_origin": "ast",
       "id": "src_engine_executionengine_evaluatelivetick",
       "community": 166,
@@ -5440,7 +5520,7 @@
       "label": ".initiateExit()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L476",
+      "source_location": "L485",
       "_origin": "ast",
       "id": "src_engine_executionengine_initiateexit",
       "community": 166,
@@ -5450,7 +5530,7 @@
       "label": ".reconcileExits()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L490",
+      "source_location": "L499",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileexits",
       "community": 166,
@@ -5460,7 +5540,7 @@
       "label": ".reconcileUnknownOrders()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L556",
+      "source_location": "L565",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileunknownorders",
       "community": 166,
@@ -5470,7 +5550,7 @@
       "label": ".reconcileExitOrders()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L613",
+      "source_location": "L622",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileexitorders",
       "community": 166,
@@ -6013,7 +6093,7 @@
       "source_location": "L189",
       "_origin": "ast",
       "id": "artifacts_dd_get_config_value_with_source",
-      "community": 7,
+      "community": 1,
       "norm_label": "get_config_value_with_source()"
     },
     {
@@ -6023,7 +6103,7 @@
       "source_location": "L213",
       "_origin": "ast",
       "id": "artifacts_dd_get_config_value",
-      "community": 7,
+      "community": 1,
       "norm_label": "get_config_value()"
     },
     {
@@ -6073,7 +6153,7 @@
       "source_location": "L258",
       "_origin": "ast",
       "id": "artifacts_dd_local_history_row_count",
-      "community": 7,
+      "community": 173,
       "norm_label": "local_history_row_count()"
     },
     {
@@ -6093,7 +6173,7 @@
       "source_location": "L301",
       "_origin": "ast",
       "id": "artifacts_dd_restore_history_backup_if_empty",
-      "community": 7,
+      "community": 173,
       "norm_label": "restore_history_backup_if_empty()"
     },
     {
@@ -6143,7 +6223,7 @@
       "source_location": "L419",
       "_origin": "ast",
       "id": "artifacts_dd_filter_tradable_symbols",
-      "community": 133,
+      "community": 29,
       "norm_label": "filter_tradable_symbols()"
     },
     {
@@ -6153,7 +6233,7 @@
       "source_location": "L453",
       "_origin": "ast",
       "id": "artifacts_dd_contextwarningfilter",
-      "community": 200,
+      "community": 1,
       "norm_label": "contextwarningfilter"
     },
     {
@@ -6163,7 +6243,7 @@
       "source_location": "L454",
       "_origin": "ast",
       "id": "artifacts_dd_contextwarningfilter_filter",
-      "community": 200,
+      "community": 1,
       "norm_label": ".filter()"
     },
     {
@@ -6193,7 +6273,7 @@
       "source_location": "L1049",
       "_origin": "ast",
       "id": "artifacts_dd_tooltip",
-      "community": 133,
+      "community": 7,
       "norm_label": "tooltip()"
     },
     {
@@ -6213,7 +6293,7 @@
       "source_location": "L1081",
       "_origin": "ast",
       "id": "artifacts_dd_fetch_nse_stock_list",
-      "community": 133,
+      "community": 29,
       "norm_label": "fetch_nse_stock_list()"
     },
     {
@@ -6353,7 +6433,7 @@
       "source_location": "L1390",
       "_origin": "ast",
       "id": "artifacts_dd_monte_carlo_simulation",
-      "community": 133,
+      "community": 7,
       "norm_label": "monte_carlo_simulation()"
     },
     {
@@ -6393,7 +6473,7 @@
       "source_location": "L1445",
       "_origin": "ast",
       "id": "artifacts_dd_assess_risk",
-      "community": 133,
+      "community": 7,
       "norm_label": "assess_risk()"
     },
     {
@@ -6453,7 +6533,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "dataframe",
-      "community": 133,
+      "community": 7,
       "norm_label": "dataframe"
     },
     {
@@ -6673,7 +6753,7 @@
       "source_location": "L2764",
       "_origin": "ast",
       "id": "artifacts_dd_setup_holding_metrics",
-      "community": 133,
+      "community": 7,
       "norm_label": "setup_holding_metrics()"
     },
     {
@@ -6683,7 +6763,7 @@
       "source_location": "L2857",
       "_origin": "ast",
       "id": "artifacts_dd_setup_type_win_rate_table",
-      "community": 133,
+      "community": 7,
       "norm_label": "setup_type_win_rate_table()"
     },
     {
@@ -6833,7 +6913,7 @@
       "source_location": "L3150",
       "_origin": "ast",
       "id": "artifacts_dd_quote_identifier",
-      "community": 7,
+      "community": 173,
       "norm_label": "quote_identifier()"
     },
     {
@@ -6843,7 +6923,7 @@
       "source_location": "L3179",
       "_origin": "ast",
       "id": "artifacts_dd_ensure_table_columns",
-      "community": 7,
+      "community": 173,
       "norm_label": "ensure_table_columns()"
     },
     {
@@ -6853,7 +6933,7 @@
       "source_location": "L3190",
       "_origin": "ast",
       "id": "artifacts_dd_ensure_daily_pick_lifecycle_columns",
-      "community": 7,
+      "community": 173,
       "norm_label": "ensure_daily_pick_lifecycle_columns()"
     },
     {
@@ -6863,7 +6943,7 @@
       "source_location": "L3193",
       "_origin": "ast",
       "id": "artifacts_dd_migrate_daily_picks_primary_key",
-      "community": 7,
+      "community": 173,
       "norm_label": "migrate_daily_picks_primary_key()"
     },
     {
@@ -6873,7 +6953,7 @@
       "source_location": "L3226",
       "_origin": "ast",
       "id": "artifacts_dd_init_database",
-      "community": 7,
+      "community": 173,
       "norm_label": "init_database()"
     },
     {
@@ -6933,7 +7013,7 @@
       "source_location": "L3711",
       "_origin": "ast",
       "id": "artifacts_dd_holding_period_expectancy",
-      "community": 133,
+      "community": 7,
       "norm_label": "holding_period_expectancy()"
     },
     {
@@ -6983,7 +7063,7 @@
       "source_location": "L4092",
       "_origin": "ast",
       "id": "artifacts_dd_calculate_sector_performance",
-      "community": 133,
+      "community": 29,
       "norm_label": "calculate_sector_performance()"
     },
     {
@@ -7003,7 +7083,7 @@
       "source_location": "L4224",
       "_origin": "ast",
       "id": "artifacts_dd_colored_recommendation",
-      "community": 133,
+      "community": 7,
       "norm_label": "colored_recommendation()"
     },
     {
@@ -7683,7 +7763,7 @@
       "source_location": "L5504",
       "_origin": "ast",
       "id": "artifacts_dd_format_currency",
-      "community": 133,
+      "community": 7,
       "norm_label": "format_currency()"
     },
     {
@@ -7753,7 +7833,7 @@
       "source_location": "L5721",
       "_origin": "ast",
       "id": "artifacts_dd_update_progress",
-      "community": 133,
+      "community": 7,
       "norm_label": "update_progress()"
     },
     {
@@ -7763,7 +7843,7 @@
       "source_location": "L5727",
       "_origin": "ast",
       "id": "artifacts_dd_display_dashboard",
-      "community": 133,
+      "community": 7,
       "norm_label": "display_dashboard()"
     },
     {
@@ -7773,7 +7853,7 @@
       "source_location": "L6254",
       "_origin": "ast",
       "id": "artifacts_dd_main",
-      "community": 133,
+      "community": 29,
       "norm_label": "main()"
     },
     {
@@ -7883,7 +7963,7 @@
       "source_location": "L4093",
       "_origin": "ast",
       "id": "artifacts_dd_rationale_4093",
-      "community": 133,
+      "community": 29,
       "norm_label": "calculates the real-time performance of each sector based on constituent stocks."
     },
     {
@@ -11483,7 +11563,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group",
-      "community": 12,
+      "community": 215,
       "norm_label": "radio-group.tsx"
     },
     {
@@ -11493,7 +11573,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroup",
-      "community": 12,
+      "community": 215,
       "norm_label": "radiogroup"
     },
     {
@@ -11503,7 +11583,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroupitem",
-      "community": 12,
+      "community": 215,
       "norm_label": "radiogroupitem"
     },
     {
@@ -11543,7 +11623,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area",
-      "community": 173,
+      "community": 12,
       "norm_label": "scroll-area.tsx"
     },
     {
@@ -11553,7 +11633,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area_scrollarea",
-      "community": 173,
+      "community": 12,
       "norm_label": "scrollarea"
     },
     {
@@ -11563,7 +11643,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area_scrollbar",
-      "community": 173,
+      "community": 12,
       "norm_label": "scrollbar"
     },
     {
@@ -14203,7 +14283,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar",
-      "community": 12,
+      "community": 207,
       "norm_label": "avatar.tsx"
     },
     {
@@ -14213,7 +14293,7 @@
       "source_location": "L8",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar_avatar",
-      "community": 12,
+      "community": 207,
       "norm_label": "avatar"
     },
     {
@@ -14223,7 +14303,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar_avatarimage",
-      "community": 12,
+      "community": 207,
       "norm_label": "avatarimage"
     },
     {
@@ -14233,7 +14313,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar_avatarfallback",
-      "community": 12,
+      "community": 207,
       "norm_label": "avatarfallback"
     },
     {
@@ -15943,7 +16023,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_label_tsx_ui_label",
-      "community": 207,
+      "community": 12,
       "norm_label": "label.tsx"
     },
     {
@@ -15953,7 +16033,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_label_tsx_ui_label_labelvariants",
-      "community": 207,
+      "community": 12,
       "norm_label": "labelvariants"
     },
     {
@@ -15963,7 +16043,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_label_tsx_ui_label_label",
-      "community": 207,
+      "community": 12,
       "norm_label": "label"
     },
     {
@@ -22577,6 +22657,46 @@
       "norm_label": "main()"
     },
     {
+      "label": "fetch-fridays-trades.mjs",
+      "file_type": "code",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "scratch_fetch_fridays_trades",
+      "community": 214,
+      "norm_label": "fetch-fridays-trades.mjs"
+    },
+    {
+      "label": "envPath",
+      "file_type": "code",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L6",
+      "_origin": "ast",
+      "id": "scratch_fetch_fridays_trades_envpath",
+      "community": 214,
+      "norm_label": "envpath"
+    },
+    {
+      "label": "pool",
+      "file_type": "code",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L21",
+      "_origin": "ast",
+      "id": "scratch_fetch_fridays_trades_pool",
+      "community": 214,
+      "norm_label": "pool"
+    },
+    {
+      "label": "run()",
+      "file_type": "code",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L26",
+      "_origin": "ast",
+      "id": "scratch_fetch_fridays_trades_run",
+      "community": 214,
+      "norm_label": "run()"
+    },
+    {
       "label": "test.ts",
       "file_type": "code",
       "source_file": "scratch/test.ts",
@@ -23986,9 +24106,9 @@
       "source_file": "artifacts/api-server/package.json",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_package_scripts",
-      "target": "api_server_package_scripts_backtest",
-      "confidence_score": 1.0
+      "target": "api_server_package_scripts_backtest"
     },
     {
       "relation": "contains",
@@ -24106,9 +24226,9 @@
       "source_file": "artifacts/api-server/package.json",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_package_dependencies",
-      "target": "api_server_package_dependencies_smartapi_javascript",
-      "confidence_score": 1.0
+      "target": "api_server_package_dependencies_smartapi_javascript"
     },
     {
       "relation": "contains",
@@ -24278,9 +24398,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L10",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_candle",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_candle"
     },
     {
       "relation": "contains",
@@ -24288,9 +24408,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L27",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_fetchcandles",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_fetchcandles"
     },
     {
       "relation": "contains",
@@ -24298,9 +24418,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L15",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_getistdatestr",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_getistdatestr"
     },
     {
       "relation": "contains",
@@ -24308,9 +24428,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_getistminuteofday",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_getistminuteofday"
     },
     {
       "relation": "contains",
@@ -24318,9 +24438,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_mc_headers",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_mc_headers"
     },
     {
       "relation": "contains",
@@ -24328,9 +24448,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L23",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_roundtotick",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_roundtotick"
     },
     {
       "relation": "contains",
@@ -24338,9 +24458,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_runbacktest",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_runbacktest"
     },
     {
       "relation": "contains",
@@ -24348,9 +24468,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L240",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_screenerstocks",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_screenerstocks"
     },
     {
       "relation": "contains",
@@ -24358,9 +24478,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L232",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_symbols",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_symbols"
     },
     {
       "relation": "contains",
@@ -24368,9 +24488,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L55",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run",
-      "target": "scripts_backtest_run_trade",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_trade"
     },
     {
       "relation": "calls",
@@ -24379,9 +24499,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L81",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run_runbacktest",
-      "target": "scripts_backtest_run_getistdatestr",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_getistdatestr"
     },
     {
       "relation": "calls",
@@ -24390,9 +24510,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L110",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run_runbacktest",
-      "target": "scripts_backtest_run_getistminuteofday",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_getistminuteofday"
     },
     {
       "relation": "calls",
@@ -24401,9 +24521,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run_runbacktest",
-      "target": "scripts_backtest_run_roundtotick",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_roundtotick"
     },
     {
       "relation": "calls",
@@ -24412,9 +24532,9 @@
       "source_file": "artifacts/api-server/scripts/backtest-run.ts",
       "source_location": "L74",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_run_runbacktest",
-      "target": "scripts_backtest_run_fetchcandles",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_run_fetchcandles"
     },
     {
       "relation": "contains",
@@ -24462,9 +24582,9 @@
       "source_file": "artifacts/api-server/scripts/backtest.ts",
       "source_location": "L363",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest",
-      "target": "scripts_backtest_main",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_main"
     },
     {
       "relation": "contains",
@@ -24482,9 +24602,9 @@
       "source_file": "artifacts/api-server/scripts/backtest.ts",
       "source_location": "L29",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest",
-      "target": "scripts_backtest_roundtotick",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_roundtotick"
     },
     {
       "relation": "contains",
@@ -24535,9 +24655,9 @@
       "source_file": "artifacts/api-server/scripts/backtest.ts",
       "source_location": "L203",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_runbacktest",
-      "target": "scripts_backtest_roundtotick",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_roundtotick"
     },
     {
       "relation": "calls",
@@ -24557,9 +24677,9 @@
       "source_file": "artifacts/api-server/scripts/backtest.ts",
       "source_location": "L373",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_main",
-      "target": "scripts_backtest_runbacktest",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_runbacktest"
     },
     {
       "relation": "contains",
@@ -25072,6 +25192,132 @@
       "target": "scripts_debug_tcs_fetchcandles"
     },
     {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_friday.ts",
+      "source_location": "L2",
+      "weight": 1.0,
+      "source": "src_analyze_friday",
+      "target": "drizzle_orm",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_friday.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "src_analyze_friday",
+      "target": "src_analyze_friday_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_friday.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "src_analyze_friday",
+      "target": "src_index_db",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "routes_stocks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "routes_stocks_fetchcandles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "src_analyze_losing_trades_analyzesymbol",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L16",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "src_analyze_losing_trades_getistdatestr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "src_analyze_losing_trades_getistminuteofday",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "src_analyze_losing_trades_getisttimestr",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L55",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades",
+      "target": "src_analyze_losing_trades_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades_analyzesymbol",
+      "target": "routes_stocks_fetchcandles",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/api-server/src/analyze_losing_trades.ts",
+      "source_location": "L56",
+      "weight": 1.0,
+      "source": "src_analyze_losing_trades_main",
+      "target": "src_analyze_losing_trades_analyzesymbol",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "artifacts/api-server/src/app.ts",
@@ -25254,9 +25500,9 @@
       "source_file": "artifacts/api-server/src/backtest.ts",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_backtest",
-      "target": "src_backtest_testcases",
-      "confidence_score": 1.0
+      "target": "src_backtest_testcases"
     },
     {
       "relation": "contains",
@@ -25264,9 +25510,9 @@
       "source_file": "artifacts/api-server/src/backtest.ts",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_backtest",
-      "target": "src_backtest_trade",
-      "confidence_score": 1.0
+      "target": "src_backtest_trade"
     },
     {
       "relation": "calls",
@@ -25699,9 +25945,9 @@
       "source_file": "artifacts/api-server/test-angel-fetch.ts",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_angel_fetch",
-      "target": "routes_stocks",
-      "confidence_score": 1.0
+      "target": "routes_stocks"
     },
     {
       "relation": "imports_from",
@@ -29705,9 +29951,9 @@
       "source_file": "artifacts/api-server/test-angel-fetch.ts",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_angel_fetch",
-      "target": "routes_stocks_fetchangelcandles",
-      "confidence_score": 1.0
+      "target": "routes_stocks_fetchangelcandles"
     },
     {
       "relation": "calls",
@@ -29716,9 +29962,9 @@
       "source_file": "artifacts/api-server/test-angel-fetch.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_angel_fetch_main",
-      "target": "routes_stocks_fetchangelcandles",
-      "confidence_score": 1.0
+      "target": "routes_stocks_fetchangelcandles"
     },
     {
       "relation": "calls",
@@ -31769,9 +32015,9 @@
       "source_file": "artifacts/api-server/test-angel-fetch.ts",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_angel_fetch",
-      "target": "api_server_test_angel_fetch_main",
-      "confidence_score": 1.0
+      "target": "api_server_test_angel_fetch_main"
     },
     {
       "relation": "contains",
@@ -31789,9 +32035,9 @@
       "source_file": "artifacts/api-server/test-fetch.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_fetch",
-      "target": "api_server_test_fetch_getcandleclosedateist",
-      "confidence_score": 1.0
+      "target": "api_server_test_fetch_getcandleclosedateist"
     },
     {
       "relation": "contains",
@@ -31799,9 +32045,9 @@
       "source_file": "artifacts/api-server/test-fetch.ts",
       "source_location": "L3",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_fetch",
-      "target": "api_server_test_fetch_getistdatestr",
-      "confidence_score": 1.0
+      "target": "api_server_test_fetch_getistdatestr"
     },
     {
       "relation": "contains",
@@ -31809,9 +32055,9 @@
       "source_file": "artifacts/api-server/test-fetch.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_fetch",
-      "target": "api_server_test_fetch_gettodayistdatestr",
-      "confidence_score": 1.0
+      "target": "api_server_test_fetch_gettodayistdatestr"
     },
     {
       "relation": "contains",
@@ -31830,9 +32076,9 @@
       "source_file": "artifacts/api-server/test-fetch.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_fetch_getcandleclosedateist",
-      "target": "api_server_test_fetch_getistdatestr",
-      "confidence_score": 1.0
+      "target": "api_server_test_fetch_getistdatestr"
     },
     {
       "relation": "calls",
@@ -31841,9 +32087,9 @@
       "source_file": "artifacts/api-server/test-fetch.ts",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_test_fetch_run",
-      "target": "api_server_test_fetch_gettodayistdatestr",
-      "confidence_score": 1.0
+      "target": "api_server_test_fetch_gettodayistdatestr"
     },
     {
       "relation": "contains",
@@ -32165,9 +32411,9 @@
       "source_file": "artifacts/auto-trader/package.json",
       "source_location": "L16",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "auto_trader_package_dependencies",
-      "target": "auto_trader_package_dependencies_totp_generator",
-      "confidence_score": 1.0
+      "target": "auto_trader_package_dependencies_totp_generator"
     },
     {
       "relation": "contains",
@@ -32226,9 +32472,9 @@
       "source_file": "artifacts/auto-trader/package.json",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "auto_trader_package_devdependencies",
-      "target": "auto_trader_package_devdependencies_types_totp_generator",
-      "confidence_score": 1.0
+      "target": "auto_trader_package_devdependencies_types_totp_generator"
     },
     {
       "relation": "contains",
@@ -32288,9 +32534,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine",
-      "target": "src_dhan",
-      "confidence_score": 1.0
+      "target": "src_dhan"
     },
     {
       "relation": "imports",
@@ -32299,9 +32545,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine",
-      "target": "src_dhan_dhanmarkettick",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanmarkettick"
     },
     {
       "relation": "imports_from",
@@ -32374,9 +32620,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L130",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine",
-      "target": "src_candle_engine_candleengine_checkclosures",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_checkclosures"
     },
     {
       "relation": "method",
@@ -32394,9 +32640,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L145",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine",
-      "target": "src_candle_engine_candleengine_finalizecandle",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_finalizecandle"
     },
     {
       "relation": "method",
@@ -32404,9 +32650,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L106",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine",
-      "target": "src_candle_engine_candleengine_prepareforreconnect",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_prepareforreconnect"
     },
     {
       "relation": "method",
@@ -32424,9 +32670,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L117",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine",
-      "target": "src_candle_engine_candleengine_removesymbols",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_removesymbols"
     },
     {
       "relation": "method",
@@ -32434,9 +32680,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L50",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine",
-      "target": "src_candle_engine_candleengine_start",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_start"
     },
     {
       "relation": "method",
@@ -32444,9 +32690,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L95",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine",
-      "target": "src_candle_engine_candleengine_stop",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_stop"
     },
     {
       "relation": "method",
@@ -32465,9 +32711,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L140",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine_checkclosures",
-      "target": "src_candle_engine_candleengine_finalizecandle",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_finalizecandle"
     },
     {
       "relation": "calls",
@@ -32476,9 +32722,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L339",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine_updatecandle",
-      "target": "src_candle_engine_candleengine_finalizecandle",
-      "confidence_score": 1.0
+      "target": "src_candle_engine_candleengine_finalizecandle"
     },
     {
       "relation": "calls",
@@ -32498,9 +32744,9 @@
       "source_file": "artifacts/auto-trader/src/candle-engine.ts",
       "source_location": "L240",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_candle_engine_candleengine_processtick",
-      "target": "src_dhan_dhanmarkettick",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanmarkettick"
     },
     {
       "relation": "imports_from",
@@ -32551,9 +32797,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L59",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db",
-      "target": "src_db_currentdir",
-      "confidence_score": 1.0
+      "target": "src_db_currentdir"
     },
     {
       "relation": "contains",
@@ -32561,9 +32807,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L58",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db",
-      "target": "src_db_currentfile",
-      "confidence_score": 1.0
+      "target": "src_db_currentfile"
     },
     {
       "relation": "contains",
@@ -32571,9 +32817,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L105",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db",
-      "target": "src_db_dbmutex",
-      "confidence_score": 1.0
+      "target": "src_db_dbmutex"
     },
     {
       "relation": "contains",
@@ -32581,9 +32827,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L75",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db",
-      "target": "src_db_fatalpersistenceerror",
-      "confidence_score": 1.0
+      "target": "src_db_fatalpersistenceerror"
     },
     {
       "relation": "contains",
@@ -32621,9 +32867,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L106",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db",
-      "target": "src_db_withlock",
-      "confidence_score": 1.0
+      "target": "src_db_withlock"
     },
     {
       "relation": "contains",
@@ -32664,9 +32910,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "src_db",
-      "confidence_score": 1.0
+      "target": "src_db"
     },
     {
       "relation": "imports",
@@ -32686,9 +32932,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "src_db_tradestate",
-      "confidence_score": 1.0
+      "target": "src_db_tradestate"
     },
     {
       "relation": "imports",
@@ -32719,9 +32965,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L441",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_evaluatelivetick",
-      "target": "src_db_activetrade",
-      "confidence_score": 1.0
+      "target": "src_db_activetrade"
     },
     {
       "relation": "references",
@@ -32730,9 +32976,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_getactiveorpendingtrade",
-      "target": "src_db_activetrade",
-      "confidence_score": 1.0
+      "target": "src_db_activetrade"
     },
     {
       "relation": "references",
@@ -32741,9 +32987,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L476",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_initiateexit",
-      "target": "src_db_activetrade",
-      "confidence_score": 1.0
+      "target": "src_db_activetrade"
     },
     {
       "relation": "imports",
@@ -32752,9 +32998,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "src_db_activetrade",
-      "confidence_score": 1.0
+      "target": "src_db_activetrade"
     },
     {
       "relation": "calls",
@@ -32763,9 +33009,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L83",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db_readdb",
-      "target": "src_db_fatalpersistenceerror",
-      "confidence_score": 1.0
+      "target": "src_db_fatalpersistenceerror"
     },
     {
       "relation": "calls",
@@ -32774,9 +33020,9 @@
       "source_file": "artifacts/auto-trader/src/db.ts",
       "source_location": "L101",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_db_writedb",
-      "target": "src_db_fatalpersistenceerror",
-      "confidence_score": 1.0
+      "target": "src_db_fatalpersistenceerror"
     },
     {
       "relation": "imports",
@@ -32807,9 +33053,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L2",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "src_db_tradedb",
-      "confidence_score": 1.0
+      "target": "src_db_tradedb"
     },
     {
       "relation": "imports_from",
@@ -32838,9 +33084,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L75",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan",
-      "target": "src_dhan_dhanmarkettick",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanmarkettick"
     },
     {
       "relation": "contains",
@@ -32868,9 +33114,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan",
-      "target": "src_dhan_dhansuperorder",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhansuperorder"
     },
     {
       "relation": "contains",
@@ -32878,9 +33124,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L39",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan",
-      "target": "src_dhan_dhansuperorderleg",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhansuperorderleg"
     },
     {
       "relation": "contains",
@@ -32921,9 +33167,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L68",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhansuperorder",
-      "target": "src_dhan_dhanorder",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanorder"
     },
     {
       "relation": "imports",
@@ -32952,9 +33198,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L359",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_cancelsuperorder",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_cancelsuperorder"
     },
     {
       "relation": "method",
@@ -32982,9 +33228,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L556",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_emittick",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_emittick"
     },
     {
       "relation": "method",
@@ -33042,9 +33288,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L254",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_getorderbycorrelationid",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getorderbycorrelationid"
     },
     {
       "relation": "method",
@@ -33072,9 +33318,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L213",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_getsuperorderlist",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getsuperorderlist"
     },
     {
       "relation": "method",
@@ -33082,9 +33328,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L272",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_gettradesbyorderid",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_gettradesbyorderid"
     },
     {
       "relation": "method",
@@ -33112,9 +33358,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L652",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_parsebinarymessage",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsebinarymessage"
     },
     {
       "relation": "method",
@@ -33122,9 +33368,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L648",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_parsedisconnectpacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsedisconnectpacket"
     },
     {
       "relation": "method",
@@ -33132,9 +33378,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L625",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_parsefullpacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsefullpacket"
     },
     {
       "relation": "method",
@@ -33142,9 +33388,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L580",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_parsequotepacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsequotepacket"
     },
     {
       "relation": "method",
@@ -33152,9 +33398,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L560",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_parsetickerpacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsetickerpacket"
     },
     {
       "relation": "method",
@@ -33162,9 +33408,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L425",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_placemarketorder",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_placemarketorder"
     },
     {
       "relation": "method",
@@ -33212,9 +33458,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L409",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_waitfororderterminal",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_waitfororderterminal"
     },
     {
       "relation": "method",
@@ -33222,9 +33468,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L380",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker",
-      "target": "src_dhan_dhanbroker_waitforsuperordercancellation",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_waitforsuperordercancellation"
     },
     {
       "relation": "imports",
@@ -33277,9 +33523,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L371",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_cancelsuperorder",
-      "target": "src_dhan_dhanbroker_getheaders",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getheaders"
     },
     {
       "relation": "calls",
@@ -33310,9 +33556,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L259",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_getorderbycorrelationid",
-      "target": "src_dhan_dhanbroker_getheaders",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getheaders"
     },
     {
       "relation": "calls",
@@ -33332,9 +33578,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L215",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_getsuperorderlist",
-      "target": "src_dhan_dhanbroker_getheaders",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getheaders"
     },
     {
       "relation": "calls",
@@ -33343,9 +33589,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L277",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_gettradesbyorderid",
-      "target": "src_dhan_dhanbroker_getheaders",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getheaders"
     },
     {
       "relation": "calls",
@@ -33365,9 +33611,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L452",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_placemarketorder",
-      "target": "src_dhan_dhanbroker_getheaders",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getheaders"
     },
     {
       "relation": "calls",
@@ -33431,9 +33677,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L413",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_waitfororderterminal",
-      "target": "src_dhan_dhanbroker_getorderbook",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getorderbook"
     },
     {
       "relation": "calls",
@@ -33442,9 +33688,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L385",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_waitforsuperordercancellation",
-      "target": "src_dhan_dhanbroker_getsuperorderlist",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_getsuperorderlist"
     },
     {
       "relation": "calls",
@@ -33453,9 +33699,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L678",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_parsebinarymessage",
-      "target": "src_dhan_dhanbroker_emittick",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_emittick"
     },
     {
       "relation": "calls",
@@ -33464,9 +33710,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L672",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_parsebinarymessage",
-      "target": "src_dhan_dhanbroker_parsetickerpacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsetickerpacket"
     },
     {
       "relation": "calls",
@@ -33475,9 +33721,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L683",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_parsebinarymessage",
-      "target": "src_dhan_dhanbroker_parsequotepacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsequotepacket"
     },
     {
       "relation": "calls",
@@ -33486,9 +33732,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L694",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_parsebinarymessage",
-      "target": "src_dhan_dhanbroker_parsefullpacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsefullpacket"
     },
     {
       "relation": "calls",
@@ -33497,9 +33743,9 @@
       "source_file": "artifacts/auto-trader/src/dhan.ts",
       "source_location": "L705",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_dhan_dhanbroker_parsebinarymessage",
-      "target": "src_dhan_dhanbroker_parsedisconnectpacket",
-      "confidence_score": 1.0
+      "target": "src_dhan_dhanbroker_parsedisconnectpacket"
     },
     {
       "relation": "imports_from",
@@ -33539,9 +33785,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine",
-      "target": "src_notifier",
-      "confidence_score": 1.0
+      "target": "src_notifier"
     },
     {
       "relation": "imports",
@@ -33550,9 +33796,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine",
-      "target": "src_notifier_notifier",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier"
     },
     {
       "relation": "imports_from",
@@ -33561,9 +33807,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine",
-      "target": "src_utils",
-      "confidence_score": 1.0
+      "target": "src_utils"
     },
     {
       "relation": "imports",
@@ -33572,9 +33818,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine",
-      "target": "src_utils_getistdatestr",
-      "confidence_score": 1.0
+      "target": "src_utils_getistdatestr"
     },
     {
       "relation": "imports",
@@ -33583,9 +33829,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine",
-      "target": "src_utils_resolvetradeposition",
-      "confidence_score": 1.0
+      "target": "src_utils_resolvetradeposition"
     },
     {
       "relation": "imports",
@@ -33645,9 +33891,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L64",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_getactiveorpendingtrade",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_getactiveorpendingtrade"
     },
     {
       "relation": "method",
@@ -33655,9 +33901,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L476",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_initiateexit",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_initiateexit"
     },
     {
       "relation": "method",
@@ -33675,9 +33921,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L613",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_reconcileexitorders",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_reconcileexitorders"
     },
     {
       "relation": "method",
@@ -33685,9 +33931,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L490",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_reconcileexits",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_reconcileexits"
     },
     {
       "relation": "method",
@@ -33695,9 +33941,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L556",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_reconcileunknownorders",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_reconcileunknownorders"
     },
     {
       "relation": "method",
@@ -33725,9 +33971,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L49",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_syncactivetrades",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_syncactivetrades"
     },
     {
       "relation": "method",
@@ -33735,9 +33981,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L353",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_engine_executionengine_verifyorderexecution",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_verifyorderexecution"
     },
     {
       "relation": "references",
@@ -33746,9 +33992,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L26",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine",
-      "target": "src_notifier_notifier",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier"
     },
     {
       "relation": "calls",
@@ -33757,9 +34003,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L461",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_evaluatelivetick",
-      "target": "src_engine_executionengine_syncactivetrades",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_syncactivetrades"
     },
     {
       "relation": "calls",
@@ -33768,9 +34014,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L480",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_initiateexit",
-      "target": "src_engine_executionengine_syncactivetrades",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_syncactivetrades"
     },
     {
       "relation": "calls",
@@ -33779,9 +34025,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L332",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_initiatetrade",
-      "target": "src_engine_executionengine_syncactivetrades",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_syncactivetrades"
     },
     {
       "relation": "calls",
@@ -33790,9 +34036,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L369",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_verifyorderexecution",
-      "target": "src_engine_executionengine_syncactivetrades",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_syncactivetrades"
     },
     {
       "relation": "calls",
@@ -33812,9 +34058,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L452",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_evaluatelivetick",
-      "target": "src_engine_executionengine_roundtotick",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_roundtotick"
     },
     {
       "relation": "calls",
@@ -33834,9 +34080,9 @@
       "source_file": "artifacts/auto-trader/src/engine.ts",
       "source_location": "L346",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_engine_executionengine_initiatetrade",
-      "target": "src_engine_executionengine_verifyorderexecution",
-      "confidence_score": 1.0
+      "target": "src_engine_executionengine_verifyorderexecution"
     },
     {
       "relation": "contains",
@@ -33854,9 +34100,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L108",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_index_closeallopentrades",
-      "confidence_score": 1.0
+      "target": "src_index_closeallopentrades"
     },
     {
       "relation": "contains",
@@ -33884,9 +34130,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L103",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_index_reconcileaftersquareoff",
-      "confidence_score": 1.0
+      "target": "src_index_reconcileaftersquareoff"
     },
     {
       "relation": "imports_from",
@@ -33895,9 +34141,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_notifier",
-      "confidence_score": 1.0
+      "target": "src_notifier"
     },
     {
       "relation": "imports",
@@ -33906,9 +34152,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_notifier_notifier",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier"
     },
     {
       "relation": "imports_from",
@@ -33950,9 +34196,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_utils",
-      "confidence_score": 1.0
+      "target": "src_utils"
     },
     {
       "relation": "imports",
@@ -33961,9 +34207,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_utils_getistdatestr",
-      "confidence_score": 1.0
+      "target": "src_utils_getistdatestr"
     },
     {
       "relation": "imports",
@@ -33972,9 +34218,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_utils_getistminutes",
-      "confidence_score": 1.0
+      "target": "src_utils_getistminutes"
     },
     {
       "relation": "imports",
@@ -33983,9 +34229,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_utils_ismarketopenist",
-      "confidence_score": 1.0
+      "target": "src_utils_ismarketopenist"
     },
     {
       "relation": "imports",
@@ -33994,9 +34240,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_utils_resolvetradeposition",
-      "confidence_score": 1.0
+      "target": "src_utils_resolvetradeposition"
     },
     {
       "relation": "imports",
@@ -34005,9 +34251,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_utils_sleep",
-      "confidence_score": 1.0
+      "target": "src_utils_sleep"
     },
     {
       "relation": "calls",
@@ -34027,9 +34273,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L72",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_getdailywatchlist",
-      "target": "src_utils_getistdatestr",
-      "confidence_score": 1.0
+      "target": "src_utils_getistdatestr"
     },
     {
       "relation": "calls",
@@ -34038,9 +34284,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L412",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_index_getdailywatchlist",
-      "confidence_score": 1.0
+      "target": "src_index_getdailywatchlist"
     },
     {
       "relation": "calls",
@@ -34049,9 +34295,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L484",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_index_reconcileaftersquareoff",
-      "confidence_score": 1.0
+      "target": "src_index_reconcileaftersquareoff"
     },
     {
       "relation": "calls",
@@ -34060,9 +34306,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L149",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_closeallopentrades",
-      "target": "src_utils_resolvetradeposition",
-      "confidence_score": 1.0
+      "target": "src_utils_resolvetradeposition"
     },
     {
       "relation": "calls",
@@ -34071,9 +34317,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L201",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_closeallopentrades",
-      "target": "src_utils_sleep",
-      "confidence_score": 1.0
+      "target": "src_utils_sleep"
     },
     {
       "relation": "calls",
@@ -34082,9 +34328,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L483",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_index_closeallopentrades",
-      "confidence_score": 1.0
+      "target": "src_index_closeallopentrades"
     },
     {
       "relation": "calls",
@@ -34104,9 +34350,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L275",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_utils_getistdatestr",
-      "confidence_score": 1.0
+      "target": "src_utils_getistdatestr"
     },
     {
       "relation": "calls",
@@ -34115,9 +34361,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L316",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_utils_getistminutes",
-      "confidence_score": 1.0
+      "target": "src_utils_getistminutes"
     },
     {
       "relation": "calls",
@@ -34126,9 +34372,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L468",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_utils_ismarketopenist",
-      "confidence_score": 1.0
+      "target": "src_utils_ismarketopenist"
     },
     {
       "relation": "calls",
@@ -34137,9 +34383,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L469",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_index_main",
-      "target": "src_utils_sleep",
-      "confidence_score": 1.0
+      "target": "src_utils_sleep"
     },
     {
       "relation": "contains",
@@ -34147,9 +34393,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L6",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier",
-      "target": "src_notifier_notifier",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier"
     },
     {
       "relation": "method",
@@ -34157,9 +34403,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_constructor",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_constructor"
     },
     {
       "relation": "method",
@@ -34167,9 +34413,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L17",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_send",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_send"
     },
     {
       "relation": "method",
@@ -34177,9 +34423,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L36",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_sendkillswitch",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_sendkillswitch"
     },
     {
       "relation": "method",
@@ -34187,9 +34433,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_sendsystemalert",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_sendsystemalert"
     },
     {
       "relation": "method",
@@ -34197,9 +34443,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_sendtradeentry",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_sendtradeentry"
     },
     {
       "relation": "method",
@@ -34207,9 +34453,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L26",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_sendtradeexit",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_sendtradeexit"
     },
     {
       "relation": "method",
@@ -34217,9 +34463,9 @@
       "source_file": "artifacts/auto-trader/src/notifier.ts",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_notifier_notifier",
-      "target": "src_notifier_notifier_sendtrailapplied",
-      "confidence_score": 1.0
+      "target": "src_notifier_notifier_sendtrailapplied"
     },
     {
       "relation": "contains",
@@ -34257,9 +34503,9 @@
       "source_file": "artifacts/auto-trader/src/scrip-master.ts",
       "source_location": "L8",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_scrip_master",
-      "target": "src_scrip_master_scripdir",
-      "confidence_score": 1.0
+      "target": "src_scrip_master_scripdir"
     },
     {
       "relation": "contains",
@@ -34267,9 +34513,9 @@
       "source_file": "artifacts/auto-trader/src/scrip-master.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_scrip_master",
-      "target": "src_scrip_master_scripfile",
-      "confidence_score": 1.0
+      "target": "src_scrip_master_scripfile"
     },
     {
       "relation": "contains",
@@ -34298,9 +34544,9 @@
       "source_file": "artifacts/auto-trader/src/utils.ts",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_utils",
-      "target": "src_utils_getistdatestr",
-      "confidence_score": 1.0
+      "target": "src_utils_getistdatestr"
     },
     {
       "relation": "contains",
@@ -34308,9 +34554,9 @@
       "source_file": "artifacts/auto-trader/src/utils.ts",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_utils",
-      "target": "src_utils_getistminutes",
-      "confidence_score": 1.0
+      "target": "src_utils_getistminutes"
     },
     {
       "relation": "contains",
@@ -34318,9 +34564,9 @@
       "source_file": "artifacts/auto-trader/src/utils.ts",
       "source_location": "L30",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_utils",
-      "target": "src_utils_ismarketopenist",
-      "confidence_score": 1.0
+      "target": "src_utils_ismarketopenist"
     },
     {
       "relation": "contains",
@@ -34328,9 +34574,9 @@
       "source_file": "artifacts/auto-trader/src/utils.ts",
       "source_location": "L47",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_utils",
-      "target": "src_utils_resolvetradeposition",
-      "confidence_score": 1.0
+      "target": "src_utils_resolvetradeposition"
     },
     {
       "relation": "contains",
@@ -34338,9 +34584,9 @@
       "source_file": "artifacts/auto-trader/src/utils.ts",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_utils",
-      "target": "src_utils_sleep",
-      "confidence_score": 1.0
+      "target": "src_utils_sleep"
     },
     {
       "relation": "calls",
@@ -34349,9 +34595,9 @@
       "source_file": "artifacts/auto-trader/src/utils.ts",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "src_utils_ismarketopenist",
-      "target": "src_utils_getistminutes",
-      "confidence_score": 1.0
+      "target": "src_utils_getistminutes"
     },
     {
       "relation": "contains",
@@ -34359,9 +34605,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "test_kill_switch_test_createmocktrade",
-      "confidence_score": 1.0
+      "target": "test_kill_switch_test_createmocktrade"
     },
     {
       "relation": "contains",
@@ -34369,9 +34615,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "test_kill_switch_test_evaluatekillswitch",
-      "confidence_score": 1.0
+      "target": "test_kill_switch_test_evaluatekillswitch"
     },
     {
       "relation": "contains",
@@ -34379,9 +34625,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L52",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test",
-      "target": "test_kill_switch_test_runtests",
-      "confidence_score": 1.0
+      "target": "test_kill_switch_test_runtests"
     },
     {
       "relation": "calls",
@@ -34390,9 +34636,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L65",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test_runtests",
-      "target": "test_kill_switch_test_evaluatekillswitch",
-      "confidence_score": 1.0
+      "target": "test_kill_switch_test_evaluatekillswitch"
     },
     {
       "relation": "calls",
@@ -34401,9 +34647,9 @@
       "source_file": "artifacts/auto-trader/test/kill-switch.test.ts",
       "source_location": "L61",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "test_kill_switch_test_runtests",
-      "target": "test_kill_switch_test_createmocktrade",
-      "confidence_score": 1.0
+      "target": "test_kill_switch_test_createmocktrade"
     },
     {
       "relation": "contains",
@@ -57795,9 +58041,9 @@
       "source_file": "lib/db/src/index.ts",
       "source_location": "L22",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "lib_db_src_index_ts_src_index",
-      "target": "drizzle_orm",
-      "confidence_score": 1.0
+      "target": "drizzle_orm"
     },
     {
       "relation": "re_exports",
@@ -58257,12 +58503,42 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L6",
+      "weight": 1.0,
+      "source": "scratch_fetch_fridays_trades",
+      "target": "scratch_fetch_fridays_trades_envpath",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "scratch_fetch_fridays_trades",
+      "target": "scratch_fetch_fridays_trades_pool",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "scratch/fetch-fridays-trades.mjs",
+      "source_location": "L26",
+      "weight": 1.0,
+      "source": "scratch_fetch_fridays_trades",
+      "target": "scratch_fetch_fridays_trades_run",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "scripts/backtest-today.ts",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_today",
-      "target": "scripts_backtest_today_getistminuteofday",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_today_getistminuteofday"
     },
     {
       "relation": "contains",
@@ -58270,9 +58546,9 @@
       "source_file": "scripts/backtest-today.ts",
       "source_location": "L14",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_today",
-      "target": "scripts_backtest_today_getisttimestr",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_today_getisttimestr"
     },
     {
       "relation": "contains",
@@ -58280,9 +58556,9 @@
       "source_file": "scripts/backtest-today.ts",
       "source_location": "L21",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_today",
-      "target": "scripts_backtest_today_runbacktest",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_today_runbacktest"
     },
     {
       "relation": "calls",
@@ -58291,9 +58567,9 @@
       "source_file": "scripts/backtest-today.ts",
       "source_location": "L91",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_today_runbacktest",
-      "target": "scripts_backtest_today_getistminuteofday",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_today_getistminuteofday"
     },
     {
       "relation": "calls",
@@ -58302,9 +58578,9 @@
       "source_file": "scripts/backtest-today.ts",
       "source_location": "L87",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "scripts_backtest_today_runbacktest",
-      "target": "scripts_backtest_today_getisttimestr",
-      "confidence_score": 1.0
+      "target": "scripts_backtest_today_getisttimestr"
     },
     {
       "relation": "contains",
@@ -58915,9 +59191,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents",
-      "target": "agents_agents_sentinel_auto_trader_system_knowledge_agent_rules",
-      "confidence_score": 1.0
+      "target": "agents_agents_sentinel_auto_trader_system_knowledge_agent_rules"
     },
     {
       "relation": "contains",
@@ -58925,9 +59201,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L5",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_sentinel_auto_trader_system_knowledge_agent_rules",
-      "target": "agents_agents_1_system_architecture",
-      "confidence_score": 1.0
+      "target": "agents_agents_1_system_architecture"
     },
     {
       "relation": "contains",
@@ -58935,9 +59211,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L18",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_sentinel_auto_trader_system_knowledge_agent_rules",
-      "target": "agents_agents_2_deployment_environment",
-      "confidence_score": 1.0
+      "target": "agents_agents_2_deployment_environment"
     },
     {
       "relation": "contains",
@@ -58945,9 +59221,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L26",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_sentinel_auto_trader_system_knowledge_agent_rules",
-      "target": "agents_agents_3_critical_rules_known_gotchas",
-      "confidence_score": 1.0
+      "target": "agents_agents_3_critical_rules_known_gotchas"
     },
     {
       "relation": "contains",
@@ -58955,9 +59231,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L11",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_1_system_architecture",
-      "target": "agents_agents_core_components_of_auto_trader",
-      "confidence_score": 1.0
+      "target": "agents_agents_core_components_of_auto_trader"
     },
     {
       "relation": "contains",
@@ -58965,9 +59241,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_3_critical_rules_known_gotchas",
-      "target": "agents_agents_a_pm2_watch_mode_critical",
-      "confidence_score": 1.0
+      "target": "agents_agents_a_pm2_watch_mode_critical"
     },
     {
       "relation": "contains",
@@ -58975,9 +59251,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L32",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_3_critical_rules_known_gotchas",
-      "target": "agents_agents_b_dhan_api_authentication",
-      "confidence_score": 1.0
+      "target": "agents_agents_b_dhan_api_authentication"
     },
     {
       "relation": "contains",
@@ -58985,9 +59261,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L36",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_3_critical_rules_known_gotchas",
-      "target": "agents_agents_c_websocket_idempotency_continuity",
-      "confidence_score": 1.0
+      "target": "agents_agents_c_websocket_idempotency_continuity"
     },
     {
       "relation": "contains",
@@ -58995,9 +59271,9 @@
       "source_file": ".agents/AGENTS.md",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agents_agents_3_critical_rules_known_gotchas",
-      "target": "agents_agents_d_timezone_handling",
-      "confidence_score": 1.0
+      "target": "agents_agents_d_timezone_handling"
     },
     {
       "relation": "contains",
@@ -59025,9 +59301,9 @@
       "source_file": "artifacts/api-server/backtest_results.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "api_server_backtest_results",
-      "target": "api_server_backtest_results_intraday_backtest_results_chronological",
-      "confidence_score": 1.0
+      "target": "api_server_backtest_results_intraday_backtest_results_chronological"
     },
     {
       "relation": "contains",

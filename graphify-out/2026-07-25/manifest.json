@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "artifacts/api-server/src/backtest.ts": {
-    "mtime": 1784920143.3871946,
-    "ast_hash": "5e790576eacbe6f24b5701fa7f5a4f8e",
+    "mtime": 1784964704.3977523,
+    "ast_hash": "c722f719569c52851fd65d2ff64d9726",
     "semantic_hash": ""
   },
   "artifacts/api-server/test-swing.js": {
@@ -1375,8 +1375,8 @@
     "semantic_hash": ""
   },
   "artifacts/api-server/backtest_results.md": {
-    "mtime": 1784920143.3849342,
-    "ast_hash": "38c5bcbd37079e8ac1c28ad1f448b507",
+    "mtime": 1784964837.5072083,
+    "ast_hash": "aeb06687efa672c0ba8cc1e6176ec52d",
     "semantic_hash": ""
   },
   "artifacts/api-server/test-fetch.ts": {
@@ -1395,8 +1395,8 @@
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/engine.ts": {
-    "mtime": 1784920143.4594567,
-    "ast_hash": "9ffd83b787e1996ba4b136b98fce5a24",
+    "mtime": 1784964692.348265,
+    "ast_hash": "07b9e00a685dc3a1f04307b10f808bfd",
     "semantic_hash": ""
   },
   "scratch/test.ts": {
@@ -1442,6 +1442,21 @@
   ".github/workflows/ci.yml": {
     "mtime": 1783756877.866208,
     "ast_hash": "a84c2ce6739958a3a55706bc66b32df4",
+    "semantic_hash": ""
+  },
+  "artifacts/api-server/src/analyze_friday.ts": {
+    "mtime": 1784962423.4900963,
+    "ast_hash": "efad1f9cfe1f5ecc068a0a74adff3bb9",
+    "semantic_hash": ""
+  },
+  "artifacts/api-server/src/analyze_losing_trades.ts": {
+    "mtime": 1784965156.2215314,
+    "ast_hash": "f808ba08f46e6ca4061298c4242af182",
+    "semantic_hash": ""
+  },
+  "scratch/fetch-fridays-trades.mjs": {
+    "mtime": 1784962359.0439298,
+    "ast_hash": "aa5ffa1d4b951c6d60642b7c0f4d4bdc",
     "semantic_hash": ""
   }
 }
