@@ -1,4 +1,5 @@
-import { db, tradesTable, swingTradesTable } from "@workspace/db";
+import { db } from "@workspace/db";
+import { tradesTable, swingTradesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 
 async function main() {
@@ -23,7 +24,7 @@ async function main() {
     
     console.log(`--- Intraday Trades (${intradayTrades.length}) ---`);
     if (intradayTrades.length > 0) {
-      console.table(intradayTrades.map(t => ({
+      console.table(intradayTrades.map((t: any) => ({
         ID: t.id,
         Symbol: t.symbol,
         Time: t.signalTime,
@@ -46,7 +47,7 @@ async function main() {
 
     console.log(`--- Swing Trades (${swingTrades.length}) ---`);
     if (swingTrades.length > 0) {
-      console.table(swingTrades.map(t => ({
+      console.table(swingTrades.map((t: any) => ({
         ID: t.id,
         Symbol: t.symbol,
         Time: t.signalTime,

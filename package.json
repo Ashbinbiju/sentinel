@@ -6,7 +6,10 @@
     "bot": "pnpm --filter @workspace/auto-trader run start",
     "build": "pnpm run typecheck && pnpm -r --workspace-concurrency=1 --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "start:aws": "pm2 start ecosystem.config.js",
+    "restart:aws": "pnpm run build && pm2 reload ecosystem.config.js --update-env"
+
   },
   "private": true,
   "devDependencies": {
