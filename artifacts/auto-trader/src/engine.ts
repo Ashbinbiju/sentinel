@@ -465,8 +465,9 @@ export class ExecutionEngine {
       }
 
       if (reachedTrailRR) {
-        console.log(`[ENGINE] Trade ${trade.symbol} reached 1.5R! Trailing Super Order SL to ${trailSLPrice}.`);
+        console.log(`[ENGINE] Trade ${trade.symbol} reached ${STRUCTURAL_TRAIL_RR}R! Trailing Super Order SL to ${trailSLPrice}.`);
         await TradeDB.updateState(trade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: trailSLPrice });
+
         await this.syncActiveTrades();
         
         try {

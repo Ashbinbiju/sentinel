@@ -12,11 +12,17 @@ const CHARGES_PCT_TURNOVER = 0.0005;
 
 const DRY_RUN_CAPITAL = 50000;
 const RISK_PER_TRADE = DRY_RUN_CAPITAL * 0.01;
-const MAX_DAILY_TRADES = 5;
-const MAX_DAILY_LOSS = -2500;
-const MAX_CONSECUTIVE_LOSSES = 3;
+const ENTRY_START_MINS = 9 * 60 + 30;
+const ENTRY_END_MINS = 11 * 60 + 30;
+
+function formatMinsToIST(mins: number): string {
+  const h = Math.floor(mins / 60).toString().padStart(2, '0');
+  const m = (mins % 60).toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
 
 let testCases: { symbol: string; date: string; category: string }[] = [];
+
 
 function getISTDateStr(epochSecs: number): string {
   const d = new Date(epochSecs * 1000);
@@ -210,7 +216,7 @@ async function runBacktest() {
                         if (c.l <= activeTrade.slPrice) {
                             exitPrice = activeTrade.slPrice;
                             hit = true;
-                            statusMsg = activeTrade.slPrice === activeTrade.entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
+                            statusMsg = activeTrade.trailApplied ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
                         } else if (c.h >= activeTrade.targetPrice) {
                             exitPrice = activeTrade.targetPrice;
                             hit = true;
@@ -220,7 +226,7 @@ async function runBacktest() {
                         if (c.h >= activeTrade.slPrice) {
                             exitPrice = activeTrade.slPrice;
                             hit = true;
-                            statusMsg = activeTrade.slPrice === activeTrade.entryPrice ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
+                            statusMsg = activeTrade.trailApplied ? "🛡️ BREAKEVEN HIT" : "❌ STOP LOSS HIT";
                         } else if (c.l <= activeTrade.targetPrice) {
                             exitPrice = activeTrade.targetPrice;
                             hit = true;
@@ -267,7 +273,8 @@ async function runBacktest() {
             
             // EVALUATE NEW SETUP
             if (killSwitchEngaged) continue;
-            if (mins < 9 * 60 + 30 || mins > 11 * 60 + 30) continue;
+            if (mins < ENTRY_START_MINS || mins > ENTRY_END_MINS) continue;
+
             if (cIndex < 2) continue;
             
             const extremes = prevExtremes.get(sym);
@@ -436,34 +443,39 @@ async function runBacktest() {
     }
     
     // Combine all results and skipped setups for output
+    const primeTimeStr = `${formatMinsToIST(ENTRY_START_MINS)}–${formatMinsToIST(ENTRY_END_MINS)}`;
     let md = `# Intraday Backtest Results (Chronological)\n\n`;
-    md += `Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x | Max Daily Trades: 5\n\n`;
+    md += `Prime Time: ${primeTimeStr} | Anti-Chase: ${(MAX_CHASE_PCT * 100).toFixed(1)}% | Touch Buffer: ${(TOUCH_BUFFER_PCT * 100).toFixed(2)}% | Risk:Reward = 1:2 | Leverage: 5x | Max Daily Trades: ${MAX_DAILY_TRADES}\n\n`;
     md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | Initial SL | Active SL | Target | Result | P&L (50k) | Exit Time |\n`;
     md += `|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
+
     
     const outputRows = [];
     
     for (const t of completedTrades) {
         let pnlStr = "-";
-        let actualPnl = 0;
+        let actualPnl = t.pnlInr !== undefined ? t.pnlInr : 0;
         
-        const entryPrice = t.entryPrice;
-        const qty = Math.floor(DRY_RUN_CAPITAL / entryPrice); // Default 1x for reporting PNL like the old version
-        let exitPrice = t.exitPrice || t.entryPrice;
-        
-        if (t.direction === "LONG") actualPnl = (exitPrice - entryPrice) * qty;
-        else if (t.direction === "SHORT") actualPnl = (entryPrice - exitPrice) * qty;
-        
-        if (actualPnl !== 0 || t.status === "🛡️ BREAKEVEN HIT" || t.status.includes("OPEN")) {
-            const entryVal = entryPrice * qty;
-            const exitVal = exitPrice * qty;
-            const turnover = entryVal + exitVal;
-            const slippage = (entryVal * SLIPPAGE_PCT) + (exitVal * SLIPPAGE_PCT);
-            const charges = turnover * CHARGES_PCT_TURNOVER;
-            actualPnl = actualPnl - slippage - charges;
+        if (t.pnlInr === undefined) {
+            const entryPrice = t.entryPrice;
+            const qty = t.quantity;
+            let exitPrice = t.exitPrice || t.entryPrice;
+            
+            if (t.direction === "LONG") actualPnl = (exitPrice - entryPrice) * qty;
+            else if (t.direction === "SHORT") actualPnl = (entryPrice - exitPrice) * qty;
+            
+            if (actualPnl !== 0 || t.status === "🛡️ BREAKEVEN HIT" || t.status.includes("OPEN")) {
+                const entryVal = entryPrice * qty;
+                const exitVal = exitPrice * qty;
+                const turnover = entryVal + exitVal;
+                const slippage = (entryVal * SLIPPAGE_PCT) + (exitVal * SLIPPAGE_PCT);
+                const charges = turnover * CHARGES_PCT_TURNOVER;
+                actualPnl = actualPnl - slippage - charges;
+            }
         }
         
         pnlStr = actualPnl > 0 ? "+₹" + actualPnl.toFixed(2) : "₹" + actualPnl.toFixed(2);
+
         
         outputRows.push({
              Time: t.entryTime,
