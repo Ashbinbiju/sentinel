@@ -1,17 +1,17 @@
 # Intraday Backtest Results (Chronological)
 
-Prime Time: 09:45–14:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x | Max Daily Trades: 5
+Prime Time: 09:30–11:30 | Anti-Chase: 0.8% | Touch Buffer: 0.15% | Risk:Reward = 1:2 | Leverage: 5x | Max Daily Trades: 5
 
 | Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | Initial SL | Active SL | Target | Result | P&L (50k) | Exit Time |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| GVT&D | 2026-07-24 | 09:30 | 4528.50 | 4306.80 | LOW BREAKDOWN | SHORT | 4297.20 | 4349.87 | Trailed to 4299.83 | 4191.86 | **✅ TARGET HIT** | +₹1065.32 | 11:40 |
+| GVT&D | 2026-07-24 | 09:30 | 4528.50 | 4306.80 | LOW BREAKDOWN | SHORT | 4297.20 | 4349.87 | Trailed to 4299.83 | 4191.86 | **✅ TARGET HIT** | +₹890.01 | 11:40 |
 | PSPPROJECT | 2026-07-24 | 09:30 | 1066.40 | 984.10 | SKIPPED | - | 981.70 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
-| ACE | 2026-07-24 | 09:35 | 1007.20 | 957.80 | HIGH BREAKOUT | LONG | 1009.90 | 997.13 | Trailed to 1009.26 | 1035.44 | **❌ STOP LOSS HIT** | ₹-130.23 | 09:50 |
-| RRKABEL | 2026-07-24 | 09:35 | 2467.80 | 2360.00 | LOW SUPPORT | LONG | 2360.80 | 2332.90 | Trailed to 2359.40 | 2416.61 | **✅ TARGET HIT** | +₹1071.67 | 12:10 |
-| GAEL | 2026-07-24 | 09:35 | 144.51 | 138.33 | LOW SUPPORT | LONG | 138.76 | 136.74 | Trailed to 138.66 | 142.80 | **✅ TARGET HIT** | +₹1352.12 | 12:35 |
+| ACE | 2026-07-24 | 09:35 | 1007.20 | 957.80 | HIGH BREAKOUT | LONG | 1009.90 | 997.13 | Trailed to 1009.26 | 1035.44 | **🛡️ BREAKEVEN HIT** | ₹-83.98 | 09:50 |
+| RRKABEL | 2026-07-24 | 09:35 | 2467.80 | 2360.00 | LOW SUPPORT | LONG | 2360.80 | 2332.90 | Trailed to 2359.40 | 2416.61 | **✅ TARGET HIT** | +₹888.56 | 12:10 |
+| GAEL | 2026-07-24 | 09:35 | 144.51 | 138.33 | LOW SUPPORT | LONG | 138.76 | 136.74 | Trailed to 138.66 | 142.80 | **✅ TARGET HIT** | +₹945.84 | 12:35 |
 | SPANDANA | 2026-07-24 | 09:35 | 298.95 | 278.45 | SKIPPED | - | 270.50 | - | - | - | **Anti-Chasing / Touch Filter** | - | - |
 | WESTLIFE | 2026-07-24 | 09:35 | 502.00 | 471.80 | SKIPPED | - | 474.80 | - | - | - | **Longs disabled (Intraday Loser filter)** | - | - |
-| GALLANTT | 2026-07-24 | 09:40 | 579.90 | 535.00 | LOW BREAKDOWN | SHORT | 532.35 | 540.35 | Trailed to 532.75 | 516.35 | **❌ STOP LOSS HIT** | ₹-136.25 | 10:50 |
+| GALLANTT | 2026-07-24 | 09:40 | 579.90 | 535.00 | LOW BREAKDOWN | SHORT | 532.35 | 540.35 | Trailed to 532.75 | 516.35 | **🛡️ BREAKEVEN HIT** | ₹-74.31 | 10:50 |
 | GODFRYPHLP | 2026-07-24 | 09:40 | 2079.90 | 2037.00 | SKIPPED | - | 2035.10 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
 | KPITTECH | 2026-07-24 | 09:45 | 555.80 | 548.00 | LOW SUPPORT | - | 549.35 | - | - | - | **SKIPPED (Max Daily Trades Reached)** | - | - |
 | LALPATHLAB | 2026-07-24 | 09:45 | 1707.70 | 1669.10 | SKIPPED | - | 1668.50 | - | - | - | **Shorts disabled (Intraday Gainer filter)** | - | - |
