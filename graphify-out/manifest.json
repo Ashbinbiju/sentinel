@@ -60,8 +60,8 @@
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/index.ts": {
-    "mtime": 1784920143.4594567,
-    "ast_hash": "6b46ed76a6832f4971968ac21b9050ac",
+    "mtime": 1785003471.255021,
+    "ast_hash": "8529bce145da84fe9e8213b4601de8a3",
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/scrip-master.ts": {
@@ -1155,8 +1155,8 @@
     "semantic_hash": "ed8ad4110cd5063671fdeb574e47658a"
   },
   "lib/db/src/schema/trades.ts": {
-    "mtime": 1783707370.1669786,
-    "ast_hash": "9e01dabbff3967b0f2aabb52ad1beb15",
+    "mtime": 1785003458.7918515,
+    "ast_hash": "0b231c02633ffda20289a703220fd548",
     "semantic_hash": ""
   },
   "lib/db/tsconfig.json": {
@@ -1240,8 +1240,8 @@
     "semantic_hash": "94a081f598aba46fc735e82bb247f6f1"
   },
   "artifacts/auto-trader/src/db.ts": {
-    "mtime": 1784920143.4441006,
-    "ast_hash": "60a47a9a66f5e0a8f3fddaad3728e1b8",
+    "mtime": 1785003466.772895,
+    "ast_hash": "a7a60e1c1c861c40c692158907fe4db0",
     "semantic_hash": ""
   },
   "scratch-fix.js": {

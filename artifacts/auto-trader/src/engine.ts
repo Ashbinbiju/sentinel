@@ -231,7 +231,10 @@ export class ExecutionEngine {
                 return reject("ACTIVE_OR_PENDING_TRADE");
             }
 
-            const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 5;
+            const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true"
+              ? 1
+              : parseInt(process.env.MAX_DAILY_TRADES || "5", 10);
+
             const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
               trade.state !== "REJECTED"
             ).length;
@@ -253,16 +256,19 @@ export class ExecutionEngine {
       }
     };
 
-    processCandle().then((evalTask) => {
-      if (!evalTask) return;
-      const queuedAt = Date.now();
-      this.candleQueue = this.candleQueue.then(async () => {
-        const lag = Date.now() - queuedAt;
-        if (lag > (global as any).maxCandleQueueLagMs || 0) (global as any).maxCandleQueueLagMs = lag;
-        await evalTask();
-      }).catch(e => console.error("[ENGINE] Candle queue error:", e));
+    this.candleQueue = this.candleQueue.then(async () => {
+      try {
+        const evalTask = await processCandle();
+        if (evalTask) {
+          await evalTask();
+        }
+      } catch (err: any) {
+        console.error(`[ENGINE] Candle processing error for ${securityId}:`, err);
+      }
     });
   }
+
+
 
   private roundToTick(val: number): number {
     return Math.round(val / NSE_TICK_SIZE) * NSE_TICK_SIZE;

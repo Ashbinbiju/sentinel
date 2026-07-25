@@ -243,7 +243,7 @@
       "source_location": "L18",
       "_origin": "ast",
       "id": "api_server_package_dependencies_drizzle_orm",
-      "community": 210,
+      "community": 111,
       "norm_label": "drizzle-orm"
     },
     {
@@ -4593,7 +4593,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies",
-      "community": 160,
+      "community": 21,
       "norm_label": "dependencies"
     },
     {
@@ -4603,7 +4603,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_workspace_db",
-      "community": 160,
+      "community": 21,
       "norm_label": "@workspace/db"
     },
     {
@@ -4613,7 +4613,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_axios",
-      "community": 160,
+      "community": 21,
       "norm_label": "axios"
     },
     {
@@ -4623,7 +4623,7 @@
       "source_location": "L14",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_dotenv",
-      "community": 160,
+      "community": 21,
       "norm_label": "dotenv"
     },
     {
@@ -4633,7 +4633,7 @@
       "source_location": "L15",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_drizzle_orm",
-      "community": 210,
+      "community": 21,
       "norm_label": "drizzle-orm"
     },
     {
@@ -4643,7 +4643,7 @@
       "source_location": "L16",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_totp_generator",
-      "community": 160,
+      "community": 21,
       "norm_label": "totp-generator"
     },
     {
@@ -4653,7 +4653,7 @@
       "source_location": "L17",
       "_origin": "ast",
       "id": "auto_trader_package_dependencies_ws",
-      "community": 160,
+      "community": 21,
       "norm_label": "ws"
     },
     {
@@ -4663,7 +4663,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies",
-      "community": 197,
+      "community": 21,
       "norm_label": "devdependencies"
     },
     {
@@ -4673,7 +4673,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_node",
-      "community": 197,
+      "community": 21,
       "norm_label": "@types/node"
     },
     {
@@ -4683,7 +4683,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_totp_generator",
-      "community": 197,
+      "community": 21,
       "norm_label": "@types/totp-generator"
     },
     {
@@ -4693,7 +4693,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_ws",
-      "community": 197,
+      "community": 21,
       "norm_label": "@types/ws"
     },
     {
@@ -4703,7 +4703,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_tsx",
-      "community": 197,
+      "community": 21,
       "norm_label": "tsx"
     },
     {
@@ -4713,7 +4713,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_typescript",
-      "community": 197,
+      "community": 21,
       "norm_label": "typescript"
     },
     {
@@ -4860,7 +4860,7 @@
       "label": "TradeState",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L7",
+      "source_location": "L8",
       "_origin": "ast",
       "id": "src_db_tradestate",
       "community": 59,
@@ -4870,7 +4870,7 @@
       "label": "ActiveTrade",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L22",
+      "source_location": "L23",
       "_origin": "ast",
       "id": "src_db_activetrade",
       "community": 166,
@@ -4880,7 +4880,7 @@
       "label": "_currentFile",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L58",
+      "source_location": "L59",
       "_origin": "ast",
       "id": "src_db_currentfile",
       "community": 59,
@@ -4890,7 +4890,7 @@
       "label": "_currentDir",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L59",
+      "source_location": "L60",
       "_origin": "ast",
       "id": "src_db_currentdir",
       "community": 59,
@@ -4900,7 +4900,7 @@
       "label": "fatalPersistenceError()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L75",
+      "source_location": "L76",
       "_origin": "ast",
       "id": "src_db_fatalpersistenceerror",
       "community": 59,
@@ -4910,7 +4910,7 @@
       "label": "readDB()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L80",
+      "source_location": "L81",
       "_origin": "ast",
       "id": "src_db_readdb",
       "community": 59,
@@ -4920,7 +4920,7 @@
       "label": "writeDB()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L95",
+      "source_location": "L96",
       "_origin": "ast",
       "id": "src_db_writedb",
       "community": 59,
@@ -4930,7 +4930,7 @@
       "label": "dbMutex",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L105",
+      "source_location": "L106",
       "_origin": "ast",
       "id": "src_db_dbmutex",
       "community": 59,
@@ -4940,7 +4940,7 @@
       "label": "withLock()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L106",
+      "source_location": "L107",
       "_origin": "ast",
       "id": "src_db_withlock",
       "community": 59,
@@ -4950,7 +4950,7 @@
       "label": "TradeDB",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/db.ts",
-      "source_location": "L114",
+      "source_location": "L115",
       "_origin": "ast",
       "id": "src_db_tradedb",
       "community": 59,
@@ -5520,7 +5520,7 @@
       "label": "reconcileAfterSquareOff()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L103",
+      "source_location": "L120",
       "_origin": "ast",
       "id": "src_index_reconcileaftersquareoff",
       "community": 35,
@@ -5530,7 +5530,7 @@
       "label": "closeAllOpenTrades()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L108",
+      "source_location": "L125",
       "_origin": "ast",
       "id": "src_index_closeallopentrades",
       "community": 35,
@@ -5540,7 +5540,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L263",
+      "source_location": "L280",
       "_origin": "ast",
       "id": "src_index_main",
       "community": 35,
@@ -6023,7 +6023,7 @@
       "source_location": "L189",
       "_origin": "ast",
       "id": "artifacts_dd_get_config_value_with_source",
-      "community": 1,
+      "community": 7,
       "norm_label": "get_config_value_with_source()"
     },
     {
@@ -6033,7 +6033,7 @@
       "source_location": "L213",
       "_origin": "ast",
       "id": "artifacts_dd_get_config_value",
-      "community": 1,
+      "community": 7,
       "norm_label": "get_config_value()"
     },
     {
@@ -6083,7 +6083,7 @@
       "source_location": "L258",
       "_origin": "ast",
       "id": "artifacts_dd_local_history_row_count",
-      "community": 173,
+      "community": 7,
       "norm_label": "local_history_row_count()"
     },
     {
@@ -6103,7 +6103,7 @@
       "source_location": "L301",
       "_origin": "ast",
       "id": "artifacts_dd_restore_history_backup_if_empty",
-      "community": 173,
+      "community": 7,
       "norm_label": "restore_history_backup_if_empty()"
     },
     {
@@ -6163,7 +6163,7 @@
       "source_location": "L453",
       "_origin": "ast",
       "id": "artifacts_dd_contextwarningfilter",
-      "community": 1,
+      "community": 200,
       "norm_label": "contextwarningfilter"
     },
     {
@@ -6173,7 +6173,7 @@
       "source_location": "L454",
       "_origin": "ast",
       "id": "artifacts_dd_contextwarningfilter_filter",
-      "community": 1,
+      "community": 200,
       "norm_label": ".filter()"
     },
     {
@@ -6203,7 +6203,7 @@
       "source_location": "L1049",
       "_origin": "ast",
       "id": "artifacts_dd_tooltip",
-      "community": 7,
+      "community": 209,
       "norm_label": "tooltip()"
     },
     {
@@ -6283,7 +6283,7 @@
       "source_location": "L1261",
       "_origin": "ast",
       "id": "artifacts_dd_fetch_stock_data_cached",
-      "community": 209,
+      "community": 6,
       "norm_label": "fetch_stock_data_cached()"
     },
     {
@@ -6353,7 +6353,7 @@
       "source_location": "L1378",
       "_origin": "ast",
       "id": "artifacts_dd_calculate_advance_decline_ratio",
-      "community": 209,
+      "community": 6,
       "norm_label": "calculate_advance_decline_ratio()"
     },
     {
@@ -6363,7 +6363,7 @@
       "source_location": "L1390",
       "_origin": "ast",
       "id": "artifacts_dd_monte_carlo_simulation",
-      "community": 7,
+      "community": 209,
       "norm_label": "monte_carlo_simulation()"
     },
     {
@@ -6403,7 +6403,7 @@
       "source_location": "L1445",
       "_origin": "ast",
       "id": "artifacts_dd_assess_risk",
-      "community": 7,
+      "community": 209,
       "norm_label": "assess_risk()"
     },
     {
@@ -6413,7 +6413,7 @@
       "source_location": "L1451",
       "_origin": "ast",
       "id": "artifacts_dd_get_dynamic_rsi_window",
-      "community": 209,
+      "community": 6,
       "norm_label": "get_dynamic_rsi_window()"
     },
     {
@@ -6423,7 +6423,7 @@
       "source_location": "L1462",
       "_origin": "ast",
       "id": "artifacts_dd_detect_divergence",
-      "community": 209,
+      "community": 6,
       "norm_label": "detect_divergence()"
     },
     {
@@ -6433,7 +6433,7 @@
       "source_location": "L1486",
       "_origin": "ast",
       "id": "artifacts_dd_calculate_cmo",
-      "community": 209,
+      "community": 6,
       "norm_label": "calculate_cmo()"
     },
     {
@@ -6443,7 +6443,7 @@
       "source_location": "L1524",
       "_origin": "ast",
       "id": "artifacts_dd_can_compute_indicator",
-      "community": 209,
+      "community": 6,
       "norm_label": "can_compute_indicator()"
     },
     {
@@ -6463,7 +6463,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "dataframe",
-      "community": 7,
+      "community": 209,
       "norm_label": "dataframe"
     },
     {
@@ -6473,7 +6473,7 @@
       "source_location": "L1602",
       "_origin": "ast",
       "id": "artifacts_dd_analyze_stock",
-      "community": 209,
+      "community": 6,
       "norm_label": "analyze_stock()"
     },
     {
@@ -6603,7 +6603,7 @@
       "source_location": "L2610",
       "_origin": "ast",
       "id": "artifacts_dd_get_top_sectors_cached",
-      "community": 209,
+      "community": 6,
       "norm_label": "get_top_sectors_cached()"
     },
     {
@@ -6683,7 +6683,7 @@
       "source_location": "L2764",
       "_origin": "ast",
       "id": "artifacts_dd_setup_holding_metrics",
-      "community": 7,
+      "community": 209,
       "norm_label": "setup_holding_metrics()"
     },
     {
@@ -6693,7 +6693,7 @@
       "source_location": "L2857",
       "_origin": "ast",
       "id": "artifacts_dd_setup_type_win_rate_table",
-      "community": 7,
+      "community": 209,
       "norm_label": "setup_type_win_rate_table()"
     },
     {
@@ -6843,7 +6843,7 @@
       "source_location": "L3150",
       "_origin": "ast",
       "id": "artifacts_dd_quote_identifier",
-      "community": 173,
+      "community": 7,
       "norm_label": "quote_identifier()"
     },
     {
@@ -6853,7 +6853,7 @@
       "source_location": "L3179",
       "_origin": "ast",
       "id": "artifacts_dd_ensure_table_columns",
-      "community": 173,
+      "community": 7,
       "norm_label": "ensure_table_columns()"
     },
     {
@@ -6863,7 +6863,7 @@
       "source_location": "L3190",
       "_origin": "ast",
       "id": "artifacts_dd_ensure_daily_pick_lifecycle_columns",
-      "community": 173,
+      "community": 7,
       "norm_label": "ensure_daily_pick_lifecycle_columns()"
     },
     {
@@ -6873,7 +6873,7 @@
       "source_location": "L3193",
       "_origin": "ast",
       "id": "artifacts_dd_migrate_daily_picks_primary_key",
-      "community": 173,
+      "community": 7,
       "norm_label": "migrate_daily_picks_primary_key()"
     },
     {
@@ -6883,7 +6883,7 @@
       "source_location": "L3226",
       "_origin": "ast",
       "id": "artifacts_dd_init_database",
-      "community": 173,
+      "community": 7,
       "norm_label": "init_database()"
     },
     {
@@ -6943,7 +6943,7 @@
       "source_location": "L3711",
       "_origin": "ast",
       "id": "artifacts_dd_holding_period_expectancy",
-      "community": 7,
+      "community": 209,
       "norm_label": "holding_period_expectancy()"
     },
     {
@@ -7013,7 +7013,7 @@
       "source_location": "L4224",
       "_origin": "ast",
       "id": "artifacts_dd_colored_recommendation",
-      "community": 7,
+      "community": 209,
       "norm_label": "colored_recommendation()"
     },
     {
@@ -7693,7 +7693,7 @@
       "source_location": "L5504",
       "_origin": "ast",
       "id": "artifacts_dd_format_currency",
-      "community": 7,
+      "community": 209,
       "norm_label": "format_currency()"
     },
     {
@@ -7763,7 +7763,7 @@
       "source_location": "L5721",
       "_origin": "ast",
       "id": "artifacts_dd_update_progress",
-      "community": 7,
+      "community": 209,
       "norm_label": "update_progress()"
     },
     {
@@ -7773,7 +7773,7 @@
       "source_location": "L5727",
       "_origin": "ast",
       "id": "artifacts_dd_display_dashboard",
-      "community": 7,
+      "community": 209,
       "norm_label": "display_dashboard()"
     },
     {
@@ -7803,7 +7803,7 @@
       "source_location": "L1525",
       "_origin": "ast",
       "id": "artifacts_dd_rationale_1525",
-      "community": 209,
+      "community": 6,
       "norm_label": "checks if sufficient data is available for a specific indicator.     returns tr"
     },
     {
@@ -7823,7 +7823,7 @@
       "source_location": "L1603",
       "_origin": "ast",
       "id": "artifacts_dd_rationale_1603",
-      "community": 209,
+      "community": 6,
       "norm_label": "computes technical indicators for stock data after validation.     returns data"
     },
     {
@@ -8663,7 +8663,7 @@
       "source_location": "L58",
       "_origin": "ast",
       "id": "mockup_sandbox_package_devdependencies_react",
-      "community": 12,
+      "community": 4,
       "norm_label": "react"
     },
     {
@@ -8793,7 +8793,7 @@
       "source_location": "L71",
       "_origin": "ast",
       "id": "mockup_sandbox_package_devdependencies_zod",
-      "community": 111,
+      "community": 128,
       "norm_label": "zod"
     },
     {
@@ -11083,7 +11083,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label",
-      "community": 215,
+      "community": 12,
       "norm_label": "label.tsx"
     },
     {
@@ -11093,7 +11093,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label_labelvariants",
-      "community": 215,
+      "community": 12,
       "norm_label": "labelvariants"
     },
     {
@@ -11103,7 +11103,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label_label",
-      "community": 215,
+      "community": 12,
       "norm_label": "label"
     },
     {
@@ -11493,7 +11493,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group",
-      "community": 12,
+      "community": 173,
       "norm_label": "radio-group.tsx"
     },
     {
@@ -11503,7 +11503,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroup",
-      "community": 12,
+      "community": 173,
       "norm_label": "radiogroup"
     },
     {
@@ -11513,7 +11513,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroupitem",
-      "community": 12,
+      "community": 173,
       "norm_label": "radiogroupitem"
     },
     {
@@ -11553,7 +11553,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area",
-      "community": 216,
+      "community": 12,
       "norm_label": "scroll-area.tsx"
     },
     {
@@ -11563,7 +11563,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area_scrollarea",
-      "community": 216,
+      "community": 12,
       "norm_label": "scrollarea"
     },
     {
@@ -11573,7 +11573,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_scroll_area_tsx_ui_scroll_area_scrollbar",
-      "community": 216,
+      "community": 12,
       "norm_label": "scrollbar"
     },
     {
@@ -13743,7 +13743,7 @@
       "source_location": "L73",
       "_origin": "ast",
       "id": "stock_screener_package_devdependencies_zod",
-      "community": 111,
+      "community": 128,
       "norm_label": "zod"
     },
     {
@@ -14213,7 +14213,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar",
-      "community": 207,
+      "community": 12,
       "norm_label": "avatar.tsx"
     },
     {
@@ -14223,7 +14223,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar_avatar",
-      "community": 207,
+      "community": 12,
       "norm_label": "avatar"
     },
     {
@@ -14233,7 +14233,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar_avatarimage",
-      "community": 207,
+      "community": 12,
       "norm_label": "avatarimage"
     },
     {
@@ -14243,7 +14243,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_avatar_tsx_ui_avatar_avatarfallback",
-      "community": 207,
+      "community": 12,
       "norm_label": "avatarfallback"
     },
     {
@@ -15953,7 +15953,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_label_tsx_ui_label",
-      "community": 12,
+      "community": 197,
       "norm_label": "label.tsx"
     },
     {
@@ -15963,7 +15963,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_label_tsx_ui_label_labelvariants",
-      "community": 12,
+      "community": 197,
       "norm_label": "labelvariants"
     },
     {
@@ -15973,7 +15973,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_label_tsx_ui_label_label",
-      "community": 12,
+      "community": 197,
       "norm_label": "label"
     },
     {
@@ -20543,7 +20543,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "lib_api_zod_src_generated_api_ts_generated_api",
-      "community": 36,
+      "community": 160,
       "norm_label": "api.ts"
     },
     {
@@ -20563,7 +20563,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "generated_api_getmarketindicesresponseitem",
-      "community": 36,
+      "community": 160,
       "norm_label": "getmarketindicesresponseitem"
     },
     {
@@ -20573,7 +20573,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "generated_api_getmarketindicesresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getmarketindicesresponse"
     },
     {
@@ -20583,7 +20583,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "generated_api_getsectorsresponseitem",
-      "community": 36,
+      "community": 160,
       "norm_label": "getsectorsresponseitem"
     },
     {
@@ -20593,7 +20593,7 @@
       "source_location": "L35",
       "_origin": "ast",
       "id": "generated_api_getsectorsresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getsectorsresponse"
     },
     {
@@ -20603,7 +20603,7 @@
       "source_location": "L41",
       "_origin": "ast",
       "id": "generated_api_getmomentumpicksresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getmomentumpicksresponse"
     },
     {
@@ -20613,7 +20613,7 @@
       "source_location": "L311",
       "_origin": "ast",
       "id": "generated_api_gettodaytradesresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "gettodaytradesresponse"
     },
     {
@@ -20623,7 +20623,7 @@
       "source_location": "L355",
       "_origin": "ast",
       "id": "generated_api_gettradehistoryqueryparams",
-      "community": 36,
+      "community": 160,
       "norm_label": "gettradehistoryqueryparams"
     },
     {
@@ -20633,7 +20633,7 @@
       "source_location": "L364",
       "_origin": "ast",
       "id": "generated_api_gettradehistoryresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "gettradehistoryresponse"
     },
     {
@@ -20643,7 +20643,7 @@
       "source_location": "L421",
       "_origin": "ast",
       "id": "generated_api_getswingscannerqueryparams",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingscannerqueryparams"
     },
     {
@@ -20653,7 +20653,7 @@
       "source_location": "L436",
       "_origin": "ast",
       "id": "generated_api_getswingscannerresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingscannerresponse"
     },
     {
@@ -20663,7 +20663,7 @@
       "source_location": "L610",
       "_origin": "ast",
       "id": "generated_api_getswingscanjobparams",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingscanjobparams"
     },
     {
@@ -20673,7 +20673,7 @@
       "source_location": "L616",
       "_origin": "ast",
       "id": "generated_api_getswingscanjobresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingscanjobresponse"
     },
     {
@@ -20683,7 +20683,7 @@
       "source_location": "L790",
       "_origin": "ast",
       "id": "generated_api_getswingsectorsresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingsectorsresponse"
     },
     {
@@ -20693,7 +20693,7 @@
       "source_location": "L810",
       "_origin": "ast",
       "id": "generated_api_getswingtradesqueryparams",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingtradesqueryparams"
     },
     {
@@ -20703,7 +20703,7 @@
       "source_location": "L825",
       "_origin": "ast",
       "id": "generated_api_getswingtradesresponse",
-      "community": 36,
+      "community": 160,
       "norm_label": "getswingtradesresponse"
     },
     {
@@ -22277,6 +22277,36 @@
       "norm_label": "swingtrade"
     },
     {
+      "label": "watchlistSnapshotsTable",
+      "file_type": "code",
+      "source_file": "lib/db/src/schema/trades.ts",
+      "source_location": "L84",
+      "_origin": "ast",
+      "id": "schema_trades_watchlistsnapshotstable",
+      "community": 59,
+      "norm_label": "watchlistsnapshotstable"
+    },
+    {
+      "label": "WatchlistSnapshot",
+      "file_type": "code",
+      "source_file": "lib/db/src/schema/trades.ts",
+      "source_location": "L97",
+      "_origin": "ast",
+      "id": "schema_trades_watchlistsnapshot",
+      "community": 22,
+      "norm_label": "watchlistsnapshot"
+    },
+    {
+      "label": "InsertWatchlistSnapshot",
+      "file_type": "code",
+      "source_file": "lib/db/src/schema/trades.ts",
+      "source_location": "L98",
+      "_origin": "ast",
+      "id": "schema_trades_insertwatchlistsnapshot",
+      "community": 22,
+      "norm_label": "insertwatchlistsnapshot"
+    },
+    {
       "label": "tsconfig.json",
       "file_type": "code",
       "source_file": "lib/db/tsconfig.json",
@@ -22783,7 +22813,7 @@
       "source_location": "L11",
       "_origin": "ast",
       "id": "scripts_package_dependencies",
-      "community": 210,
+      "community": 111,
       "norm_label": "dependencies"
     },
     {
@@ -22793,7 +22823,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "scripts_package_dependencies_workspace_db",
-      "community": 210,
+      "community": 111,
       "norm_label": "@workspace/db"
     },
     {
@@ -22803,7 +22833,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "scripts_package_dependencies_drizzle_orm",
-      "community": 210,
+      "community": 111,
       "norm_label": "drizzle-orm"
     },
     {
@@ -23852,7 +23882,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 111,
+      "community": 128,
       "norm_label": "pnpm-workspace.yaml",
       "id": "pnpm_workspace_config"
     },
@@ -23943,7 +23973,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 210,
+      "community": 111,
       "norm_label": "drizzle orm",
       "id": "drizzle_orm"
     },
@@ -23956,7 +23986,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 111,
+      "community": 128,
       "norm_label": "zod",
       "id": "zod"
     },
@@ -32749,6 +32779,17 @@
       "confidence_score": 1.0,
       "source": "src_db",
       "target": "schema_trades_tradestable"
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "artifacts/auto-trader/src/db.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "src_db",
+      "target": "schema_trades_watchlistsnapshotstable",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -58091,6 +58132,16 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "lib/db/src/schema/trades.ts",
+      "source_location": "L98",
+      "weight": 1.0,
+      "source": "schema_trades",
+      "target": "schema_trades_insertwatchlistsnapshot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lib/db/src/schema/trades.ts",
       "source_location": "L39",
       "weight": 1.0,
       "confidence_score": 1.0,
@@ -58186,6 +58237,26 @@
       "confidence_score": 1.0,
       "source": "schema_trades",
       "target": "schema_trades_tradestatusschema"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lib/db/src/schema/trades.ts",
+      "source_location": "L97",
+      "weight": 1.0,
+      "source": "schema_trades",
+      "target": "schema_trades_watchlistsnapshot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "lib/db/src/schema/trades.ts",
+      "source_location": "L84",
+      "weight": 1.0,
+      "source": "schema_trades",
+      "target": "schema_trades_watchlistsnapshotstable",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -59657,5 +59728,5 @@
       "source_file": "render.yaml"
     }
   ],
-  "built_at_commit": "18c866f8bba0a62821baeced8d4c738088507924"
+  "built_at_commit": "5b9b3e324877498286d17d1a2df38b947d7482f6"
 }

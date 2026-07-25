@@ -1,7 +1,7 @@
 # Graph Report - sentinel  (2026-07-25)
 
 ## Corpus Check
-- 280 files · ~144,183 words
+- 280 files · ~144,153 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `50f822ba`
+- Built from commit: `18c866f8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -267,12 +267,12 @@ Cohesion: 0.04
 Nodes (48): ErrorResponse, GetTradeHistoryParams, HealthStatus, HistoryTrade, HistoryTradeDirection, MarketIndex, MomentumPicksResponse, ScannerWarning (+40 more)
 
 ### Community 6 - "Community 6 (AngelOneBroker)"
-Cohesion: 0.07
-Nodes (39): adaptive_recommendation(), analyze_stock(), analyze_stock_parallel(), backtest_stock(), calculate_advance_decline_ratio(), calculate_buy_at(), calculate_cmo(), calculate_entry_metrics() (+31 more)
+Cohesion: 0.10
+Nodes (29): adaptive_recommendation(), analyze_stock_parallel(), backtest_stock(), calculate_buy_at(), calculate_entry_metrics(), calculate_fresh_breakout_age(), calculate_momentum_extension_metrics(), calculate_session_gap_metrics() (+21 more)
 
 ### Community 7 - "Community 7 (analyzeSwingCandidate())"
 Cohesion: 0.10
-Nodes (35): app_date_string(), app_now(), app_timestamp_string(), assess_risk(), calculate_exit_advice(), calculate_holding_period_outcome(), colored_recommendation(), db_value() (+27 more)
+Nodes (39): app_date_string(), app_now(), app_timestamp_string(), assess_risk(), calculate_exit_advice(), calculate_holding_period_outcome(), colored_recommendation(), db_value() (+31 more)
 
 ### Community 8 - "Community 8 (dashboard.tsx)"
 Cohesion: 0.09
@@ -307,16 +307,16 @@ Cohesion: 0.09
 Nodes (22): compilerOptions, alwaysStrict, customConditions, isolatedModules, lib, module, moduleResolution, noEmitOnError (+14 more)
 
 ### Community 16 - "Community 16 (customFetch())"
-Cohesion: 0.11
-Nodes (18): apiUrl(), fetchJson(), formatDate(), formatTurnover(), getStatusConfig(), numberFrom(), PickCard(), StatusBadge() (+10 more)
+Cohesion: 0.10
+Nodes (21): parseUtcTimestamp(), toISTTime(), apiUrl(), fetchJson(), formatDate(), formatTurnover(), getStatusConfig(), numberFrom() (+13 more)
 
 ### Community 17 - "Community 17 (swingPick.ts)"
 Cohesion: 0.09
 Nodes (25): build1DStrategySignal(), calculateVolumeRatio(), candleClosesBySquareOff(), candleClosesInEntryWindow(), detectCircuitLimit(), enrichWithIndicators(), filterEntryWindowTrades(), findEntrySignalMatch() (+17 more)
 
 ### Community 18 - "Community 18 (format.ts)"
-Cohesion: 0.23
-Nodes (14): StockCard(), StockCardProps, StockChartModal(), StockChartModalProps, TradingViewChart(), TradingViewChartProps, StockItem, formatCurrency() (+6 more)
+Cohesion: 0.21
+Nodes (15): StockCard(), StockCardProps, StockChartModal(), StockChartModalProps, Ticker(), TradingViewChart(), TradingViewChartProps, getGetMarketIndicesQueryKey() (+7 more)
 
 ### Community 19 - "Community 19 (index.ts)"
 Cohesion: 0.12
@@ -355,8 +355,8 @@ Cohesion: 0.22
 Nodes (9): SwingTrackerResponse, SwingTrackerSummary, SwingTrackerTrade, SwingTrackerTradeDirection, SwingTrackerTradeIndexTrendDirection, SwingTrackerTradeInsiderActivity, SwingTrackerTradeTechnicalAdxTrend, SwingTrackerTradeTechnicalMacdTrend (+1 more)
 
 ### Community 29 - "Community 29 (history.tsx)"
-Cohesion: 0.11
-Nodes (26): calculate_recent_return(), calculate_sector_performance(), clear_smartapi_auth_error(), enforce_rate_limit(), fetch_nifty_5d_return(), fetch_nifty_intraday_return(), fetch_nifty_recent_return(), fetch_nifty_regime_snapshot() (+18 more)
+Cohesion: 0.15
+Nodes (17): calculate_recent_return(), clear_smartapi_auth_error(), enforce_rate_limit(), fetch_nifty_5d_return(), fetch_nifty_intraday_return(), fetch_nifty_recent_return(), fetch_nifty_regime_snapshot(), fetch_stock_data_with_auth() (+9 more)
 
 ### Community 30 - "Community 30 (trades.ts)"
 Cohesion: 0.12
@@ -851,8 +851,8 @@ Cohesion: 0.50
 Nodes (3): Avatar, AvatarFallback, AvatarImage
 
 ### Community 209 - "Community 209"
-Cohesion: 0.70
-Nodes (4): Ticker(), getGetMarketIndicesQueryKey(), getGetMarketIndicesQueryOptions(), useGetMarketIndices()
+Cohesion: 0.15
+Nodes (15): analyze_stock(), calculate_advance_decline_ratio(), calculate_cmo(), calculate_sector_performance(), can_compute_indicator(), detect_divergence(), fetch_nse_stock_list(), fetch_stock_data_cached() (+7 more)
 
 ### Community 210 - "Community 210"
 Cohesion: 0.18
