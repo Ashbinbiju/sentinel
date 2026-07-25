@@ -9,9 +9,10 @@ import { Notifier } from "./notifier";
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
 const SL_BUFFER_PCT = 0.01;
-const STRUCTURAL_TRAIL_RR = 1.5;
-const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
+const STRUCTURAL_TRAIL_RR = 1.0;
+const STRUCTURAL_TRAIL_RISK_BUFFER = 0.05;
 const NSE_TICK_SIZE = 0.05;
+
 
 export interface WatchlistContext {
   symbol: string;
@@ -150,7 +151,7 @@ export class ExecutionEngine {
             };
 
             const mins = getISTMinuteOfDay(c.t + 300);
-            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) {
+            if (mins < 9 * 60 + 30 || mins > 11 * 60 + 30) {
                 return reject("OUTSIDE_TIME");
             }
 
@@ -160,6 +161,10 @@ export class ExecutionEngine {
             let direction: "BUY" | "SELL" | null = null;
             let sl = 0;
             let entryPrice = c.c;
+
+            const candleRange = Math.max(c.h - c.l, 0.05);
+            const upperWick = c.h - Math.max(c.o, c.c);
+            const lowerWick = Math.min(c.o, c.c) - c.l;
 
             const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
             const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
@@ -186,12 +191,16 @@ export class ExecutionEngine {
 
             if (freshHighBreakout) {
                 if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
+                if (c.c <= c.o) return reject("BEARISH_BREAKOUT_CANDLE");
+                if (upperWick / candleRange > 0.35) return reject("LONG_UPPER_REJECTION_WICK");
                 if (touchedHighZone) {
                     setup = "HIGH BREAKOUT"; direction = "BUY";
                     sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
                 }
             } else if (freshLowBreakdown) {
                 if (!chaseAllowedLow) return reject("CHASE_BLOCK");
+                if (c.c >= c.o) return reject("BULLISH_BREAKDOWN_CANDLE");
+                if (lowerWick / candleRange > 0.35) return reject("LONG_LOWER_REJECTION_WICK");
                 if (touchedLowZone) {
                     setup = "LOW BREAKDOWN"; direction = "SELL";
                     sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));

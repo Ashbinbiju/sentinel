@@ -4,10 +4,11 @@ import { writeFileSync } from "fs";
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
 const SL_BUFFER_PCT = 0.01; // Increased for breathing space
-const STRUCTURAL_TRAIL_RR = 1.5;
-const STRUCTURAL_TRAIL_RISK_BUFFER = 0.15;
+const STRUCTURAL_TRAIL_RR = 1.0;
+const STRUCTURAL_TRAIL_RISK_BUFFER = 0.05;
 const SLIPPAGE_PCT = 0.0005;
 const CHARGES_PCT_TURNOVER = 0.0005;
+
 
 const DRY_RUN_CAPITAL = 50000;
 const RISK_PER_TRADE = DRY_RUN_CAPITAL * 0.01;
@@ -96,12 +97,12 @@ async function runBacktest() {
             
             const gainerCases = gainers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
                 symbol: s.symbol,
-                date: "2026-07-22",
+                date: "2026-07-24",
                 category: "GAINER"
             }));
             const loserCases = losers.filter((s: any) => s.symbol && s.ltp > 100).map((s: any) => ({
                 symbol: s.symbol,
-                date: "2026-07-22",
+                date: "2026-07-24",
                 category: "LOSER"
             }));
             testCases = [...gainerCases, ...loserCases];
@@ -115,7 +116,7 @@ async function runBacktest() {
         return;
     }
 
-    const testDate = "2026-07-22";
+    const testDate = "2026-07-24";
     
     // 1. Fetch all candles
     const allCandlesBySymbol = new Map<string, any[]>();
@@ -266,7 +267,7 @@ async function runBacktest() {
             
             // EVALUATE NEW SETUP
             if (killSwitchEngaged) continue;
-            if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) continue;
+            if (mins < 9 * 60 + 30 || mins > 11 * 60 + 30) continue;
             if (cIndex < 2) continue;
             
             const extremes = prevExtremes.get(sym);
@@ -282,6 +283,10 @@ async function runBacktest() {
             let entryPrice = c.c;
             let skippedReason = "";
             
+            const candleRange = Math.max(c.h - c.l, 0.05);
+            const upperWick = c.h - Math.max(c.o, c.c);
+            const lowerWick = Math.min(c.o, c.c) - c.l;
+
             const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
             const touchedHighZone = c.l <= prevHigh * (1 + TOUCH_BUFFER_PCT) && c.h >= prevHigh;
             const chasePctHigh = (c.c - prevHigh) / prevHigh;
@@ -306,17 +311,25 @@ async function runBacktest() {
             const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
 
             if (freshHighBreakout) {
-                if (touchedHighZone && chaseAllowedHigh) {
+                if (c.c <= c.o) {
+                    skippedReason = "Bearish breakout candle close";
+                } else if (upperWick / candleRange > 0.35) {
+                    skippedReason = "Long upper rejection wick";
+                } else if (touchedHighZone && chaseAllowedHigh) {
                     setup = "HIGH BREAKOUT"; direction = "LONG";
                     sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
-                } else if (freshHighBreakout) {
+                } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
             } else if (freshLowBreakdown) {
-                if (touchedLowZone && chaseAllowedLow) {
+                if (c.c >= c.o) {
+                    skippedReason = "Bullish breakdown candle close";
+                } else if (lowerWick / candleRange > 0.35) {
+                    skippedReason = "Long lower rejection wick";
+                } else if (touchedLowZone && chaseAllowedLow) {
                     setup = "LOW BREAKDOWN"; direction = "SHORT";
                     sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
-                } else if (freshLowBreakdown) {
+                } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
             } else if (validHighRejection) {
