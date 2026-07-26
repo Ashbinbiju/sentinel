@@ -1,11 +1,11 @@
 # Graph Report - sentinel  (2026-07-26)
 
 ## Corpus Check
-- 281 files · ~144,469 words
+- 281 files · ~144,436 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2396 nodes · 3434 edges · 214 communities (175 shown, 39 thin omitted)
+- 2396 nodes · 3434 edges · 213 communities (175 shown, 38 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 19 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
@@ -198,7 +198,6 @@
 - [[_COMMUNITY_Community 202|Community 202]]
 - [[_COMMUNITY_Community 205|Community 205]]
 - [[_COMMUNITY_Community 206|Community 206]]
-- [[_COMMUNITY_Community 207|Community 207]]
 - [[_COMMUNITY_Community 210|Community 210]]
 - [[_COMMUNITY_Community 211|Community 211]]
 - [[_COMMUNITY_Community 212|Community 212]]
@@ -237,7 +236,7 @@
 - **API Contract** — api_spec_yaml, healthz_endpoint, momentum_picks_endpoint, momentum_picks_response_schema [EXTRACTED 0.90]
 - **Render Deployment** — render_config, sentinel_api, sentinel_keepalive [EXTRACTED 1.00]
 
-## Communities (214 total, 39 thin omitted)
+## Communities (213 total, 38 thin omitted)
 
 ### Community 0 - "Community 0 (stocks.ts)"
 Cohesion: 0.02
@@ -245,7 +244,7 @@ Nodes (56): AngelCandleRow, AngelScripMasterRow, Candle, CandleData, CURRENT_STR
 
 ### Community 1 - "Community 1 (React)"
 Cohesion: 0.06
-Nodes (60): absolute_sector_leader_score(), add_entry_quality_columns(), apply_strict_weak_market_signal_downgrades(), bank_weak_market_sector_penalty(), breakout_quality_details(), breakout_quality_grade_for_score(), calculate_consolidation_candles(), calculate_entry_consolidation_candles() (+52 more)
+Nodes (57): absolute_sector_leader_score(), add_entry_quality_columns(), apply_strict_weak_market_signal_downgrades(), bank_weak_market_sector_penalty(), breakout_quality_details(), breakout_quality_grade_for_score(), calculate_consolidation_candles(), calculate_entry_consolidation_candles() (+49 more)
 
 ### Community 2 - "Community 2 (devDependencies)"
 Cohesion: 0.04
@@ -268,8 +267,8 @@ Cohesion: 0.07
 Nodes (39): adaptive_recommendation(), analyze_stock(), analyze_stock_parallel(), backtest_stock(), calculate_advance_decline_ratio(), calculate_buy_at(), calculate_cmo(), calculate_entry_metrics() (+31 more)
 
 ### Community 7 - "Community 7 (analyzeSwingCandidate())"
-Cohesion: 0.10
-Nodes (39): app_date_string(), app_now(), app_timestamp_string(), assess_risk(), calculate_exit_advice(), calculate_holding_period_outcome(), colored_recommendation(), db_value() (+31 more)
+Cohesion: 0.09
+Nodes (37): app_date_string(), app_now(), app_timestamp_string(), calculate_exit_advice(), calculate_holding_period_outcome(), db_value(), ensure_daily_pick_lifecycle_columns(), ensure_table_columns() (+29 more)
 
 ### Community 8 - "Community 8 (dashboard.tsx)"
 Cohesion: 0.09
@@ -280,8 +279,8 @@ Cohesion: 0.12
 Nodes (29): ApiError, applyBaseUrl(), AuthTokenGetter, BodyType, buildErrorMessage(), customFetch(), CustomFetchOptions, ErrorType (+21 more)
 
 ### Community 10 - "Community 10 (sidebar.tsx)"
-Cohesion: 0.09
-Nodes (29): analyzeSwingCandidate(), avg(), calculateAdxLast(), calculateATR(), calculateBollingerLast(), calculateCmfLast(), calculateCmoLast(), calculateDonchianLast() (+21 more)
+Cohesion: 0.06
+Nodes (41): run(), analyzeSwingCandidate(), avg(), calculateAdxLast(), calculateATR(), calculateBollingerLast(), calculateCmfLast(), calculateCmoLast() (+33 more)
 
 ### Community 11 - "Community 11 (sidebar.tsx)"
 Cohesion: 0.08
@@ -328,8 +327,8 @@ Cohesion: 0.10
 Nodes (16): InsertTrade, insertTradeSchema, InsertWatchlistSnapshot, SWING_TRADE_STATUSES, SwingTrade, swingTradesTable, SwingTradeStatus, swingTradeStatusSchema (+8 more)
 
 ### Community 23 - "Community 23 (runSwingScanner())"
-Cohesion: 0.17
-Nodes (12): run(), calculateSwingRecentReturn(), countConsolidationCandles(), countEntryConsolidationCandles(), createSwingScanJobId(), fetchNiftyDailyReturn(), fetchSwingUniverse(), isLateExtendedBreakout() (+4 more)
+Cohesion: 0.19
+Nodes (16): assess_risk(), calculate_sector_performance(), colored_recommendation(), display_dashboard(), fetch_nse_stock_list(), filter_tradable_symbols(), format_currency(), holding_period_expectancy() (+8 more)
 
 ### Community 24 - "Community 24 (resolveSwingTrade())"
 Cohesion: 0.11
@@ -352,8 +351,8 @@ Cohesion: 0.22
 Nodes (9): SwingTrackerResponse, SwingTrackerSummary, SwingTrackerTrade, SwingTrackerTradeDirection, SwingTrackerTradeIndexTrendDirection, SwingTrackerTradeInsiderActivity, SwingTrackerTradeTechnicalAdxTrend, SwingTrackerTradeTechnicalMacdTrend (+1 more)
 
 ### Community 29 - "Community 29 (history.tsx)"
-Cohesion: 0.12
-Nodes (22): calculate_recent_return(), calculate_sector_performance(), clear_smartapi_auth_error(), enforce_rate_limit(), fetch_nifty_5d_return(), fetch_nifty_intraday_return(), fetch_nifty_recent_return(), fetch_nifty_regime_snapshot() (+14 more)
+Cohesion: 0.15
+Nodes (17): calculate_recent_return(), clear_smartapi_auth_error(), enforce_rate_limit(), fetch_nifty_5d_return(), fetch_nifty_intraday_return(), fetch_nifty_recent_return(), fetch_nifty_regime_snapshot(), fetch_stock_data_with_auth() (+9 more)
 
 ### Community 30 - "Community 30 (trades.ts)"
 Cohesion: 0.12
@@ -827,9 +826,9 @@ Nodes (10): Candle, fetchCandles(), getISTDateStr(), getISTMinuteOfDay(), MC_HEA
 Cohesion: 0.20
 Nodes (9): 1. System Architecture, 2. Deployment Environment, 3. Critical Rules & Known Gotchas, A. PM2 Watch Mode (CRITICAL), B. Dhan API Authentication, C. WebSocket Idempotency & Continuity, Core Components of `auto-trader`:, D. Timezone Handling (+1 more)
 
-### Community 207 - "Community 207"
-Cohesion: 0.29
-Nodes (7): ensure_daily_pick_lifecycle_columns(), ensure_table_columns(), init_database(), local_history_row_count(), migrate_daily_picks_primary_key(), quote_identifier(), restore_history_backup_if_empty()
+### Community 200 - "Community 200"
+Cohesion: 0.33
+Nodes (3): classify_market_regime(), ContextWarningFilter, Classifies regime based on volatility and trend
 
 ### Community 210 - "Community 210"
 Cohesion: 0.40
@@ -842,7 +841,7 @@ Nodes (3): getISTMinuteOfDay(), getISTTimeStr(), runBacktest()
 ## Knowledge Gaps
 - **979 isolated node(s):** `artifactDir`, `name`, `version`, `private`, `type` (+974 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **39 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **38 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -858,6 +857,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Community 0 (stocks.ts)` be split into smaller, more focused modules?**
   _Cohesion score 0.024294670846394983 - nodes in this community are weakly interconnected._
 - **Should `Community 1 (React)` be split into smaller, more focused modules?**
-  _Cohesion score 0.05707762557077625 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06180733162830349 - nodes in this community are weakly interconnected._
 - **Should `Community 2 (devDependencies)` be split into smaller, more focused modules?**
   _Cohesion score 0.04336329984135378 - nodes in this community are weakly interconnected._

@@ -215,7 +215,9 @@ async function runBacktest() {
                 if (killSwitchEngaged || mins >= 15 * 60 + 15) {
                     exitPrice = c.c;
                     hit = true;
-                    statusMsg = killSwitchEngaged ? "OPEN (Kill Switch Hit)" : "OPEN (End of Day)";
+                    statusMsg = killSwitchEngaged 
+                      ? "OPEN (Kill Switch Hit)" 
+                      : (activeTrade.trailApplied ? "🛡️ BREAKEVEN HIT (EOD)" : "OPEN (End of Day)");
                 } else {
                     if (activeTrade.direction === "LONG") {
                         if (c.l <= activeTrade.slPrice) {
@@ -437,8 +439,8 @@ async function runBacktest() {
     // Close out any remaining open trades at EOD
     for (const [sym, t] of Array.from(activeTrades.entries())) {
         t.exitPrice = t.eodPrice || t.entryPrice;
-        t.status = "OPEN (End of Day)";
-        t.exitTime = "-";
+        t.status = t.trailApplied ? "🛡️ BREAKEVEN HIT (EOD)" : "OPEN (End of Day)";
+        t.exitTime = "15:15";
         const gross = t.direction === "LONG" 
             ? (t.exitPrice - t.entryPrice) / t.entryPrice
             : (t.entryPrice - t.exitPrice) / t.entryPrice;

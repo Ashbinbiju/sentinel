@@ -2623,7 +2623,7 @@
       "source_location": "L2191",
       "_origin": "ast",
       "id": "routes_stocks_percentchange",
-      "community": 23,
+      "community": 10,
       "norm_label": "percentchange()"
     },
     {
@@ -2633,7 +2633,7 @@
       "source_location": "L2196",
       "_origin": "ast",
       "id": "routes_stocks_calculateswingrecentreturn",
-      "community": 23,
+      "community": 10,
       "norm_label": "calculateswingrecentreturn()"
     },
     {
@@ -2703,7 +2703,7 @@
       "source_location": "L2428",
       "_origin": "ast",
       "id": "routes_stocks_fetchniftydailyreturn",
-      "community": 23,
+      "community": 10,
       "norm_label": "fetchniftydailyreturn()"
     },
     {
@@ -3483,7 +3483,7 @@
       "source_location": "L3528",
       "_origin": "ast",
       "id": "routes_stocks_countconsolidationcandles",
-      "community": 23,
+      "community": 10,
       "norm_label": "countconsolidationcandles()"
     },
     {
@@ -3493,7 +3493,7 @@
       "source_location": "L3542",
       "_origin": "ast",
       "id": "routes_stocks_countentryconsolidationcandles",
-      "community": 23,
+      "community": 10,
       "norm_label": "countentryconsolidationcandles()"
     },
     {
@@ -3523,7 +3523,7 @@
       "source_location": "L3581",
       "_origin": "ast",
       "id": "routes_stocks_percentchangeoverlookback",
-      "community": 23,
+      "community": 10,
       "norm_label": "percentchangeoverlookback()"
     },
     {
@@ -3533,7 +3533,7 @@
       "source_location": "L3588",
       "_origin": "ast",
       "id": "routes_stocks_islateextendedbreakout",
-      "community": 23,
+      "community": 10,
       "norm_label": "islateextendedbreakout()"
     },
     {
@@ -3973,7 +3973,7 @@
       "source_location": "L4807",
       "_origin": "ast",
       "id": "routes_stocks_fetchswinguniverse",
-      "community": 23,
+      "community": 10,
       "norm_label": "fetchswinguniverse()"
     },
     {
@@ -4053,7 +4053,7 @@
       "source_location": "L4900",
       "_origin": "ast",
       "id": "routes_stocks_createswingscanjobid",
-      "community": 23,
+      "community": 10,
       "norm_label": "createswingscanjobid()"
     },
     {
@@ -4063,7 +4063,7 @@
       "source_location": "L4904",
       "_origin": "ast",
       "id": "routes_stocks_pruneswingscanjobs",
-      "community": 23,
+      "community": 10,
       "norm_label": "pruneswingscanjobs()"
     },
     {
@@ -4093,7 +4093,7 @@
       "source_location": "L5041",
       "_origin": "ast",
       "id": "routes_stocks_startswingscanjob",
-      "community": 23,
+      "community": 10,
       "norm_label": "startswingscanjob()"
     },
     {
@@ -4403,7 +4403,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_api_server_test_swing_ts_api_server_test_swing",
-      "community": 23,
+      "community": 10,
       "norm_label": "test-swing.ts"
     },
     {
@@ -4413,7 +4413,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_api_server_test_swing_ts_api_server_test_swing_run",
-      "community": 23,
+      "community": 10,
       "norm_label": "run()"
     },
     {
@@ -5380,7 +5380,7 @@
       "label": "ExecutionEngine",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L28",
+      "source_location": "L26",
       "_origin": "ast",
       "id": "src_engine_executionengine",
       "community": 166,
@@ -5390,7 +5390,7 @@
       "label": ".constructor()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L33",
+      "source_location": "L31",
       "_origin": "ast",
       "id": "src_engine_executionengine_constructor",
       "community": 166,
@@ -5400,7 +5400,7 @@
       "label": ".setWatchlist()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L38",
+      "source_location": "L36",
       "_origin": "ast",
       "id": "src_engine_executionengine_setwatchlist",
       "community": 166,
@@ -5410,7 +5410,7 @@
       "label": ".syncActiveTrades()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L53",
+      "source_location": "L51",
       "_origin": "ast",
       "id": "src_engine_executionengine_syncactivetrades",
       "community": 166,
@@ -5420,7 +5420,7 @@
       "label": ".getActiveOrPendingTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L68",
+      "source_location": "L66",
       "_origin": "ast",
       "id": "src_engine_executionengine_getactiveorpendingtrade",
       "community": 166,
@@ -5430,7 +5430,7 @@
       "label": ".evaluateClosedCandle()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L72",
+      "source_location": "L70",
       "_origin": "ast",
       "id": "src_engine_executionengine_evaluateclosedcandle",
       "community": 166,
@@ -5440,7 +5440,7 @@
       "label": ".roundToTick()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L275",
+      "source_location": "L273",
       "_origin": "ast",
       "id": "src_engine_executionengine_roundtotick",
       "community": 166,
@@ -5450,7 +5450,7 @@
       "label": ".initiateTrade()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L279",
+      "source_location": "L277",
       "_origin": "ast",
       "id": "src_engine_executionengine_initiatetrade",
       "community": 166,
@@ -5460,7 +5460,7 @@
       "label": ".verifyOrderExecution()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L371",
+      "source_location": "L369",
       "_origin": "ast",
       "id": "src_engine_executionengine_verifyorderexecution",
       "community": 166,
@@ -5470,7 +5470,7 @@
       "label": ".evaluateLiveTick()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L439",
+      "source_location": "L437",
       "_origin": "ast",
       "id": "src_engine_executionengine_evaluatelivetick",
       "community": 166,
@@ -5480,7 +5480,7 @@
       "label": ".initiateExit()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L495",
+      "source_location": "L493",
       "_origin": "ast",
       "id": "src_engine_executionengine_initiateexit",
       "community": 166,
@@ -5490,7 +5490,7 @@
       "label": ".reconcileExits()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L509",
+      "source_location": "L507",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileexits",
       "community": 166,
@@ -5500,7 +5500,7 @@
       "label": ".reconcileUnknownOrders()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L575",
+      "source_location": "L573",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileunknownorders",
       "community": 166,
@@ -5510,7 +5510,7 @@
       "label": ".reconcileExitOrders()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/engine.ts",
-      "source_location": "L632",
+      "source_location": "L630",
       "_origin": "ast",
       "id": "src_engine_executionengine_reconcileexitorders",
       "community": 166,
@@ -5550,7 +5550,7 @@
       "label": "reconcileAfterSquareOff()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L130",
+      "source_location": "L124",
       "_origin": "ast",
       "id": "src_index_reconcileaftersquareoff",
       "community": 35,
@@ -5560,7 +5560,7 @@
       "label": "closeAllOpenTrades()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L135",
+      "source_location": "L129",
       "_origin": "ast",
       "id": "src_index_closeallopentrades",
       "community": 35,
@@ -5570,7 +5570,7 @@
       "label": "main()",
       "file_type": "code",
       "source_file": "artifacts/auto-trader/src/index.ts",
-      "source_location": "L290",
+      "source_location": "L284",
       "_origin": "ast",
       "id": "src_index_main",
       "community": 35,
@@ -6053,7 +6053,7 @@
       "source_location": "L189",
       "_origin": "ast",
       "id": "artifacts_dd_get_config_value_with_source",
-      "community": 1,
+      "community": 7,
       "norm_label": "get_config_value_with_source()"
     },
     {
@@ -6063,7 +6063,7 @@
       "source_location": "L213",
       "_origin": "ast",
       "id": "artifacts_dd_get_config_value",
-      "community": 1,
+      "community": 7,
       "norm_label": "get_config_value()"
     },
     {
@@ -6113,7 +6113,7 @@
       "source_location": "L258",
       "_origin": "ast",
       "id": "artifacts_dd_local_history_row_count",
-      "community": 207,
+      "community": 7,
       "norm_label": "local_history_row_count()"
     },
     {
@@ -6133,7 +6133,7 @@
       "source_location": "L301",
       "_origin": "ast",
       "id": "artifacts_dd_restore_history_backup_if_empty",
-      "community": 207,
+      "community": 7,
       "norm_label": "restore_history_backup_if_empty()"
     },
     {
@@ -6183,7 +6183,7 @@
       "source_location": "L419",
       "_origin": "ast",
       "id": "artifacts_dd_filter_tradable_symbols",
-      "community": 29,
+      "community": 23,
       "norm_label": "filter_tradable_symbols()"
     },
     {
@@ -6193,7 +6193,7 @@
       "source_location": "L453",
       "_origin": "ast",
       "id": "artifacts_dd_contextwarningfilter",
-      "community": 1,
+      "community": 200,
       "norm_label": "contextwarningfilter"
     },
     {
@@ -6203,7 +6203,7 @@
       "source_location": "L454",
       "_origin": "ast",
       "id": "artifacts_dd_contextwarningfilter_filter",
-      "community": 1,
+      "community": 200,
       "norm_label": ".filter()"
     },
     {
@@ -6233,7 +6233,7 @@
       "source_location": "L1049",
       "_origin": "ast",
       "id": "artifacts_dd_tooltip",
-      "community": 7,
+      "community": 23,
       "norm_label": "tooltip()"
     },
     {
@@ -6253,7 +6253,7 @@
       "source_location": "L1081",
       "_origin": "ast",
       "id": "artifacts_dd_fetch_nse_stock_list",
-      "community": 29,
+      "community": 23,
       "norm_label": "fetch_nse_stock_list()"
     },
     {
@@ -6393,7 +6393,7 @@
       "source_location": "L1390",
       "_origin": "ast",
       "id": "artifacts_dd_monte_carlo_simulation",
-      "community": 7,
+      "community": 23,
       "norm_label": "monte_carlo_simulation()"
     },
     {
@@ -6433,7 +6433,7 @@
       "source_location": "L1445",
       "_origin": "ast",
       "id": "artifacts_dd_assess_risk",
-      "community": 7,
+      "community": 23,
       "norm_label": "assess_risk()"
     },
     {
@@ -6493,7 +6493,7 @@
       "source_location": "",
       "_origin": "ast",
       "id": "dataframe",
-      "community": 7,
+      "community": 23,
       "norm_label": "dataframe"
     },
     {
@@ -6713,7 +6713,7 @@
       "source_location": "L2764",
       "_origin": "ast",
       "id": "artifacts_dd_setup_holding_metrics",
-      "community": 7,
+      "community": 23,
       "norm_label": "setup_holding_metrics()"
     },
     {
@@ -6723,7 +6723,7 @@
       "source_location": "L2857",
       "_origin": "ast",
       "id": "artifacts_dd_setup_type_win_rate_table",
-      "community": 7,
+      "community": 23,
       "norm_label": "setup_type_win_rate_table()"
     },
     {
@@ -6873,7 +6873,7 @@
       "source_location": "L3150",
       "_origin": "ast",
       "id": "artifacts_dd_quote_identifier",
-      "community": 207,
+      "community": 7,
       "norm_label": "quote_identifier()"
     },
     {
@@ -6883,7 +6883,7 @@
       "source_location": "L3179",
       "_origin": "ast",
       "id": "artifacts_dd_ensure_table_columns",
-      "community": 207,
+      "community": 7,
       "norm_label": "ensure_table_columns()"
     },
     {
@@ -6893,7 +6893,7 @@
       "source_location": "L3190",
       "_origin": "ast",
       "id": "artifacts_dd_ensure_daily_pick_lifecycle_columns",
-      "community": 207,
+      "community": 7,
       "norm_label": "ensure_daily_pick_lifecycle_columns()"
     },
     {
@@ -6903,7 +6903,7 @@
       "source_location": "L3193",
       "_origin": "ast",
       "id": "artifacts_dd_migrate_daily_picks_primary_key",
-      "community": 207,
+      "community": 7,
       "norm_label": "migrate_daily_picks_primary_key()"
     },
     {
@@ -6913,7 +6913,7 @@
       "source_location": "L3226",
       "_origin": "ast",
       "id": "artifacts_dd_init_database",
-      "community": 207,
+      "community": 7,
       "norm_label": "init_database()"
     },
     {
@@ -6973,7 +6973,7 @@
       "source_location": "L3711",
       "_origin": "ast",
       "id": "artifacts_dd_holding_period_expectancy",
-      "community": 7,
+      "community": 23,
       "norm_label": "holding_period_expectancy()"
     },
     {
@@ -7023,7 +7023,7 @@
       "source_location": "L4092",
       "_origin": "ast",
       "id": "artifacts_dd_calculate_sector_performance",
-      "community": 29,
+      "community": 23,
       "norm_label": "calculate_sector_performance()"
     },
     {
@@ -7043,7 +7043,7 @@
       "source_location": "L4224",
       "_origin": "ast",
       "id": "artifacts_dd_colored_recommendation",
-      "community": 7,
+      "community": 23,
       "norm_label": "colored_recommendation()"
     },
     {
@@ -7723,7 +7723,7 @@
       "source_location": "L5504",
       "_origin": "ast",
       "id": "artifacts_dd_format_currency",
-      "community": 7,
+      "community": 23,
       "norm_label": "format_currency()"
     },
     {
@@ -7793,7 +7793,7 @@
       "source_location": "L5721",
       "_origin": "ast",
       "id": "artifacts_dd_update_progress",
-      "community": 7,
+      "community": 23,
       "norm_label": "update_progress()"
     },
     {
@@ -7803,7 +7803,7 @@
       "source_location": "L5727",
       "_origin": "ast",
       "id": "artifacts_dd_display_dashboard",
-      "community": 7,
+      "community": 23,
       "norm_label": "display_dashboard()"
     },
     {
@@ -7813,7 +7813,7 @@
       "source_location": "L6254",
       "_origin": "ast",
       "id": "artifacts_dd_main",
-      "community": 29,
+      "community": 23,
       "norm_label": "main()"
     },
     {
@@ -7923,7 +7923,7 @@
       "source_location": "L4093",
       "_origin": "ast",
       "id": "artifacts_dd_rationale_4093",
-      "community": 29,
+      "community": 23,
       "norm_label": "calculates the real-time performance of each sector based on constituent stocks."
     },
     {
@@ -32532,9 +32532,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L7",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_alpha_basket"
+      "target": "src_alpha_basket",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -32542,9 +32542,9 @@
       "source_file": "artifacts/auto-trader/src/alpha-basket.ts",
       "source_location": "L44",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "src_alpha_basket",
-      "target": "src_alpha_basket_isalphabasketstock"
+      "target": "src_alpha_basket_isalphabasketstock",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -32552,9 +32552,9 @@
       "source_file": "artifacts/auto-trader/src/alpha-basket.ts",
       "source_location": "L6",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "src_alpha_basket",
-      "target": "src_alpha_basket_sentinel_alpha_basket"
+      "target": "src_alpha_basket_sentinel_alpha_basket",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports",
@@ -32563,9 +32563,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L7",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "artifacts_auto_trader_src_index_ts_src_index",
-      "target": "src_alpha_basket_isalphabasketstock"
+      "target": "src_alpha_basket_isalphabasketstock",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -32574,9 +32574,9 @@
       "source_file": "artifacts/auto-trader/src/index.ts",
       "source_location": "L58",
       "weight": 1.0,
-      "confidence_score": 1.0,
       "source": "src_index_getdailywatchlist",
-      "target": "src_alpha_basket_isalphabasketstock"
+      "target": "src_alpha_basket_isalphabasketstock",
+      "confidence_score": 1.0
     },
     {
       "relation": "imports_from",

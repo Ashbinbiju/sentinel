@@ -4,6 +4,7 @@ import { TradeDB } from "./db";
 import { CandleEngine, Candle } from "./candle-engine";
 import { ExecutionEngine, WatchlistContext } from "./engine";
 import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST, resolveTradePosition } from "./utils";
+import { isAlphaBasketStock } from "./alpha-basket";
 import { randomUUID } from "crypto";
 import axios from "axios";
 import { Notifier } from "./notifier";
@@ -11,6 +12,7 @@ import { Notifier } from "./notifier";
 const DRY_RUN = process.env.DRY_RUN === "true";
 const LIVE_CANARY = process.env.LIVE_CANARY === "true";
 const FULL_LIVE = process.env.FULL_LIVE === "true";
+const USE_ALPHA_BASKET_FILTER = process.env.USE_ALPHA_BASKET_FILTER !== "false";
 
 if (!DRY_RUN && !LIVE_CANARY && !FULL_LIVE) {
   throw new Error("Live execution requires LIVE_CANARY=true or explicit FULL_LIVE=true");
@@ -54,13 +56,18 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
         const changePct = s.priceChangePct;
 
         if (symbol && ltp > 100) {
+          if (USE_ALPHA_BASKET_FILTER && !isAlphaBasketStock(symbol)) {
+            continue;
+          }
           const securityId = getSecurityId(symbol);
           if (securityId) {
             const cached = existingWatchlist?.find(w => w.symbol === symbol);
             if (cached) {
               list.push({
                 ...cached,
-                category: s.category
+                category: s.category,
+                ltp,
+                priceChangePct: changePct,
               });
               continue;
             }
@@ -84,7 +91,7 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
                   const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
                   const prevLow = Math.min(...lastDayCandles.map(c => c.l));
 
-                  list.push({ symbol, securityId, prevHigh, prevLow, category: s.category });
+                  list.push({ symbol, securityId, prevHigh, prevLow, category: s.category, ltp, priceChangePct: changePct });
                 }
               }
             } catch (err: any) {
@@ -101,16 +108,19 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
   if (list.length > 0) {
     const todayStr = getISTDateStr();
     const timeStr = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().substring(11, 16);
-    for (const item of list) {
+    const snapshotPromises = list.map((item) =>
       TradeDB.recordWatchlistSnapshot({
         date: todayStr,
         time: timeStr,
         symbol: item.symbol,
         category: item.category,
+        ltp: item.ltp,
+        priceChangePct: item.priceChangePct,
         prevHigh: item.prevHigh,
         prevLow: item.prevLow,
-      }).catch(() => {});
-    }
+      }).catch(() => {})
+    );
+    await Promise.all(snapshotPromises);
   }
 
   return list;

@@ -21,6 +21,8 @@ export interface WatchlistContext {
   prevHigh: number;
   prevLow: number;
   category: "GAINER" | "LOSER";
+  ltp?: number;
+  priceChangePct?: number;
 }
 
 export class ExecutionEngine {
