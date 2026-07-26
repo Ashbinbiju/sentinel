@@ -157,8 +157,10 @@ export class DhanBroker extends EventEmitter {
           
           const response = await axios.post(`${DHAN_AUTH_URL}?dhanClientId=${this.clientId}&pin=${this.pin}&totp=${totpCode}`, {});
           
-          if (response.data && response.data.accessToken) {
-             this.accessToken = response.data.accessToken;
+          const newToken = response.data?.accessToken || response.data?.token || response.data?.data?.accessToken || response.data?.data?.token;
+          
+          if (newToken) {
+             this.accessToken = newToken;
              console.log("[BROKER] Automated Dhan login successful. Token renewed.");
              // Write the renewed token to the shared file for api-server to use
              try {
@@ -168,6 +170,7 @@ export class DhanBroker extends EventEmitter {
                console.warn("[BROKER] Failed to save .dhan_token", e);
              }
           } else {
+             console.error("[BROKER] Dhan Auth Response:", response.data);
              throw new Error("No accessToken returned from Auth endpoint");
           }
         } catch (loginErr: any) {
