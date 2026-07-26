@@ -152,7 +152,8 @@ export class DhanBroker extends EventEmitter {
         }
 
         try {
-          const totpInfo = await TOTP.generate(this.totpSecret);
+          const cleanSecret = this.totpSecret.replace(/\s+/g, "").toUpperCase();
+          const totpInfo = await TOTP.generate(cleanSecret);
           const totpCode = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
           
           const response = await axios.post(`${DHAN_AUTH_URL}?dhanClientId=${this.clientId}&pin=${this.pin}&totp=${totpCode}`, {});
