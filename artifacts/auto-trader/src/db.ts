@@ -259,14 +259,14 @@ export const TradeDB = {
         time: snapshot.time,
         symbol: snapshot.symbol,
         category: snapshot.category,
-        ltp: snapshot.ltp ? snapshot.ltp.toString() : null,
-        priceChangePct: snapshot.priceChangePct ? snapshot.priceChangePct.toString() : null,
-        prevHigh: snapshot.prevHigh ? snapshot.prevHigh.toString() : null,
-        prevLow: snapshot.prevLow ? snapshot.prevLow.toString() : null,
+        ltp: snapshot.ltp !== undefined && snapshot.ltp !== null ? snapshot.ltp.toString() : null,
+        priceChangePct: snapshot.priceChangePct !== undefined && snapshot.priceChangePct !== null ? snapshot.priceChangePct.toString() : null,
+        prevHigh: snapshot.prevHigh !== undefined && snapshot.prevHigh !== null ? snapshot.prevHigh.toString() : null,
+        prevLow: snapshot.prevLow !== undefined && snapshot.prevLow !== null ? snapshot.prevLow.toString() : null,
         recordedAt: new Date().toISOString(),
       });
     } catch (e: any) {
-      console.error("[DB] Failed to record watchlist snapshot:", e.message);
+      console.error("[DB] Failed to record watchlist snapshot:", e?.message || e);
     }
   }
 };
