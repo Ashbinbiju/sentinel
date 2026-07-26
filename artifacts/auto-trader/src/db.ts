@@ -266,7 +266,7 @@ export const TradeDB = {
         recordedAt: new Date().toISOString(),
       });
     } catch (e: any) {
-      console.error("[DB] Failed to record watchlist snapshot:", e?.message || e);
+      console.error("[DB] Failed to record watchlist snapshot:", e?.message || e, e?.detail || "", e?.hint || "", e?.code || "");
     }
   }
 };
