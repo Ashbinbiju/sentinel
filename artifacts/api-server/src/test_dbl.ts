@@ -14,7 +14,7 @@ const CHARGES_PCT_TURNOVER = 0.0005;
 
 const DRY_RUN_CAPITAL = 50000;
 const RISK_PER_TRADE = DRY_RUN_CAPITAL * 0.01;
-const MAX_DAILY_TRADES = process.env.MAX_DAILY_TRADES ? parseInt(process.env.MAX_DAILY_TRADES, 10) : 5;
+const MAX_DAILY_TRADES = 5;
 const MAX_DAILY_LOSS = -2500;
 const MAX_CONSECUTIVE_LOSSES = 3;
 const ENTRY_START_MINS = 9 * 60 + 30;
@@ -125,6 +125,8 @@ async function runBacktest() {
         date: testDate,
         category: cat
     }));
+    testCases = testCases.filter(t => t.symbol === "DBL");
+    console.log(`Testing DBL...`);
     
     console.log(`Found ${testCases.length} unique symbols across all snapshots for ${testDate}.`);
     
@@ -286,17 +288,24 @@ async function runBacktest() {
             if (mins < ENTRY_START_MINS || mins > ENTRY_END_MINS) continue;
 
             const wasInWatchlist = snapshots.some(snap => snap.symbol === sym && snap.time <= hrMins);
-            if (!wasInWatchlist) continue;
+            if (!wasInWatchlist) {
+                // console.log(`[${hrMins}] ${sym} not in watchlist yet.`);
+                continue;
+            }
 
             if (cIndex < 2) continue;
             
             const extremes = prevExtremes.get(sym);
             if (!extremes) continue;
             const { h: prevHigh, l: prevLow } = extremes;
-            
+
             const prevC = todayCandles[cIndex - 1];
             const prevPrevC = todayCandles[cIndex - 2];
             
+            if (hrMins >= "09:25" && hrMins <= "10:00") {
+                console.log(`[${hrMins}] c:${c.c} prevC:${prevC.c} prevH:${prevHigh} prevL:${prevLow}`);
+            }
+
             let setup = "";
             let direction: "LONG" | "SHORT" | null = null;
             let sl = 0;
@@ -445,7 +454,7 @@ async function runBacktest() {
     // Close out any remaining open trades at EOD
     for (const [sym, t] of Array.from(activeTrades.entries())) {
         t.exitPrice = t.eodPrice || t.entryPrice;
-        t.status = t.trailApplied ? "🛡️ BREAKEVEN HIT (EOD)" : "OPEN (End of Day)";
+        t.status = t.trailApplied ? "ðŸ›¡ï¸ BREAKEVEN HIT (EOD)" : "OPEN (End of Day)";
         t.exitTime = "15:15";
         const gross = t.direction === "LONG" 
             ? (t.exitPrice - t.entryPrice) / t.entryPrice
@@ -456,7 +465,7 @@ async function runBacktest() {
     }
     
     // Combine all results and skipped setups for output
-    const primeTimeStr = `${formatMinsToIST(ENTRY_START_MINS)}–${formatMinsToIST(ENTRY_END_MINS)}`;
+    const primeTimeStr = `${formatMinsToIST(ENTRY_START_MINS)}â€“${formatMinsToIST(ENTRY_END_MINS)}`;
     let md = `# Intraday Backtest Results (Chronological)\n\n`;
     md += `Prime Time: ${primeTimeStr} | Anti-Chase: ${(MAX_CHASE_PCT * 100).toFixed(1)}% | Touch Buffer: ${(TOUCH_BUFFER_PCT * 100).toFixed(2)}% | Risk:Reward = 1:2 | Leverage: 5x | Max Daily Trades: ${MAX_DAILY_TRADES}\n\n`;
     md += `| Symbol | Date | Time | PDH | PDL | Setup | Dir | Entry | Initial SL | Active SL | Target | Result | P&L (50k) | Exit Time |\n`;
@@ -477,7 +486,7 @@ async function runBacktest() {
             if (t.direction === "LONG") actualPnl = (exitPrice - entryPrice) * qty;
             else if (t.direction === "SHORT") actualPnl = (entryPrice - exitPrice) * qty;
             
-            if (actualPnl !== 0 || t.status === "🛡️ BREAKEVEN HIT" || t.status.includes("OPEN")) {
+            if (actualPnl !== 0 || t.status === "ðŸ›¡ï¸ BREAKEVEN HIT" || t.status.includes("OPEN")) {
                 const entryVal = entryPrice * qty;
                 const exitVal = exitPrice * qty;
                 const turnover = entryVal + exitVal;
@@ -487,7 +496,7 @@ async function runBacktest() {
             }
         }
         
-        pnlStr = actualPnl > 0 ? "+₹" + actualPnl.toFixed(2) : "₹" + actualPnl.toFixed(2);
+        pnlStr = actualPnl > 0 ? "+â‚¹" + actualPnl.toFixed(2) : "â‚¹" + actualPnl.toFixed(2);
 
         
         outputRows.push({
@@ -528,3 +537,4 @@ async function runBacktest() {
 }
 
 runBacktest().catch(console.error);
+

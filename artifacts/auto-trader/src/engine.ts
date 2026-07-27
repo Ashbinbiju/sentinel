@@ -526,8 +526,7 @@ export class ExecutionEngine {
               const parent = superOrders.find(o => o.orderId === trade.superOrderId);
               const triggeredLeg = parent?.legDetails?.find(leg => 
                   (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
-                  leg.orderStatus === "TRIGGERED" &&
-                  Number(leg.triggeredQuantity) === trade.quantity
+                  (leg.orderStatus === "TRIGGERED" || leg.orderStatus === "TRADED")
               );
 
               const positionAbsentOrFlat = !pos || netQty === 0;

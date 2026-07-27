@@ -24,7 +24,7 @@ if (DRY_RUN && LIVE_CANARY) {
 
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
-const MAX_DAILY_TRADES = LIVE_CANARY ? 1 : 5;
+const MAX_DAILY_TRADES = LIVE_CANARY ? 1 : (process.env.MAX_DAILY_TRADES ? parseInt(process.env.MAX_DAILY_TRADES, 10) : 5);
 const MAX_DAILY_LOSS = -2500;
 const MAX_CONSECUTIVE_LOSSES = 3;
 

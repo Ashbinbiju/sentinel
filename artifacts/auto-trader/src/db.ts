@@ -224,17 +224,30 @@ export const TradeDB = {
         
         try {
           const statusMap: Record<string, string> = {
-            "TARGET 2 HIT": "TARGET 2 HIT",
-            "TARGET 1 HIT": "TARGET 1 HIT",
+            "TARGET 2 HIT": "TARGET HIT",
+            "TARGET 1 HIT": "TARGET HIT",
+            "TARGET HIT": "TARGET HIT",
             "SL HIT": "SL HIT",
-            "TRAILING SL HIT": "T1 HIT & TRAILING SL HIT",
+            "TRAILING SL HIT": "SL HIT",
             "SQUARED OFF (3:15 PM)": "SQUARED OFF",
             "SQUARED OFF": "SQUARED OFF"
           };
           const dbStatus = (statusMap[reason] || "SQUARED OFF") as any;
+
+          let plPctStr: string | undefined = undefined;
+          if (exitPrice && trade.entryPrice) {
+            const pct = trade.side === "BUY" 
+              ? (exitPrice - trade.entryPrice) / trade.entryPrice 
+              : (trade.entryPrice - exitPrice) / trade.entryPrice;
+            plPctStr = pct.toString();
+          }
           
           await db.update(tradesTable)
-            .set({ status: dbStatus })
+            .set({ 
+              status: dbStatus,
+              hitTime: new Date().toISOString(),
+              plPct: plPctStr
+            })
             .where(eq(tradesTable.symbol, trade.symbol));
         } catch (e: any) {
           console.error("[DB] Failed to update Supabase status:", e.message);
