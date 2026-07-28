@@ -159,7 +159,7 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
           throw new Error(`Super Order ${trade.superOrderId} unavailable for ${trade.symbol}`);
         }
 
-        if (["CANCELLED", "CLOSED", "REJECTED"].includes(parent.orderStatus)) {
+        if (["CANCELLED", "CLOSED", "REJECTED", "TRADED"].includes(parent.orderStatus)) {
           await TradeDB.updateState(trade.id, undefined, { protectionCancelled: true });
         } else {
           await broker.cancelSuperOrder(trade.superOrderId, "ENTRY_LEG");
