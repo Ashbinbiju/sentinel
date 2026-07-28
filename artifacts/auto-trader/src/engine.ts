@@ -531,7 +531,15 @@ export class ExecutionEngine {
 
               const positionAbsentOrFlat = !pos || netQty === 0;
 
-              if (positionAbsentOrFlat && (parent?.orderStatus === "CLOSED" || parent?.orderStatus === "TRADED") && triggeredLeg) {
+              if (positionAbsentOrFlat && (!parent || parent.orderStatus === "CLOSED" || parent.orderStatus === "TRADED" || parent.orderStatus === "CANCELLED")) {
+                  if (!triggeredLeg) {
+                      console.warn(`[DEBUG_RECONCILE] Flat position for ${trade.symbol} but no triggeredLeg! Parent order dump: ${JSON.stringify(parent)}`);
+                      // Fallback: If we can't find the leg, at least mark it closed so it doesn't get stuck forever
+                      await TradeDB.markTradeClosed(trade.id, "SQUARED OFF (Missing Leg Details)", trade.entryPrice);
+                      await this.syncActiveTrades();
+                      continue;
+                  }
+
                   console.log(`[ENGINE] Broker reconciliation detected external exit for ${trade.symbol}.`);
                   const trades = await this.broker.getTradesByOrderId(triggeredLeg.orderId);
                   
