@@ -317,14 +317,21 @@ async function runBacktest() {
             const upperWick = c.h - Math.max(c.o, c.c);
             const lowerWick = Math.min(c.o, c.c) - c.l;
 
-            const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
-            const touchedHighZone = c.l <= prevHigh * (1 + TOUCH_BUFFER_PCT) && c.h >= prevHigh;
-            const chasePctHigh = (c.c - prevHigh) / prevHigh;
+            // See engine.ts — the fresh-cross test is anchored to whichever of the
+            // two levels actually binds, so PDH/R1 (or PDL/S1) may be taken out on
+            // separate candles.
+            const pivotReady = !USE_PIVOT_FILTER || pivots !== null;
+            const brkH = USE_PIVOT_FILTER && pivots ? Math.max(prevHigh, pivots.r1) : prevHigh;
+            const brkL = USE_PIVOT_FILTER && pivots ? Math.min(prevLow, pivots.s1) : prevLow;
+
+            const freshHighBreakout = prevC.c <= brkH && c.c > brkH;
+            const touchedHighZone = c.l <= brkH * (1 + TOUCH_BUFFER_PCT) && c.h >= brkH;
+            const chasePctHigh = (c.c - brkH) / brkH;
             const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
 
-            const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
-            const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
-            const chasePctLow = (prevLow - c.c) / prevLow;
+            const freshLowBreakdown = prevC.c >= brkL && c.c < brkL;
+            const touchedLowZone = c.h >= brkL * (1 - TOUCH_BUFFER_PCT) && c.l <= brkL;
+            const chasePctLow = (brkL - c.c) / brkL;
             const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
 
             const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
@@ -345,13 +352,11 @@ async function runBacktest() {
                     skippedReason = "Bearish breakout candle close";
                 } else if (upperWick / candleRange > 0.35) {
                     skippedReason = "Long upper rejection wick";
-                } else if (USE_PIVOT_FILTER && !pivots) {
+                } else if (!pivotReady) {
                     skippedReason = "Pivot levels unavailable";
-                } else if (USE_PIVOT_FILTER && pivots && c.c <= pivots.r1) {
-                    skippedReason = "Close below R1";
                 } else if (touchedHighZone && chaseAllowedHigh) {
                     setup = "HIGH BREAKOUT"; direction = "LONG";
-                    sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
+                    sl = Math.min(c.l, brkH * (1 - SL_BUFFER_PCT));
                 } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
@@ -360,13 +365,11 @@ async function runBacktest() {
                     skippedReason = "Bullish breakdown candle close";
                 } else if (lowerWick / candleRange > 0.35) {
                     skippedReason = "Long lower rejection wick";
-                } else if (USE_PIVOT_FILTER && !pivots) {
+                } else if (!pivotReady) {
                     skippedReason = "Pivot levels unavailable";
-                } else if (USE_PIVOT_FILTER && pivots && c.c >= pivots.s1) {
-                    skippedReason = "Close above S1";
                 } else if (touchedLowZone && chaseAllowedLow) {
                     setup = "LOW BREAKDOWN"; direction = "SHORT";
-                    sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
+                    sl = Math.max(c.h, brkL * (1 + SL_BUFFER_PCT));
                 } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
