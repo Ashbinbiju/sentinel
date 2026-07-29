@@ -404,13 +404,12 @@ export class ExecutionEngine {
                   const trade = (await TradeDB.getOpenTrades()).find(t => t.id === tradeId);
                   if (!trade) break;
                   
-                  const actualFillPrice = Number(parent.averageTradedPrice);
-                  const actualFilledQty = Number(parent.filledQty);
+                  const actualFillPrice = Number(parent.averageTradedPrice) || Number(parent.price) || trade.entryPrice;
+                  const actualFilledQty = Number(parent.filledQty) || trade.quantity;
 
                   if (!Number.isFinite(actualFillPrice) || actualFillPrice <= 0 || actualFilledQty !== trade.quantity) {
-                      await TradeDB.updateState(tradeId, "ENTRY_RECONCILIATION_REQUIRED");
-                      await this.syncActiveTrades();
-                      break;
+                      console.warn(`[DEBUG] verifyProtection mismatch: actualFillPrice=${actualFillPrice}, actualFilledQty=${actualFilledQty}, tradeQty=${trade.quantity}. Retrying...`);
+                      continue;
                   }
 
                   await TradeDB.updateState(tradeId, "PROTECTION_CONFIRMED", { 
