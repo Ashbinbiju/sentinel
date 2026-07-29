@@ -197,14 +197,24 @@ export class ExecutionEngine {
             const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
             const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
 
-            const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
-            const touchedHighZone = c.l <= zoneTopH && c.h >= prevHigh;
-            const chasePctHigh = (c.c - prevHigh) / prevHigh;
+            // Effective breakout level. With the pivot filter on, a long has to clear
+            // BOTH PDH and R1, so the higher of the two is what actually binds. The
+            // fresh-cross test must be anchored there: anchoring on PDH alone burns
+            // the cross on a candle that has not yet reached R1, after which no later
+            // candle is ever "fresh" and the whole move is missed. Breaking the two
+            // levels on separate candles is expected and allowed.
+            const pivotReady = !USE_PIVOT_FILTER || pivots !== null;
+            const brkH = USE_PIVOT_FILTER && pivots ? Math.max(prevHigh, pivots.r1) : prevHigh;
+            const brkL = USE_PIVOT_FILTER && pivots ? Math.min(prevLow, pivots.s1) : prevLow;
+
+            const freshHighBreakout = prevC.c <= brkH && c.c > brkH;
+            const touchedHighZone = c.l <= brkH * (1 + TOUCH_BUFFER_PCT) && c.h >= brkH;
+            const chasePctHigh = (c.c - brkH) / brkH;
             const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
 
-            const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
-            const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
-            const chasePctLow = (prevLow - c.c) / prevLow;
+            const freshLowBreakdown = prevC.c >= brkL && c.c < brkL;
+            const touchedLowZone = c.h >= brkL * (1 - TOUCH_BUFFER_PCT) && c.l <= brkL;
+            const chasePctLow = (brkL - c.c) / brkL;
             const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
 
             const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
@@ -216,30 +226,23 @@ export class ExecutionEngine {
             const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
 
             if (freshHighBreakout) {
+                // Fail closed: without a previous close there is no R1 to clear.
+                if (!pivotReady) return reject("PIVOT_UNAVAILABLE");
                 if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
                 if (c.c <= c.o) return reject("BEARISH_BREAKOUT_CANDLE");
                 if (upperWick / candleRange > 0.35) return reject("LONG_UPPER_REJECTION_WICK");
-                if (USE_PIVOT_FILTER) {
-                    // Fail closed: without a previous close we cannot prove the
-                    // level was cleared, so we do not take the trade.
-                    if (!pivots) return reject("PIVOT_UNAVAILABLE");
-                    if (c.c <= pivots.r1) return reject("BELOW_R1");
-                }
                 if (touchedHighZone) {
                     setup = "HIGH BREAKOUT"; direction = "BUY";
-                    sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
+                    sl = Math.min(c.l, brkH * (1 - SL_BUFFER_PCT));
                 }
             } else if (freshLowBreakdown) {
+                if (!pivotReady) return reject("PIVOT_UNAVAILABLE");
                 if (!chaseAllowedLow) return reject("CHASE_BLOCK");
                 if (c.c >= c.o) return reject("BULLISH_BREAKDOWN_CANDLE");
                 if (lowerWick / candleRange > 0.35) return reject("LONG_LOWER_REJECTION_WICK");
-                if (USE_PIVOT_FILTER) {
-                    if (!pivots) return reject("PIVOT_UNAVAILABLE");
-                    if (c.c >= pivots.s1) return reject("ABOVE_S1");
-                }
                 if (touchedLowZone) {
                     setup = "LOW BREAKDOWN"; direction = "SELL";
-                    sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
+                    sl = Math.max(c.h, brkL * (1 + SL_BUFFER_PCT));
                 }
             } else if (validHighRejection) {
                 setup = "HIGH REJECTION"; direction = "SELL";
