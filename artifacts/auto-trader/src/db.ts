@@ -2,7 +2,7 @@ import fs from "fs";
 import { promises as fsPromises } from "fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
-import { db, tradesTable, watchlistSnapshotsTable, eq } from "@workspace/db";
+import { db, tradesTable, watchlistSnapshotsTable, eq, and } from "@workspace/db";
 
 
 export type TradeState =
@@ -248,7 +248,12 @@ export const TradeDB = {
               hitTime: new Date().toISOString(),
               plPct: plPctStr
             })
-            .where(eq(tradesTable.symbol, trade.symbol));
+            .where(
+              and(
+                eq(tradesTable.symbol, trade.symbol),
+                eq(tradesTable.date, (trade.createdAt || new Date().toISOString()).slice(0, 10))
+              )
+            );
         } catch (e: any) {
           console.error("[DB] Failed to update Supabase status:", e.message);
         }
