@@ -91,7 +91,15 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
                   const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
                   const prevLow = Math.min(...lastDayCandles.map(c => c.l));
 
-                  list.push({ symbol, securityId, prevHigh, prevLow, category: s.category, ltp, priceChangePct: changePct });
+                  // Last candle of the previous session — feeds the pivot filter.
+                  const chronological = [...lastDayCandles].sort((a, b) => a.t - b.t);
+                  const prevClose = chronological[chronological.length - 1].c;
+
+                  if (!Number.isFinite(prevClose)) {
+                    console.warn(`[BOT] No previous close for ${symbol}. Pivot filter will block its setups.`);
+                  }
+
+                  list.push({ symbol, securityId, prevHigh, prevLow, prevClose, category: s.category, ltp, priceChangePct: changePct });
                 }
               }
             } catch (err: any) {

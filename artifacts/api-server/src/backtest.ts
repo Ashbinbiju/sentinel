@@ -9,6 +9,13 @@ const STRUCTURAL_TRAIL_RR = 1.0;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.10; // 10% risk buffer on trailed SL
 const SLIPPAGE_PCT = 0.0005;
 const CHARGES_PCT_TURNOVER = 0.0005;
+// Mirrors engine.ts — a breakout must clear R1, a breakdown must break S1.
+const USE_PIVOT_FILTER = process.env.USE_PIVOT_FILTER !== "false";
+
+function standardPivots(prevHigh: number, prevLow: number, prevClose: number) {
+  const p = (prevHigh + prevLow + prevClose) / 3;
+  return { p, r1: 2 * p - prevLow, s1: 2 * p - prevHigh };
+}
 
 
 
@@ -130,7 +137,7 @@ async function runBacktest() {
     
     // 1. Fetch all candles
     const allCandlesBySymbol = new Map<string, any[]>();
-    const prevExtremes = new Map<string, {h: number, l: number}>();
+    const prevExtremes = new Map<string, {h: number, l: number, c: number}>();
     
     for (const { symbol: sym, date, category } of testCases) {
         if (sym === "STLTECH" || sym === "MTARTECH" || sym === "CAMS" || sym === "ACC") {
@@ -164,7 +171,9 @@ async function runBacktest() {
 
         const prevHigh = Math.max(...prevDayCandles.map((c: any) => c.h));
         const prevLow = Math.min(...prevDayCandles.map((c: any) => c.l));
-        prevExtremes.set(sym, { h: prevHigh, l: prevLow });
+        const prevChronological = [...prevDayCandles].sort((a: any, b: any) => a.t - b.t);
+        const prevClose = prevChronological[prevChronological.length - 1].c;
+        prevExtremes.set(sym, { h: prevHigh, l: prevLow, c: prevClose });
         
         // Save today's candles
         const targetDayCandles = candleData.historicalCandles.filter((c: any) => getCandleCloseDateIST(c) === testDate);
@@ -292,7 +301,8 @@ async function runBacktest() {
             
             const extremes = prevExtremes.get(sym);
             if (!extremes) continue;
-            const { h: prevHigh, l: prevLow } = extremes;
+            const { h: prevHigh, l: prevLow, c: prevClose } = extremes;
+            const pivots = Number.isFinite(prevClose) ? standardPivots(prevHigh, prevLow, prevClose) : null;
             
             const prevC = todayCandles[cIndex - 1];
             const prevPrevC = todayCandles[cIndex - 2];
@@ -335,6 +345,10 @@ async function runBacktest() {
                     skippedReason = "Bearish breakout candle close";
                 } else if (upperWick / candleRange > 0.35) {
                     skippedReason = "Long upper rejection wick";
+                } else if (USE_PIVOT_FILTER && !pivots) {
+                    skippedReason = "Pivot levels unavailable";
+                } else if (USE_PIVOT_FILTER && pivots && c.c <= pivots.r1) {
+                    skippedReason = "Close below R1";
                 } else if (touchedHighZone && chaseAllowedHigh) {
                     setup = "HIGH BREAKOUT"; direction = "LONG";
                     sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
@@ -346,6 +360,10 @@ async function runBacktest() {
                     skippedReason = "Bullish breakdown candle close";
                 } else if (lowerWick / candleRange > 0.35) {
                     skippedReason = "Long lower rejection wick";
+                } else if (USE_PIVOT_FILTER && !pivots) {
+                    skippedReason = "Pivot levels unavailable";
+                } else if (USE_PIVOT_FILTER && pivots && c.c >= pivots.s1) {
+                    skippedReason = "Close above S1";
                 } else if (touchedLowZone && chaseAllowedLow) {
                     setup = "LOW BREAKDOWN"; direction = "SHORT";
                     sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
