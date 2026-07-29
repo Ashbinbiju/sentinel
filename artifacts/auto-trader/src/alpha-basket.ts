@@ -30,15 +30,9 @@ export const SENTINEL_ALPHA_BASKET: string[] = [
   "INFY",
 
   // Energy, Utilities & Defense
-  "CGPOWER",
-  "JSWSTEEL",
   "MAZDOCK",
-  "GAIL",
-  "SOLARINDS",
-  "NTPC",
   "TITAN",
   "TATAPOWER",
-  "BAJAJ-AUTO",
 ];
 
 export function isAlphaBasketStock(symbol: string): boolean {

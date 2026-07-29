@@ -60,8 +60,8 @@
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/index.ts": {
-    "mtime": 1785346838.9509428,
-    "ast_hash": "74e297cfc0a4957db8ff149de87a8d02",
+    "mtime": 1785008667.3261814,
+    "ast_hash": "13a304a0784d8c2af60ae6687c5f7709",
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/scrip-master.ts": {
@@ -1210,14 +1210,14 @@
     "semantic_hash": ""
   },
   "artifacts/api-server/scripts/backtest_trend.ts": {
-    "mtime": 1785353176.9571726,
-    "ast_hash": "914c03dab0dde3e9222a46857ade0ee2",
-    "semantic_hash": ""
+    "mtime": 1782629698.5585217,
+    "ast_hash": "eb228fc6083ae3f12933860f67f47c1c",
+    "semantic_hash": "eb228fc6083ae3f12933860f67f47c1c"
   },
   "artifacts/api-server/scripts/backtest_vol.ts": {
-    "mtime": 1785353177.0575545,
-    "ast_hash": "d8398ce8be6b618e99caf3baa5cc2840",
-    "semantic_hash": ""
+    "mtime": 1782629669.0978587,
+    "ast_hash": "743ee50007acb74daac550a314c1404f",
+    "semantic_hash": "743ee50007acb74daac550a314c1404f"
   },
   "artifacts/api-server/scripts/debug.ts": {
     "mtime": 1782626984.3495553,
@@ -1240,8 +1240,8 @@
     "semantic_hash": "94a081f598aba46fc735e82bb247f6f1"
   },
   "artifacts/auto-trader/src/db.ts": {
-    "mtime": 1785346838.9307199,
-    "ast_hash": "6149d9605c5e6c7f24bf66fb0ca2c6ae",
+    "mtime": 1785089796.6239622,
+    "ast_hash": "7a4635006db1726af1ab296e6de51d88",
     "semantic_hash": ""
   },
   "scratch-fix.js": {
@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "artifacts/api-server/src/backtest.ts": {
-    "mtime": 1785346838.814141,
-    "ast_hash": "6b580735984c795ef6490e324ae2cff7",
+    "mtime": 1785008798.4444137,
+    "ast_hash": "1041f951edc762e06d7e078a2ecb9b69",
     "semantic_hash": ""
   },
   "artifacts/api-server/test-swing.js": {
@@ -1375,8 +1375,8 @@
     "semantic_hash": ""
   },
   "artifacts/api-server/backtest_results.md": {
-    "mtime": 1785346838.8131142,
-    "ast_hash": "e39d9b069c8b49b39780c4df7d6172fd",
+    "mtime": 1784967397.9170964,
+    "ast_hash": "4ee5f5d0a0f2bedc0bfc3e965de6cd20",
     "semantic_hash": ""
   },
   "artifacts/api-server/test-fetch.ts": {
@@ -1395,8 +1395,8 @@
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/engine.ts": {
-    "mtime": 1785353155.0092194,
-    "ast_hash": "688646731344c69083eb535c3da6c9a6",
+    "mtime": 1785090933.1994255,
+    "ast_hash": "fd97c2e22bab901d52a162db83f4211c",
     "semantic_hash": ""
   },
   "scratch/test.ts": {
@@ -1450,53 +1450,8 @@
     "semantic_hash": ""
   },
   "artifacts/auto-trader/src/alpha-basket.ts": {
-    "mtime": 1785346847.0762322,
-    "ast_hash": "c5effc72256f5eb84188a52e8b3cf22e",
-    "semantic_hash": ""
-  },
-  "artifacts/api-server/src/test_dbl.ts": {
-    "mtime": 1785346838.8233862,
-    "ast_hash": "decbb6df78d99c3f2a339d84d468f66a",
-    "semantic_hash": ""
-  },
-  "artifacts/auto-trader/src/backtest-single.ts": {
-    "mtime": 1785346838.8331883,
-    "ast_hash": "7ef8b1c5eb415699155b2f5265aa821d",
-    "semantic_hash": ""
-  },
-  "artifacts/auto-trader/src/backtest-today.ts": {
-    "mtime": 1785346838.8331883,
-    "ast_hash": "c43173a16a516d881f3147644e65af51",
-    "semantic_hash": ""
-  },
-  "scratch/get_morning_stocks.ts": {
-    "mtime": 1785352502.2859514,
-    "ast_hash": "ceab651dbad94fe734095a6bf466f4a2",
-    "semantic_hash": ""
-  },
-  "scratch/query_snapshots.ts": {
-    "mtime": 1785346838.968282,
-    "ast_hash": "a2c94c724ea4ecf085c44a33f578f81e",
-    "semantic_hash": ""
-  },
-  "scripts/src/check_db_full.ts": {
-    "mtime": 1785346838.9872973,
-    "ast_hash": "bad16def214a93e7b171ad061a352871",
-    "semantic_hash": ""
-  },
-  "scripts/src/query_snapshots.ts": {
-    "mtime": 1785346838.9893901,
-    "ast_hash": "a2c94c724ea4ecf085c44a33f578f81e",
-    "semantic_hash": ""
-  },
-  "scripts/src/query_snapshots_csv.ts": {
-    "mtime": 1785346838.9893901,
-    "ast_hash": "df9bf21eca82ba73c2e055ba0c4297db",
-    "semantic_hash": ""
-  },
-  "scripts/src/query_snapshots_md.ts": {
-    "mtime": 1785346839.0005548,
-    "ast_hash": "135190afc93379c22d5425032b96145d",
+    "mtime": 1785093544.5086672,
+    "ast_hash": "5a3ce689e6d971f4ebac903715e8b348",
     "semantic_hash": ""
   }
 }

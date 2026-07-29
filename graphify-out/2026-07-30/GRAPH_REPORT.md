@@ -1,16 +1,16 @@
-# Graph Report - sentinel  (2026-07-26)
+# Graph Report - sentinel  (2026-07-27)
 
 ## Corpus Check
-- 281 files · ~144,487 words
+- 281 files · ~144,575 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2396 nodes · 3434 edges · 214 communities (176 shown, 38 thin omitted)
+- 2396 nodes · 3434 edges · 213 communities (175 shown, 38 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 19 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b23ff0cb`
+- Built from commit: `87dcea47`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -38,7 +38,6 @@
 - [[_COMMUNITY_Community 20 (swingTrackerTrade.ts)|Community 20 (swingTrackerTrade.ts)]]
 - [[_COMMUNITY_Community 21 (devDependencies)|Community 21 (devDependencies)]]
 - [[_COMMUNITY_Community 22 (TechnicalIndicatorImpact)|Community 22 (TechnicalIndicatorImpact)]]
-- [[_COMMUNITY_Community 23 (runSwingScanner())|Community 23 (runSwingScanner())]]
 - [[_COMMUNITY_Community 24 (resolveSwingTrade())|Community 24 (resolveSwingTrade())]]
 - [[_COMMUNITY_Community 25 (components.json)|Community 25 (components.json)]]
 - [[_COMMUNITY_Community 26 (stockItem.ts)|Community 26 (stockItem.ts)]]
@@ -237,7 +236,7 @@
 - **API Contract** — api_spec_yaml, healthz_endpoint, momentum_picks_endpoint, momentum_picks_response_schema [EXTRACTED 0.90]
 - **Render Deployment** — render_config, sentinel_api, sentinel_keepalive [EXTRACTED 1.00]
 
-## Communities (214 total, 38 thin omitted)
+## Communities (213 total, 38 thin omitted)
 
 ### Community 0 - "Community 0 (stocks.ts)"
 Cohesion: 0.02
@@ -264,12 +263,12 @@ Cohesion: 0.04
 Nodes (48): ErrorResponse, GetTradeHistoryParams, HealthStatus, HistoryTrade, HistoryTradeDirection, MarketIndex, MomentumPicksResponse, ScannerWarning (+40 more)
 
 ### Community 6 - "Community 6 (AngelOneBroker)"
-Cohesion: 0.08
-Nodes (36): adaptive_recommendation(), analyze_stock(), analyze_stock_parallel(), backtest_stock(), calculate_buy_at(), calculate_cmo(), calculate_entry_metrics(), calculate_fresh_breakout_age() (+28 more)
+Cohesion: 0.07
+Nodes (39): adaptive_recommendation(), analyze_stock(), analyze_stock_parallel(), backtest_stock(), calculate_advance_decline_ratio(), calculate_buy_at(), calculate_cmo(), calculate_entry_metrics() (+31 more)
 
 ### Community 7 - "Community 7 (analyzeSwingCandidate())"
-Cohesion: 0.08
-Nodes (40): app_date_string(), app_now(), app_timestamp_string(), calculate_advance_decline_ratio(), calculate_exit_advice(), calculate_holding_period_outcome(), db_value(), ensure_daily_pick_lifecycle_columns() (+32 more)
+Cohesion: 0.09
+Nodes (37): app_date_string(), app_now(), app_timestamp_string(), calculate_exit_advice(), calculate_holding_period_outcome(), db_value(), ensure_daily_pick_lifecycle_columns(), ensure_table_columns() (+29 more)
 
 ### Community 8 - "Community 8 (dashboard.tsx)"
 Cohesion: 0.09
@@ -280,8 +279,8 @@ Cohesion: 0.12
 Nodes (29): ApiError, applyBaseUrl(), AuthTokenGetter, BodyType, buildErrorMessage(), customFetch(), CustomFetchOptions, ErrorType (+21 more)
 
 ### Community 10 - "Community 10 (sidebar.tsx)"
-Cohesion: 0.09
-Nodes (29): analyzeSwingCandidate(), avg(), calculateAdxLast(), calculateATR(), calculateBollingerLast(), calculateCmfLast(), calculateCmoLast(), calculateDonchianLast() (+21 more)
+Cohesion: 0.06
+Nodes (41): run(), analyzeSwingCandidate(), avg(), calculateAdxLast(), calculateATR(), calculateBollingerLast(), calculateCmfLast(), calculateCmoLast() (+33 more)
 
 ### Community 11 - "Community 11 (sidebar.tsx)"
 Cohesion: 0.08
@@ -326,10 +325,6 @@ Nodes (21): dependencies, axios, dotenv, drizzle-orm, totp-generator, @workspace
 ### Community 22 - "Community 22 (TechnicalIndicatorImpact)"
 Cohesion: 0.10
 Nodes (16): InsertTrade, insertTradeSchema, InsertWatchlistSnapshot, SWING_TRADE_STATUSES, SwingTrade, swingTradesTable, SwingTradeStatus, swingTradeStatusSchema (+8 more)
-
-### Community 23 - "Community 23 (runSwingScanner())"
-Cohesion: 0.17
-Nodes (12): run(), calculateSwingRecentReturn(), countConsolidationCandles(), countEntryConsolidationCandles(), createSwingScanJobId(), fetchNiftyDailyReturn(), fetchSwingUniverse(), isLateExtendedBreakout() (+4 more)
 
 ### Community 24 - "Community 24 (resolveSwingTrade())"
 Cohesion: 0.11
