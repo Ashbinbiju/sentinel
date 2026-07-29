@@ -13,13 +13,27 @@ const STRUCTURAL_TRAIL_RR = 1.0;
 const STRUCTURAL_TRAIL_RISK_BUFFER = 0.10;
 const NSE_TICK_SIZE = 0.05;
 
+// Pivot confluence: a breakout must clear R1 as well as PDH, a breakdown must
+// break S1 as well as PDL. Set USE_PIVOT_FILTER=false to restore the old
+// PDH/PDL-only behaviour.
+const USE_PIVOT_FILTER = process.env.USE_PIVOT_FILTER !== "false";
 
+/**
+ * Standard ("Traditional") floor pivots from the previous session's High/Low/Close.
+ * Only P, R1 and S1 are used by the entry filter.
+ */
+export function standardPivots(prevHigh: number, prevLow: number, prevClose: number) {
+  const p = (prevHigh + prevLow + prevClose) / 3;
+  return { p, r1: 2 * p - prevLow, s1: 2 * p - prevHigh };
+}
 
 export interface WatchlistContext {
   symbol: string;
   securityId: string;
   prevHigh: number;
   prevLow: number;
+  /** Previous session's closing price. Required by the pivot filter. */
+  prevClose?: number;
   category: "GAINER" | "LOSER";
   ltp?: number;
   priceChangePct?: number;
@@ -158,7 +172,16 @@ export class ExecutionEngine {
                 return reject("OUTSIDE_TIME");
             }
 
-            console.log(`[ENGINE] EVALUATING ${ctx.symbol} slot=${slotIso} O=${c.o} H=${c.h} L=${c.l} C=${c.c} PDH=${prevHigh} PDL=${prevLow}`);
+            const pivots =
+              typeof ctx.prevClose === "number" && Number.isFinite(ctx.prevClose)
+                ? standardPivots(prevHigh, prevLow, ctx.prevClose)
+                : null;
+
+            const pivotLog = pivots
+              ? ` R1=${pivots.r1.toFixed(2)} S1=${pivots.s1.toFixed(2)}`
+              : " R1=n/a S1=n/a";
+
+            console.log(`[ENGINE] EVALUATING ${ctx.symbol} slot=${slotIso} O=${c.o} H=${c.h} L=${c.l} C=${c.c} PDH=${prevHigh} PDL=${prevLow}${pivotLog}`);
 
             let setup = "";
             let direction: "BUY" | "SELL" | null = null;
@@ -196,6 +219,12 @@ export class ExecutionEngine {
                 if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
                 if (c.c <= c.o) return reject("BEARISH_BREAKOUT_CANDLE");
                 if (upperWick / candleRange > 0.35) return reject("LONG_UPPER_REJECTION_WICK");
+                if (USE_PIVOT_FILTER) {
+                    // Fail closed: without a previous close we cannot prove the
+                    // level was cleared, so we do not take the trade.
+                    if (!pivots) return reject("PIVOT_UNAVAILABLE");
+                    if (c.c <= pivots.r1) return reject("BELOW_R1");
+                }
                 if (touchedHighZone) {
                     setup = "HIGH BREAKOUT"; direction = "BUY";
                     sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
@@ -204,6 +233,10 @@ export class ExecutionEngine {
                 if (!chaseAllowedLow) return reject("CHASE_BLOCK");
                 if (c.c >= c.o) return reject("BULLISH_BREAKDOWN_CANDLE");
                 if (lowerWick / candleRange > 0.35) return reject("LONG_LOWER_REJECTION_WICK");
+                if (USE_PIVOT_FILTER) {
+                    if (!pivots) return reject("PIVOT_UNAVAILABLE");
+                    if (c.c >= pivots.s1) return reject("ABOVE_S1");
+                }
                 if (touchedLowZone) {
                     setup = "LOW BREAKDOWN"; direction = "SELL";
                     sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
