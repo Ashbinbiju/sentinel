@@ -609,7 +609,7 @@ export class ExecutionEngine {
               continue;
           }
 
-          const parent = brokerOrders.find(order => order.correlationId === trade.correlationId);
+          const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
           if (!parent) continue;
 
           const verifyAttempts = (trade.verifyAttempts || 0) + 1;
