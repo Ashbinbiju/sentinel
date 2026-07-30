@@ -18,6 +18,15 @@ const NSE_TICK_SIZE = 0.05;
 // PDH/PDL-only behaviour.
 const USE_PIVOT_FILTER = process.env.USE_PIVOT_FILTER !== "false";
 
+// Reward multiple applied to risk when placing the target.
+const TARGET_RR = 2;
+
+// Reject a setup when its target sits further away than the instrument's
+// previous-day range multiplied by this factor. A target the stock does not
+// travel in a normal session is not a target, however clean the entry looks.
+// 0 = disabled.
+const MAX_TARGET_RANGE_RATIO = parseFloat(process.env.MAX_TARGET_RANGE_RATIO || "0");
+
 /**
  * Standard ("Traditional") floor pivots from the previous session's High/Low/Close.
  * Only P, R1 and S1 are used by the entry filter.
@@ -264,6 +273,21 @@ export class ExecutionEngine {
 
             entryPrice = c.c;
 
+            if (MAX_TARGET_RANGE_RATIO > 0) {
+                // Same risk formula initiateTrade uses for sizing, so the filter
+                // judges the exact distance the trade would need to travel.
+                const riskPerShare = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
+                const targetDistance = riskPerShare * TARGET_RR;
+                const prevRange = prevHigh - prevLow;
+
+                if (prevRange > 0) {
+                    const rangeRatio = targetDistance / prevRange;
+                    if (rangeRatio > MAX_TARGET_RANGE_RATIO) {
+                        return reject(`TARGET_BEYOND_RANGE(${rangeRatio.toFixed(2)}x)`);
+                    }
+                }
+            }
+
             const activeTrade = this.getActiveOrPendingTrade(securityId);
             if (activeTrade) {
                 return reject("ACTIVE_OR_PENDING_TRADE");
@@ -315,7 +339,7 @@ export class ExecutionEngine {
   private async initiateTrade(ctx: WatchlistContext, side: "BUY"|"SELL", entryPrice: number, sl: number) {
     try {
       const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-      const target = side === "BUY" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+      const target = side === "BUY" ? entryPrice + (risk * TARGET_RR) : entryPrice - (risk * TARGET_RR);
       
       let cycleBalance: number;
       if (process.env.DRY_RUN === "true") {
