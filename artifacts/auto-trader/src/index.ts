@@ -540,7 +540,12 @@ async function main() {
       }
 
       if (!isMarketOpenIST() && !DRY_RUN && (await TradeDB.getOpenTrades()).length === 0) {
-        await sleep(5 * 60 * 1000);
+        // Poll tightly in the run-up to the open. Sleeping a flat 5 minutes can
+        // land the wake-up at 09:19, and backfill runs at 1s per symbol — the
+        // 09:20 candle would be gone before anything is subscribed.
+        const minsToOpen = (9 * 60 + 15) - getISTMinutes();
+        const preOpenApproach = minsToOpen > 0 && minsToOpen <= 20;
+        await sleep(preOpenApproach ? 20 * 1000 : 5 * 60 * 1000);
         continue;
       }
 
