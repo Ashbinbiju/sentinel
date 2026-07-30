@@ -4,7 +4,6 @@ import { TradeDB } from "./db";
 import { CandleEngine, Candle } from "./candle-engine";
 import { ExecutionEngine, WatchlistContext } from "./engine";
 import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST, resolveTradePosition } from "./utils";
-import { isAlphaBasketStock } from "./alpha-basket";
 import { randomUUID } from "crypto";
 import axios from "axios";
 import { Notifier } from "./notifier";
@@ -12,7 +11,6 @@ import { Notifier } from "./notifier";
 const DRY_RUN = process.env.DRY_RUN === "true";
 const LIVE_CANARY = process.env.LIVE_CANARY === "true";
 const FULL_LIVE = process.env.FULL_LIVE === "true";
-const USE_ALPHA_BASKET_FILTER = process.env.USE_ALPHA_BASKET_FILTER !== "false";
 
 if (!DRY_RUN && !LIVE_CANARY && !FULL_LIVE) {
   throw new Error("Live execution requires LIVE_CANARY=true or explicit FULL_LIVE=true");
@@ -91,24 +89,52 @@ function buildSeededHistory(
 async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
-    const url = "https://intradayscreener.com/api/trackStocks/cash";
+    const url = "https://intradayscreener.com/api/indices/sectorData/1";
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
 
-    if (res.data) {
-      const gainers = Array.isArray(res.data.intradayGainers) ? res.data.intradayGainers.slice(0, 15).map((s: any) => ({ ...s, category: "GAINER" })) : [];
-      const losers = Array.isArray(res.data.intradayLosers) ? res.data.intradayLosers.slice(0, 15).map((s: any) => ({ ...s, category: "LOSER" })) : [];
-      const combined = [...gainers, ...losers];
-      const uniqueStocks = Array.from(new Map(combined.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+    let uniqueStocks: any[] = [];
+    if (res.data && res.data.labels) {
+      const sectorData = res.data;
+      const allSectors = sectorData.labels.map((name: string, i: number) => ({
+        name,
+        keyword: sectorData.keywords[i],
+        changePct: sectorData.datasets[i] ?? 0,
+      }));
 
-      for (const s of uniqueStocks) {
-        const symbol = s.symbol?.trim();
-        const ltp = s.ltp;
-        const changePct = s.priceChangePct;
+      const topSectors = [...allSectors]
+        .sort((a, b) => b.changePct - a.changePct)
+        .slice(0, 2);
+
+      const combinedStocks: any[] = [];
+      for (const sector of topSectors) {
+        try {
+          const conUrl = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
+          const conRes = await axios.get(conUrl, { headers: { Accept: "application/json" } });
+          if (conRes.data) {
+            const all = [
+              ...(conRes.data.indexConstituents ?? []),
+              ...(conRes.data.nonIndexConstituents ?? []),
+            ];
+            const top = all
+              .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 15)
+              .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0))
+              .slice(0, 5)
+              .map((s: any) => ({ ...s, category: "SECTOR_MOMENTUM" }));
+            combinedStocks.push(...top);
+          }
+        } catch (e) {
+            console.error(`[ENGINE] Failed to fetch sector constituents for ${sector.keyword}`);
+        }
+      }
+      uniqueStocks = Array.from(new Map(combinedStocks.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+    }
+
+    for (const s of uniqueStocks) {
+      const symbol = s.symbol?.trim();
+      const ltp = s.ltp;
+      const changePct = s.changePct ?? s.priceChangePct ?? 0;
 
         if (symbol && ltp > 100) {
-          if (USE_ALPHA_BASKET_FILTER && !isAlphaBasketStock(symbol)) {
-            continue;
-          }
           const securityId = getSecurityId(symbol);
           if (securityId) {
             const cached = existingWatchlist?.find(w => w.symbol === symbol);

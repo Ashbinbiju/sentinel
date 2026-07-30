@@ -5712,25 +5712,55 @@ router.get("/momentum-picks", async (req, res) => {
 
     let momentumStocks: any[] = [];
     try {
-      const isUrl = "https://intradayscreener.com/api/trackStocks/cash";
-      const isRes = await fetch(isUrl, { headers: { Accept: "application/json" } });
+      const isUrl = "https://intradayscreener.com/api/indices/sectorData/1";
+      const isRes = await fetch(isUrl, { headers: HEADERS });
       if (isRes.ok) {
-        const data = await isRes.json() as any;
-        const gainers = Array.isArray(data?.intradayGainers) ? data.intradayGainers.slice(0, 15) : [];
-        const losers = Array.isArray(data?.intradayLosers) ? data.intradayLosers.slice(0, 15) : [];
-        const combined = [...gainers, ...losers];
+        const sectorData = (await isRes.json()) as any;
+        if (sectorData && sectorData.labels) {
+          const allSectors = sectorData.labels.map((name: string, i: number) => ({
+            name,
+            keyword: sectorData.keywords[i],
+            changePct: sectorData.datasets[i] ?? 0,
+          }));
 
-        const uniqueStocks = Array.from(new Map(combined.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
-        momentumStocks = uniqueStocks.map((s: any) => ({
+          const topSectors = [...allSectors]
+            .sort((a, b) => b.changePct - a.changePct)
+            .slice(0, 2);
+
+          const combinedStocks: any[] = [];
+          for (const sector of topSectors) {
+            try {
+              const conUrl = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
+              const conRes = await fetch(conUrl, { headers: HEADERS });
+              if (conRes.ok) {
+                const conData = await conRes.json() as any;
+                const all = [
+                  ...(conData.indexConstituents ?? []),
+                  ...(conData.nonIndexConstituents ?? []),
+                ];
+                const top = all
+                  .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 15)
+                  .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0))
+                  .slice(0, 5);
+                combinedStocks.push(...top);
+              }
+            } catch (e) {
+              req.log.error(`Failed to fetch sector constituents for ${sector.keyword}`);
+            }
+          }
+          
+          const uniqueStocks = Array.from(new Map(combinedStocks.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
+          momentumStocks = uniqueStocks.map((s: any) => ({
             symbol: s.symbol?.trim(),
             ltp: s.ltp,
-            changePct: s.priceChangePct
-        })).filter(s => s.symbol && s.ltp > 100);
+            changePct: s.changePct ?? s.priceChangePct ?? 0
+          })).filter(s => s.symbol && s.ltp > 100);
+        }
       } else {
-        req.log.warn(`IntradayScreener API responded with ${isRes.status}`);
+        req.log.warn(`IntradayScreener Sector API responded with ${isRes.status}`);
       }
     } catch (err: any) {
-      req.log.error({ err }, "Failed to fetch IntradayScreener list");
+      req.log.error({ err }, "Failed to fetch IntradayScreener Sector list");
     }
 
     const CHUNK_SIZE = 5;
