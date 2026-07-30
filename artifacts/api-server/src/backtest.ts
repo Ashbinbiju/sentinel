@@ -11,6 +11,10 @@ const SLIPPAGE_PCT = 0.0005;
 const CHARGES_PCT_TURNOVER = 0.0005;
 // Mirrors engine.ts — a breakout must clear R1, a breakdown must break S1.
 const USE_PIVOT_FILTER = process.env.USE_PIVOT_FILTER !== "false";
+// Mirrors engine.ts — reject setups whose target is further than the previous
+// day's range times this factor. 0 = disabled.
+const TARGET_RR = 2;
+const MAX_TARGET_RANGE_RATIO = parseFloat(process.env.MAX_TARGET_RANGE_RATIO || "0");
 
 function standardPivots(prevHigh: number, prevLow: number, prevClose: number) {
   const p = (prevHigh + prevLow + prevClose) / 3;
@@ -412,7 +416,29 @@ async function runBacktest() {
                 }
                 
                 const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-                const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+                const target = direction === "LONG" ? entryPrice + (risk * TARGET_RR) : entryPrice - (risk * TARGET_RR);
+
+                const prevRange = prevHigh - prevLow;
+                const rangeRatio = prevRange > 0 ? (risk * TARGET_RR) / prevRange : 0;
+                if (MAX_TARGET_RANGE_RATIO > 0 && prevRange > 0 && rangeRatio > MAX_TARGET_RANGE_RATIO) {
+                    skippedSetups.push({
+                        Symbol: sym,
+                        Date: testDate,
+                        Time: hrMins,
+                        PDH: prevHigh.toFixed(2),
+                        PDL: prevLow.toFixed(2),
+                        Setup: setup,
+                        Direction: "-",
+                        Entry: entryPrice.toFixed(2),
+                        InitialSL: "-",
+                        ActiveSL: "-",
+                        Target: target.toFixed(2),
+                        Status: `SKIPPED (Target beyond prev-day range ${rangeRatio.toFixed(2)}x)`,
+                        HitTime: "-"
+                    });
+                    continue;
+                }
+
                 let qty = Math.floor(RISK_PER_TRADE / risk);
                 if (qty < 1) qty = 1;
                 const maxLeveragedQty = Math.floor((DRY_RUN_CAPITAL * 5) / entryPrice);
