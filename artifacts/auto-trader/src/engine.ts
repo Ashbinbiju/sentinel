@@ -177,7 +177,7 @@ export class ExecutionEngine {
             };
 
             const mins = getISTMinuteOfDay(c.t + 300);
-            if (mins < 9 * 60 + 30 || mins > 11 * 60 + 30) {
+            if (mins < 9 * 60 + 20 || mins > 11 * 60 + 30) {
                 return reject("OUTSIDE_TIME");
             }
 

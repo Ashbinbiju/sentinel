@@ -28,7 +28,7 @@ const RISK_PER_TRADE = DRY_RUN_CAPITAL * 0.01;
 const MAX_DAILY_TRADES = process.env.MAX_DAILY_TRADES ? parseInt(process.env.MAX_DAILY_TRADES, 10) : 5;
 const MAX_DAILY_LOSS = -2500;
 const MAX_CONSECUTIVE_LOSSES = 3;
-const ENTRY_START_MINS = 9 * 60 + 30;
+const ENTRY_START_MINS = 9 * 60 + 20;
 const ENTRY_END_MINS = 11 * 60 + 30;
 
 
