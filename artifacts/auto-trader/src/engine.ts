@@ -162,12 +162,17 @@ export class ExecutionEngine {
               return d.toISOString().slice(0, 10);
             };
 
-            if (
-              getEpochDateStr(prevC.t) !== getEpochDateStr(c.t) || 
-              getEpochDateStr(prevPrevC.t) !== getEpochDateStr(c.t)
-            ) {
-              return reject("NOT_FRESH_CROSS");
-            }
+            // On the first two candles of the day, prevC/prevPrevC come from the
+            // previous session. That is fine for the BREAKOUT setups, which only
+            // compare against prevC.c — and a gap-open that closes through PDH is
+            // a genuine fresh cross of the level.
+            //
+            // The FADE setups are different: approachedHighFromBelow encodes "price
+            // worked up to the level over the last two candles", which is only
+            // meaningful inside one session. Those stay gated on sameSession.
+            const sameSession =
+              getEpochDateStr(prevC.t) === getEpochDateStr(c.t) &&
+              getEpochDateStr(prevPrevC.t) === getEpochDateStr(c.t);
 
             const getISTMinuteOfDay = (epochSecs: number) => {
               const d = new Date(epochSecs * 1000);
@@ -228,11 +233,11 @@ export class ExecutionEngine {
 
             const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
             const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-            const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
+            const validHighRejection = sameSession && approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
 
             const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
             const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-            const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
+            const validLowSupport = sameSession && approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
 
             if (freshHighBreakout) {
                 // Fail closed: without a previous close there is no R1 to clear.

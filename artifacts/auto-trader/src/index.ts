@@ -38,6 +38,56 @@ const shutdown = () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
+// Candles from the previous session prepended to today's, so a breakout on the
+// opening candle has a prevC to compare against. Two is the minimum the engine
+// needs (history.length >= 3 with today's first candle).
+const WARMUP_SEED_CANDLES = 2;
+
+function getCandleISTDate(epochSecs: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(epochSecs * 1000));
+}
+
+/**
+ * Builds the candle history handed to the CandleEngine: today's session with the
+ * tail of the previous session in front of it.
+ *
+ * Without the seed the engine has no prevC/prevPrevC until the third candle of
+ * the day, so nothing can be evaluated before 09:30 and every gap-open breakout
+ * is missed.
+ *
+ * Returns null when TODAY's candles have internal gaps — the same continuity
+ * guarantee as before. The overnight boundary between the seed and the session is
+ * expected and is deliberately not treated as a gap.
+ */
+function buildSeededHistory(
+  sessionCandles: unknown,
+  historicalCandles: unknown
+): Candle[] | null {
+  if (!Array.isArray(sessionCandles) || sessionCandles.length === 0) return null;
+
+  const session = ([...sessionCandles] as Candle[]).sort((a, b) => a.t - b.t);
+
+  const hasInternalGap = session.some(
+    (candle, index) => index > 0 && Number(candle.t) - Number(session[index - 1].t) !== 300
+  );
+  if (hasInternalGap) return null;
+
+  const sessionDate = getCandleISTDate(session[0].t);
+  const seed = Array.isArray(historicalCandles)
+    ? ([...historicalCandles] as Candle[])
+        .filter(c => getCandleISTDate(c.t) < sessionDate)
+        .sort((a, b) => a.t - b.t)
+        .slice(-WARMUP_SEED_CANDLES)
+    : [];
+
+  return [...seed, ...session];
+}
+
 async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
@@ -337,10 +387,10 @@ async function main() {
     for (const item of watchlist) {
       try {
         const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-        const candles = histRes.data?.sessionCandles;
+        const candles = buildSeededHistory(histRes.data?.sessionCandles, histRes.data?.historicalCandles);
 
-        if (!Array.isArray(candles) || candles.length === 0) {
-          console.error(`[BOT] Missing session candles for ${item.symbol}`);
+        if (!candles) {
+          console.error(`[BOT] Missing or gapped session candles for ${item.symbol}. Continuity compromised.`);
           continue;
         }
 
@@ -357,17 +407,6 @@ async function main() {
               `Last=${lastCandle.t}, expected=${expectedLastClosed5m}`
             );
           }
-        }
-
-        const hasGap = candles.some(
-          (candle, index) =>
-            index > 0 &&
-            Number(candle.t) - Number(candles[index - 1].t) !== 300
-        );
-
-        if (hasGap) {
-          console.error(`[BOT] Missing internal gaps in backfill for ${item.symbol}. Continuity compromised.`);
-          continue;
         }
 
         candleEngine.backfill(item.securityId, candles);
@@ -475,10 +514,10 @@ async function main() {
             for (const item of addedSymbols) {
               try {
                 const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-                const candles = histRes.data?.sessionCandles;
+                const candles = buildSeededHistory(histRes.data?.sessionCandles, histRes.data?.historicalCandles);
 
-                if (!candles || candles.length === 0) {
-                  console.warn(`[BOT] No candles returned for ${item.symbol}. Continuity compromised.`);
+                if (!candles) {
+                  console.warn(`[BOT] No usable candles for ${item.symbol}. Continuity compromised.`);
                   continue;
                 }
 
