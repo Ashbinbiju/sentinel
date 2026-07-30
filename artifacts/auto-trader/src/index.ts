@@ -60,30 +60,50 @@ function getCandleISTDate(epochSecs: number): string {
  * the day, so nothing can be evaluated before 09:30 and every gap-open breakout
  * is missed.
  *
+ * Between 09:15 and the first candle close there are no session candles at all,
+ * and in that window the seed alone is returned. That is what allows the symbol to
+ * be subscribed at 09:15 rather than after 09:20.
+ *
  * Returns null when TODAY's candles have internal gaps — the same continuity
- * guarantee as before. The overnight boundary between the seed and the session is
- * expected and is deliberately not treated as a gap.
+ * guarantee as before — or when the previous session cannot supply a full seed.
+ * The overnight boundary between the seed and the session is expected and is
+ * deliberately not treated as a gap.
  */
 function buildSeededHistory(
+  symbol: string,
   sessionCandles: unknown,
   historicalCandles: unknown
 ): Candle[] | null {
-  if (!Array.isArray(sessionCandles) || sessionCandles.length === 0) return null;
-
-  const session = ([...sessionCandles] as Candle[]).sort((a, b) => a.t - b.t);
+  const session = Array.isArray(sessionCandles)
+    ? ([...sessionCandles] as Candle[]).sort((a, b) => a.t - b.t)
+    : [];
 
   const hasInternalGap = session.some(
     (candle, index) => index > 0 && Number(candle.t) - Number(session[index - 1].t) !== 300
   );
   if (hasInternalGap) return null;
 
-  const sessionDate = getCandleISTDate(session[0].t);
+  // Before the first candle of the day closes there are no session candles, so
+  // the session date has to come from the clock rather than from the data.
+  const sessionDate = session.length > 0 ? getCandleISTDate(session[0].t) : getISTDateStr();
+
   const seed = Array.isArray(historicalCandles)
     ? ([...historicalCandles] as Candle[])
         .filter(c => getCandleISTDate(c.t) < sessionDate)
         .sort((a, b) => a.t - b.t)
         .slice(-WARMUP_SEED_CANDLES)
     : [];
+
+  if (seed.length < WARMUP_SEED_CANDLES) return null;
+
+  // Seed-only history is valid between 09:15 and the first candle close. It is
+  // what lets a symbol be SUBSCRIBED at 09:15, so the 09:15-09:20 candle gets a
+  // live bucket and can be evaluated when it closes. Requiring a closed session
+  // candle first makes that candle structurally unreachable.
+  if (session.length === 0) {
+    console.log(`[BOT] ${symbol}: seeding from previous session only (no closed candle yet).`);
+    return seed;
+  }
 
   return [...seed, ...session];
 }
@@ -387,7 +407,7 @@ async function main() {
     for (const item of watchlist) {
       try {
         const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-        const candles = buildSeededHistory(histRes.data?.sessionCandles, histRes.data?.historicalCandles);
+        const candles = buildSeededHistory(item.symbol, histRes.data?.sessionCandles, histRes.data?.historicalCandles);
 
         if (!candles) {
           console.error(`[BOT] Missing or gapped session candles for ${item.symbol}. Continuity compromised.`);
@@ -514,7 +534,7 @@ async function main() {
             for (const item of addedSymbols) {
               try {
                 const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-                const candles = buildSeededHistory(histRes.data?.sessionCandles, histRes.data?.historicalCandles);
+                const candles = buildSeededHistory(item.symbol, histRes.data?.sessionCandles, histRes.data?.historicalCandles);
 
                 if (!candles) {
                   console.warn(`[BOT] No usable candles for ${item.symbol}. Continuity compromised.`);
