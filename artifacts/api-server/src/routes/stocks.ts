@@ -5739,9 +5739,8 @@ router.get("/momentum-picks", async (req, res) => {
                   ...(conData.nonIndexConstituents ?? []),
                 ];
                 const top = all
-                  .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 15)
-                  .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0))
-                  .slice(0, 5);
+                  .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 3)
+                  .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0));
                 combinedStocks.push(...top);
               }
             } catch (e) {

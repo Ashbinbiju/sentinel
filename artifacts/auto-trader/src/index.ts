@@ -116,9 +116,8 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
               ...(conRes.data.nonIndexConstituents ?? []),
             ];
             const top = all
-              .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 15)
+              .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 3)
               .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0))
-              .slice(0, 5)
               .map((s: any) => ({ ...s, category: "SECTOR_MOMENTUM" }));
             combinedStocks.push(...top);
           }
