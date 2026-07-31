@@ -127,9 +127,8 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
         }
       }
       uniqueStocks = Array.from(new Map(combinedStocks.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
-    }
 
-    for (const s of uniqueStocks) {
+      for (const s of uniqueStocks) {
       const symbol = s.symbol?.trim();
       const ltp = s.ltp;
       const changePct = s.changePct ?? s.priceChangePct ?? 0;
