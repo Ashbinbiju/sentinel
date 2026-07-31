@@ -497,15 +497,15 @@ async function main() {
       const currentMins = getISTMinutes();
       const nowMs = Date.now();
 
-      // Periodically refresh the watchlist every 3 minutes during market hours
+      // Periodically refresh the watchlist every 5 minutes during market hours
       if (
         initialRecoveryComplete &&
         recoveryPromise === null &&
         currentMins >= 9 * 60 + 15 && 
         currentMins < 15 * 60 + 30 &&
-        nowMs - lastWatchlistFetchMs >= 3 * 60 * 1000
+        nowMs - lastWatchlistFetchMs >= 5 * 60 * 1000
       ) {
-          console.log(`[BOT] Scheduled Watchlist Refresh (3-min interval).`);
+          console.log(`[BOT] Scheduled Watchlist Refresh (5-min interval).`);
 
           const newWatchlist = await getDailyWatchlist(watchlist);
           const currentSymbols = new Set(watchlist.map(w => w.symbol));
