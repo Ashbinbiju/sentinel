@@ -338,18 +338,18 @@ async function runBacktest() {
             const chasePctLow = (brkL - c.c) / brkL;
             const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
 
-            const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
-            const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
-            const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
-            const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
+            // Calculate 20-candle moving average volume
+            const last20Candles = todayCandles.slice(Math.max(0, cIndex - 20), cIndex);
+            const avgVol20 = last20Candles.length > 0
+                ? last20Candles.reduce((sum, curr: any) => sum + (curr.v || 0), 0) / last20Candles.length
+                : 0;
+            const currentVol = c.v || 0;
+            const volRatio = avgVol20 > 0 ? currentVol / avgVol20 : 0;
+            const hasVolumeSpike = avgVol20 === 0 || volRatio >= 2.0;
 
-            const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
-            const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-            const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
-
-            const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
-            const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-            const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
+            const MAX_CANDLE_RANGE_PCT = 0.025; // 2.5% Max Breakout Candle Size Cap
+            const candleRangePct = candleRange / c.c;
+            const isCandleSizeValid = candleRangePct <= MAX_CANDLE_RANGE_PCT;
 
             if (freshHighBreakout) {
                 if (c.c <= c.o) {
@@ -358,6 +358,10 @@ async function runBacktest() {
                     skippedReason = "Long upper rejection wick";
                 } else if (!pivotReady) {
                     skippedReason = "Pivot levels unavailable";
+                } else if (!hasVolumeSpike) {
+                    skippedReason = `Insufficient volume surge (${volRatio.toFixed(1)}x < 2.0x)`;
+                } else if (!isCandleSizeValid) {
+                    skippedReason = `Breakout candle too large (${(candleRangePct * 100).toFixed(2)}% > 1.2%)`;
                 } else if (touchedHighZone && chaseAllowedHigh) {
                     setup = "HIGH BREAKOUT"; direction = "LONG";
                     sl = Math.min(c.l, brkH * (1 - SL_BUFFER_PCT));
@@ -371,18 +375,16 @@ async function runBacktest() {
                     skippedReason = "Long lower rejection wick";
                 } else if (!pivotReady) {
                     skippedReason = "Pivot levels unavailable";
+                } else if (!hasVolumeSpike) {
+                    skippedReason = `Insufficient volume surge (${volRatio.toFixed(1)}x < 2.0x)`;
+                } else if (!isCandleSizeValid) {
+                    skippedReason = `Breakdown candle too large (${(candleRangePct * 100).toFixed(2)}% > 1.2%)`;
                 } else if (touchedLowZone && chaseAllowedLow) {
                     setup = "LOW BREAKDOWN"; direction = "SHORT";
                     sl = Math.max(c.h, brkL * (1 + SL_BUFFER_PCT));
                 } else {
                     skippedReason = "Anti-Chasing / Touch Filter";
                 }
-            } else if (validHighRejection) {
-                setup = "HIGH REJECTION"; direction = "SHORT";
-                sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
-            } else if (validLowSupport) {
-                setup = "LOW SUPPORT"; direction = "LONG";
-                sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
             }
             
             const category = testCases.find(tc => tc.symbol === sym)?.category;

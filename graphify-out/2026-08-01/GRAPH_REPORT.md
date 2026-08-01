@@ -1,11 +1,11 @@
 # Graph Report - sentinel  (2026-08-01)
 
 ## Corpus Check
-- 309 files · ~207,784 words
+- 309 files · ~207,651 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2514 nodes · 3592 edges · 234 communities (188 shown, 46 thin omitted)
+- 2514 nodes · 3592 edges · 233 communities (187 shown, 46 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 19 edges (avg confidence: 0.81)
 - Token cost: 0 input · 0 output
 
@@ -189,7 +189,6 @@
 - [[_COMMUNITY_Community 176 (Mockup Canvas)|Community 176 (Mockup Canvas)]]
 - [[_COMMUNITY_Community 184|Community 184]]
 - [[_COMMUNITY_Community 185|Community 185]]
-- [[_COMMUNITY_Community 186|Community 186]]
 - [[_COMMUNITY_Community 187|Community 187]]
 - [[_COMMUNITY_Community 188|Community 188]]
 - [[_COMMUNITY_Community 189|Community 189]]
@@ -256,15 +255,15 @@
 - **API Contract** — api_spec_yaml, healthz_endpoint, momentum_picks_endpoint, momentum_picks_response_schema [EXTRACTED 0.90]
 - **Render Deployment** — render_config, sentinel_api, sentinel_keepalive [EXTRACTED 1.00]
 
-## Communities (234 total, 46 thin omitted)
+## Communities (233 total, 46 thin omitted)
 
 ### Community 0 - "Community 0 (stocks.ts)"
 Cohesion: 0.02
 Nodes (56): AngelCandleRow, AngelScripMasterRow, Candle, CandleData, CURRENT_STRATEGY_EFFECTIVE_AT_MS, dbTimeToIso(), DD_RANKING_WEIGHTS, DdRecommendation (+48 more)
 
 ### Community 1 - "Community 1 (React)"
-Cohesion: 0.08
-Nodes (35): absolute_sector_leader_score(), breakout_quality_details(), breakout_quality_grade_for_score(), cap_breakout_quality_grade(), cap_breakout_quality_score(), clean_display_text(), confidence_grade(), entry_distance_adjustment() (+27 more)
+Cohesion: 0.06
+Nodes (57): absolute_sector_leader_score(), add_entry_quality_columns(), apply_strict_weak_market_signal_downgrades(), bank_weak_market_sector_penalty(), breakout_quality_details(), breakout_quality_grade_for_score(), calculate_consolidation_candles(), calculate_entry_consolidation_candles() (+49 more)
 
 ### Community 2 - "Community 2 (devDependencies)"
 Cohesion: 0.04
@@ -283,12 +282,12 @@ Cohesion: 0.04
 Nodes (48): ErrorResponse, GetTradeHistoryParams, HealthStatus, HistoryTrade, HistoryTradeDirection, MarketIndex, MomentumPicksResponse, ScannerWarning (+40 more)
 
 ### Community 6 - "Community 6 (AngelOneBroker)"
-Cohesion: 0.10
-Nodes (29): adaptive_recommendation(), analyze_stock_parallel(), backtest_stock(), calculate_buy_at(), calculate_entry_metrics(), calculate_fresh_breakout_age(), calculate_momentum_extension_metrics(), calculate_session_gap_metrics() (+21 more)
+Cohesion: 0.07
+Nodes (39): adaptive_recommendation(), analyze_stock(), analyze_stock_parallel(), backtest_stock(), calculate_advance_decline_ratio(), calculate_buy_at(), calculate_cmo(), calculate_entry_metrics() (+31 more)
 
 ### Community 7 - "Community 7 (analyzeSwingCandidate())"
-Cohesion: 0.10
-Nodes (39): app_date_string(), app_now(), app_timestamp_string(), assess_risk(), calculate_exit_advice(), calculate_holding_period_outcome(), colored_recommendation(), db_value() (+31 more)
+Cohesion: 0.09
+Nodes (37): app_date_string(), app_now(), app_timestamp_string(), calculate_exit_advice(), calculate_holding_period_outcome(), db_value(), ensure_daily_pick_lifecycle_columns(), ensure_table_columns() (+29 more)
 
 ### Community 8 - "Community 8 (dashboard.tsx)"
 Cohesion: 0.09
@@ -755,8 +754,8 @@ Cohesion: 0.40
 Nodes (4): buildCommand, installCommand, outputDirectory, rewrites
 
 ### Community 133 - "Community 133 (accordion.tsx)"
-Cohesion: 0.15
-Nodes (15): analyze_stock(), calculate_advance_decline_ratio(), calculate_cmo(), calculate_sector_performance(), can_compute_indicator(), detect_divergence(), fetch_nse_stock_list(), fetch_stock_data_cached() (+7 more)
+Cohesion: 0.19
+Nodes (16): assess_risk(), calculate_sector_performance(), colored_recommendation(), display_dashboard(), fetch_nse_stock_list(), filter_tradable_symbols(), format_currency(), holding_period_expectancy() (+8 more)
 
 ### Community 134 - "Community 134"
 Cohesion: 0.40
@@ -850,10 +849,6 @@ Nodes (6): calculateVWAP(), fetchMoneycontrol(), formatIST(), MC_HEADERS, runMon
 Cohesion: 0.39
 Nodes (7): calculateVWAP(), fetchMoneycontrol(), formatIST(), MC_HEADERS, MORNING_LIST, runBacktest(), standardPivots()
 
-### Community 186 - "Community 186"
-Cohesion: 0.15
-Nodes (15): add_entry_quality_columns(), apply_strict_weak_market_signal_downgrades(), classify_setup_type(), historical_expectancy_adjustment(), historical_expectancy_lookup(), load_historical_expectancy_lookup(), market_regime_score_multiplier(), market_stats_for_sector() (+7 more)
-
 ### Community 188 - "Community 188"
 Cohesion: 0.20
 Nodes (9): 1. System Architecture, 2. Deployment Environment, 3. Critical Rules & Known Gotchas, A. PM2 Watch Mode (CRITICAL), B. Dhan API Authentication, C. WebSocket Idempotency & Continuity, Core Components of `auto-trader`:, D. Timezone Handling (+1 more)
@@ -899,8 +894,8 @@ Cohesion: 0.50
 Nodes (3): TabsContent, TabsList, TabsTrigger
 
 ### Community 228 - "Community 228"
-Cohesion: 0.08
-Nodes (19): bank_weak_market_sector_penalty(), calculate_consolidation_candles(), calculate_entry_consolidation_candles(), calculate_stop_loss_row(), calculate_target_row(), classify_market_regime(), ContextWarningFilter, ensure_daily_pick_lifecycle_columns() (+11 more)
+Cohesion: 0.33
+Nodes (3): classify_market_regime(), ContextWarningFilter, Classifies regime based on volatility and trend
 
 ### Community 235 - "Community 235"
 Cohesion: 0.40
@@ -925,6 +920,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Community 0 (stocks.ts)` be split into smaller, more focused modules?**
   _Cohesion score 0.024294670846394983 - nodes in this community are weakly interconnected._
 - **Should `Community 1 (React)` be split into smaller, more focused modules?**
-  _Cohesion score 0.0773109243697479 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06180733162830349 - nodes in this community are weakly interconnected._
 - **Should `Community 2 (devDependencies)` be split into smaller, more focused modules?**
   _Cohesion score 0.04336329984135378 - nodes in this community are weakly interconnected._
