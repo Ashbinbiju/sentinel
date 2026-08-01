@@ -1,0 +1,76 @@
+# Watchlist Stock List — July 31, 2026
+
+**Total Watchlist Stocks**: 70 Tickers
+
+| # | Stock Symbol | Category | Morning LTP (₹) | Price Change (%) |
+|---|:-------------|:---------|:----------------|:-----------------|
+| 1 | **APOLLOTYRE** | SECTOR_MOMENTUM | ₹429.55 | 1.5% |
+| 2 | **APTUS** | SECTOR_MOMENTUM | ₹286.45 | 3.34% |
+| 3 | **ARE&M** | SECTOR_MOMENTUM | ₹910.5 | 0.4% |
+| 4 | **ASAHIINDIA** | SECTOR_MOMENTUM | ₹880.9 | 1.33% |
+| 5 | **ASHOKLEY** | SECTOR_MOMENTUM | ₹165.58 | 4.74% |
+| 6 | **BAJAJ-AUTO** | SECTOR_MOMENTUM | ₹11514 | 0.72% |
+| 7 | **BAJAJFINSV** | SECTOR_MOMENTUM | ₹1984.6 | 3.94% |
+| 8 | **BAJFINANCE** | SECTOR_MOMENTUM | ₹1126 | 6.88% |
+| 9 | **BALKRISIND** | SECTOR_MOMENTUM | ₹2471 | 7.11% |
+| 10 | **BHARATFORG** | SECTOR_MOMENTUM | ₹2194 | 1.35% |
+| 11 | **BOSCHLTD** | SECTOR_MOMENTUM | ₹41175 | -0.9% |
+| 12 | **CEATLTD** | SECTOR_MOMENTUM | ₹3429.6 | -0.99% |
+| 13 | **CGCL** | SECTOR_MOMENTUM | ₹228.34 | 3.41% |
+| 14 | **CHOLAFIN** | SECTOR_MOMENTUM | ₹1834.9 | 3.44% |
+| 15 | **CPPLUS** | LOSER | ₹3259.8 | -4.82% |
+| 16 | **CUB** | LOSER | ₹215.48 | -5.85% |
+| 17 | **DBCORP** | SECTOR_MOMENTUM | ₹210.4 | -0.29% |
+| 18 | **DBL** | SECTOR_MOMENTUM | ₹428 | 1.77% |
+| 19 | **DEEPAKFERT** | LOSER | ₹1532.4 | -5.77% |
+| 20 | **EICHERMOT** | SECTOR_MOMENTUM | ₹7835.5 | -0.97% |
+| 21 | **ENDURANCE** | SECTOR_MOMENTUM | ₹2799.5 | -0.17% |
+| 22 | **ESCORTS** | SECTOR_MOMENTUM | ₹3069 | 1.84% |
+| 23 | **EXIDEIND** | SECTOR_MOMENTUM | ₹449.2 | -0.77% |
+| 24 | **FLUOROCHEM** | LOSER | ₹4395 | -4.08% |
+| 25 | **FORCEMOT** | SECTOR_MOMENTUM | ₹18040 | 2.4% |
+| 26 | **GAEL** | GAINER | ₹172.59 | 5.04% |
+| 27 | **GALLANTT** | LOSER | ₹585.35 | -2.98% |
+| 28 | **GOCOLORS** | GAINER | ₹343 | 6.19% |
+| 29 | **HEROMOTOCO** | SECTOR_MOMENTUM | ₹5361.2 | 0.68% |
+| 30 | **HFCL** | LOSER | ₹184.69 | -4.58% |
+| 31 | **JAMNAAUTO** | SECTOR_MOMENTUM | ₹131.86 | 1.18% |
+| 32 | **JKTYRE** | SECTOR_MOMENTUM | ₹399.75 | 0.63% |
+| 33 | **JTEKTINDIA** | SECTOR_MOMENTUM | ₹141.4 | 4.87% |
+| 34 | **KTKBANK** | GAINER | ₹290.75 | 4.21% |
+| 35 | **LTFOODS** | GAINER | ₹397.1 | 4.89% |
+| 36 | **LXCHEM** | LOSER | ₹182.16 | -9.15% |
+| 37 | **M&M** | SECTOR_MOMENTUM | ₹3398.4 | 3.49% |
+| 38 | **MANYAVAR** | GAINER | ₹417.7 | 3.69% |
+| 39 | **MARUTI** | SECTOR_MOMENTUM | ₹14226 | 0.27% |
+| 40 | **MINDACORP** | SECTOR_MOMENTUM | ₹706.15 | -0.11% |
+| 41 | **MOIL** | GAINER | ₹287.95 | 5.03% |
+| 42 | **MOTHERSON** | SECTOR_MOMENTUM | ₹151.05 | 2.95% |
+| 43 | **MRF** | SECTOR_MOMENTUM | ₹134280 | -0.43% |
+| 44 | **MTARTECH** | GAINER | ₹5453.5 | 5% |
+| 45 | **NAZARA** | SECTOR_MOMENTUM | ₹316.5 | 2.74% |
+| 46 | **NOCIL** | LOSER | ₹159.68 | -4.01% |
+| 47 | **PCBL** | LOSER | ₹328 | -10.31% |
+| 48 | **PRESTIGE** | SECTOR_MOMENTUM | ₹1623.1 | 1.77% |
+| 49 | **PSPPROJECT** | LOSER | ₹951.1 | -7.09% |
+| 50 | **PVRINOX** | SECTOR_MOMENTUM | ₹1127.25 | -0.37% |
+| 51 | **SAREGAMA** | SECTOR_MOMENTUM | ₹526.2 | 0.92% |
+| 52 | **SJS** | SECTOR_MOMENTUM | ₹2380 | 0.89% |
+| 53 | **SOBHA** | SECTOR_MOMENTUM | ₹1366.2 | 1.62% |
+| 54 | **SONACOMS** | SECTOR_MOMENTUM | ₹770 | 0.82% |
+| 55 | **SPLPETRO** | LOSER | ₹703.65 | -4.15% |
+| 56 | **SUNDRMFAST** | SECTOR_MOMENTUM | ₹973.9 | 0.8% |
+| 57 | **SUNTV** | SECTOR_MOMENTUM | ₹507.4 | -0.8% |
+| 58 | **SUPRAJIT** | SECTOR_MOMENTUM | ₹507.2 | 1.55% |
+| 59 | **SWIGGY** | GAINER | ₹295.91 | 2.98% |
+| 60 | **TIINDIA** | SECTOR_MOMENTUM | ₹2752.2 | 2.36% |
+| 61 | **TMPV** | SECTOR_MOMENTUM | ₹338.75 | 1.36% |
+| 62 | **TRIVENI** | LOSER | ₹226.4 | -3.19% |
+| 63 | **TVSMOTOR** | SECTOR_MOMENTUM | ₹4314.2 | 2.51% |
+| 64 | **UNOMINDA** | SECTOR_MOMENTUM | ₹1182 | 0.78% |
+| 65 | **VARROC** | SECTOR_MOMENTUM | ₹679.2 | 2.2% |
+| 66 | **VGUARD** | GAINER | ₹316.65 | 4.87% |
+| 67 | **VMART** | GAINER | ₹764.2 | 2.17% |
+| 68 | **VTL** | LOSER | ₹602.1 | -4.36% |
+| 69 | **ZEEL** | SECTOR_MOMENTUM | ₹114.45 | 2% |
+| 70 | **ZFCVINDIA** | SECTOR_MOMENTUM | ₹2388.6 | 0.31% |

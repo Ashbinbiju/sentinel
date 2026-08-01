@@ -1,0 +1,422 @@
+[
+  {
+    "symbol": "APOLLOTYRE",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "429.55",
+    "priceChangePct": "1.5"
+  },
+  {
+    "symbol": "APTUS",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "286.45",
+    "priceChangePct": "3.34"
+  },
+  {
+    "symbol": "ARE&M",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "910.5",
+    "priceChangePct": "0.4"
+  },
+  {
+    "symbol": "ASAHIINDIA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "880.9",
+    "priceChangePct": "1.33"
+  },
+  {
+    "symbol": "ASHOKLEY",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "165.58",
+    "priceChangePct": "4.74"
+  },
+  {
+    "symbol": "BAJAJ-AUTO",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "11514",
+    "priceChangePct": "0.72"
+  },
+  {
+    "symbol": "BAJAJFINSV",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1984.6",
+    "priceChangePct": "3.94"
+  },
+  {
+    "symbol": "BAJFINANCE",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1126",
+    "priceChangePct": "6.88"
+  },
+  {
+    "symbol": "BALKRISIND",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "2471",
+    "priceChangePct": "7.11"
+  },
+  {
+    "symbol": "BHARATFORG",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "2194",
+    "priceChangePct": "1.35"
+  },
+  {
+    "symbol": "BOSCHLTD",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "41175",
+    "priceChangePct": "-0.9"
+  },
+  {
+    "symbol": "CEATLTD",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "3429.6",
+    "priceChangePct": "-0.99"
+  },
+  {
+    "symbol": "CGCL",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "228.34",
+    "priceChangePct": "3.41"
+  },
+  {
+    "symbol": "CHOLAFIN",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1834.9",
+    "priceChangePct": "3.44"
+  },
+  {
+    "symbol": "CPPLUS",
+    "category": "LOSER",
+    "ltp": "3259.8",
+    "priceChangePct": "-4.82"
+  },
+  {
+    "symbol": "CUB",
+    "category": "LOSER",
+    "ltp": "215.48",
+    "priceChangePct": "-5.85"
+  },
+  {
+    "symbol": "DBCORP",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "210.4",
+    "priceChangePct": "-0.29"
+  },
+  {
+    "symbol": "DBL",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "428",
+    "priceChangePct": "1.77"
+  },
+  {
+    "symbol": "DEEPAKFERT",
+    "category": "LOSER",
+    "ltp": "1532.4",
+    "priceChangePct": "-5.77"
+  },
+  {
+    "symbol": "EICHERMOT",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "7835.5",
+    "priceChangePct": "-0.97"
+  },
+  {
+    "symbol": "ENDURANCE",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "2799.5",
+    "priceChangePct": "-0.17"
+  },
+  {
+    "symbol": "ESCORTS",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "3069",
+    "priceChangePct": "1.84"
+  },
+  {
+    "symbol": "EXIDEIND",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "449.2",
+    "priceChangePct": "-0.77"
+  },
+  {
+    "symbol": "FLUOROCHEM",
+    "category": "LOSER",
+    "ltp": "4395",
+    "priceChangePct": "-4.08"
+  },
+  {
+    "symbol": "FORCEMOT",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "18040",
+    "priceChangePct": "2.4"
+  },
+  {
+    "symbol": "GAEL",
+    "category": "GAINER",
+    "ltp": "172.59",
+    "priceChangePct": "5.04"
+  },
+  {
+    "symbol": "GALLANTT",
+    "category": "LOSER",
+    "ltp": "585.35",
+    "priceChangePct": "-2.98"
+  },
+  {
+    "symbol": "GOCOLORS",
+    "category": "GAINER",
+    "ltp": "343",
+    "priceChangePct": "6.19"
+  },
+  {
+    "symbol": "HEROMOTOCO",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "5361.2",
+    "priceChangePct": "0.68"
+  },
+  {
+    "symbol": "HFCL",
+    "category": "LOSER",
+    "ltp": "184.69",
+    "priceChangePct": "-4.58"
+  },
+  {
+    "symbol": "JAMNAAUTO",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "131.86",
+    "priceChangePct": "1.18"
+  },
+  {
+    "symbol": "JKTYRE",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "399.75",
+    "priceChangePct": "0.63"
+  },
+  {
+    "symbol": "JTEKTINDIA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "141.4",
+    "priceChangePct": "4.87"
+  },
+  {
+    "symbol": "KTKBANK",
+    "category": "GAINER",
+    "ltp": "290.75",
+    "priceChangePct": "4.21"
+  },
+  {
+    "symbol": "LTFOODS",
+    "category": "GAINER",
+    "ltp": "397.1",
+    "priceChangePct": "4.89"
+  },
+  {
+    "symbol": "LXCHEM",
+    "category": "LOSER",
+    "ltp": "182.16",
+    "priceChangePct": "-9.15"
+  },
+  {
+    "symbol": "M&M",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "3398.4",
+    "priceChangePct": "3.49"
+  },
+  {
+    "symbol": "MANYAVAR",
+    "category": "GAINER",
+    "ltp": "417.7",
+    "priceChangePct": "3.69"
+  },
+  {
+    "symbol": "MARUTI",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "14226",
+    "priceChangePct": "0.27"
+  },
+  {
+    "symbol": "MINDACORP",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "706.15",
+    "priceChangePct": "-0.11"
+  },
+  {
+    "symbol": "MOIL",
+    "category": "GAINER",
+    "ltp": "287.95",
+    "priceChangePct": "5.03"
+  },
+  {
+    "symbol": "MOTHERSON",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "151.05",
+    "priceChangePct": "2.95"
+  },
+  {
+    "symbol": "MRF",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "134280",
+    "priceChangePct": "-0.43"
+  },
+  {
+    "symbol": "MTARTECH",
+    "category": "GAINER",
+    "ltp": "5453.5",
+    "priceChangePct": "5"
+  },
+  {
+    "symbol": "NAZARA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "316.5",
+    "priceChangePct": "2.74"
+  },
+  {
+    "symbol": "NOCIL",
+    "category": "LOSER",
+    "ltp": "159.68",
+    "priceChangePct": "-4.01"
+  },
+  {
+    "symbol": "PCBL",
+    "category": "LOSER",
+    "ltp": "328",
+    "priceChangePct": "-10.31"
+  },
+  {
+    "symbol": "PRESTIGE",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1623.1",
+    "priceChangePct": "1.77"
+  },
+  {
+    "symbol": "PSPPROJECT",
+    "category": "LOSER",
+    "ltp": "951.1",
+    "priceChangePct": "-7.09"
+  },
+  {
+    "symbol": "PVRINOX",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1127.25",
+    "priceChangePct": "-0.37"
+  },
+  {
+    "symbol": "SAREGAMA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "526.2",
+    "priceChangePct": "0.92"
+  },
+  {
+    "symbol": "SJS",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "2380",
+    "priceChangePct": "0.89"
+  },
+  {
+    "symbol": "SOBHA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1366.2",
+    "priceChangePct": "1.62"
+  },
+  {
+    "symbol": "SONACOMS",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "770",
+    "priceChangePct": "0.82"
+  },
+  {
+    "symbol": "SPLPETRO",
+    "category": "LOSER",
+    "ltp": "703.65",
+    "priceChangePct": "-4.15"
+  },
+  {
+    "symbol": "SUNDRMFAST",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "973.9",
+    "priceChangePct": "0.8"
+  },
+  {
+    "symbol": "SUNTV",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "507.4",
+    "priceChangePct": "-0.8"
+  },
+  {
+    "symbol": "SUPRAJIT",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "507.2",
+    "priceChangePct": "1.55"
+  },
+  {
+    "symbol": "SWIGGY",
+    "category": "GAINER",
+    "ltp": "295.91",
+    "priceChangePct": "2.98"
+  },
+  {
+    "symbol": "TIINDIA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "2752.2",
+    "priceChangePct": "2.36"
+  },
+  {
+    "symbol": "TMPV",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "338.75",
+    "priceChangePct": "1.36"
+  },
+  {
+    "symbol": "TRIVENI",
+    "category": "LOSER",
+    "ltp": "226.4",
+    "priceChangePct": "-3.19"
+  },
+  {
+    "symbol": "TVSMOTOR",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "4314.2",
+    "priceChangePct": "2.51"
+  },
+  {
+    "symbol": "UNOMINDA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "1182",
+    "priceChangePct": "0.78"
+  },
+  {
+    "symbol": "VARROC",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "679.2",
+    "priceChangePct": "2.2"
+  },
+  {
+    "symbol": "VGUARD",
+    "category": "GAINER",
+    "ltp": "316.65",
+    "priceChangePct": "4.87"
+  },
+  {
+    "symbol": "VMART",
+    "category": "GAINER",
+    "ltp": "764.2",
+    "priceChangePct": "2.17"
+  },
+  {
+    "symbol": "VTL",
+    "category": "LOSER",
+    "ltp": "602.1",
+    "priceChangePct": "-4.36"
+  },
+  {
+    "symbol": "ZEEL",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "114.45",
+    "priceChangePct": "2"
+  },
+  {
+    "symbol": "ZFCVINDIA",
+    "category": "SECTOR_MOMENTUM",
+    "ltp": "2388.6",
+    "priceChangePct": "0.31"
+  }
+]
