@@ -20,129 +20,144 @@ async function backtestSymbol(symbol: string, forceSide: "BUY" | "SELL") {
     const dtStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000));
     return dtStr !== todaySlot;
   });
-  const dates = [...new Set(prevCandles.map((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000))))].sort() as string[];
-  const lastDate = dates[dates.length - 1];
+  const prevDates = [...new Set(prevCandles.map((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000))))].sort() as string[];
+  const lastDate = prevDates[prevDates.length - 1];
   const lastDayCandles = prevCandles.filter((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000)) === lastDate);
 
-  const prevHigh = Math.max(...lastDayCandles.map((c: any) => c.h));
-  const prevLow = Math.min(...lastDayCandles.map((c: any) => c.l));
-  console.log(`PDH: ${prevHigh} | PDL: ${prevLow}\n`);
+  const prevClose = lastDayCandles[lastDayCandles.length - 1].c;
+  console.log(`Prev Close: ${prevClose}\n`);
 
   // Print all session candles
-  console.log("TIME     O        H        L        C");
-  console.log("-----    -------  -------  -------  -------");
-  for (const c of sessionCandles) {
-    const d = new Date(c.t * 1000);
-    d.setUTCHours(d.getUTCHours() + 5); d.setUTCMinutes(d.getUTCMinutes() + 30);
-    const t = d.toISOString().substring(11, 16);
-    console.log(`${t}    ${c.o.toFixed(2).padStart(8)}  ${c.h.toFixed(2).padStart(8)}  ${c.l.toFixed(2).padStart(8)}  ${c.c.toFixed(2).padStart(8)}`);
-  }
+  console.log("TIME     O        H        L        C        VWAP     EMA20");
+  console.log("-----    -------  -------  -------  -------  -------  -------");
 
-  const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
-  const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
-  const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
-  const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
 
   let activeTrade: any = null;
   let tradesTaken = 0;
 
   console.log("\n--- SIGNAL SCAN ---\n");
 
-  for (let i = 2; i < sessionCandles.length; i++) {
-    const prevPrevC = sessionCandles[i - 2];
-    const prevC = sessionCandles[i - 1];
+  const allCandles = [...historicalCandles, ...sessionCandles].sort((a: any, b: any) => a.t - b.t);
+
+  const getISTMinuteOfDay = (epochSecs: number) => {
+    const d = new Date(epochSecs * 1000);
+    d.setUTCHours(d.getUTCHours() + 5);
+    d.setUTCMinutes(d.getUTCMinutes() + 30);
+    return d.getUTCHours() * 60 + d.getUTCMinutes();
+  };
+
+  const getEpochDateStr = (epochSecs: number) => {
+    const d = new Date(epochSecs * 1000);
+    d.setUTCHours(d.getUTCHours() + 5);
+    d.setUTCMinutes(d.getUTCMinutes() + 30);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const aggregateCandles = (candles: any[], timeframeSecs: number) => {
+    const timeframeMins = timeframeSecs / 60;
+    const buckets = new Map<string, any>();
+    const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
+  
+    for (const cd of candles) {
+      const mins = getISTMinuteOfDay(cd.t);
+      const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
+      const bucketIndex = Math.floor(relMins / timeframeMins);
+      const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
+      const existing = buckets.get(key);
+  
+      if (!existing) {
+        buckets.set(key, { ...cd, t: cd.t });
+      } else {
+        existing.h = Math.max(existing.h, cd.h);
+        existing.l = Math.min(existing.l, cd.l);
+        existing.c = cd.c;
+        existing.v = (existing.v || 0) + (cd.v || 0);
+      }
+    }
+    return Array.from(buckets.values()).sort((a: any, b: any) => a.t - b.t);
+  };
+
+  let cumPV = 0;
+  let cumV = 0;
+
+  for (let i = 0; i < sessionCandles.length; i++) {
     const c = sessionCandles[i];
     const d = new Date(c.t * 1000);
     d.setUTCHours(d.getUTCHours() + 5); d.setUTCMinutes(d.getUTCMinutes() + 30);
     const timeStr = d.toISOString().substring(11, 16);
 
-    // Time filter: 10:15 to 14:30
+    const hlc3 = (c.h + c.l + c.c) / 3;
+    cumPV += hlc3 * (c.v || 0);
+    cumV += (c.v || 0);
+    const vwap = cumV > 0 ? cumPV / cumV : 0;
+
+    const historySoFar = allCandles.filter((hc: any) => hc.t <= c.t);
+    const agg15m = aggregateCandles(historySoFar, 900);
+    
+    const period = 20;
+    let ema20 = 0;
+    if (agg15m.length >= period) {
+      const closes = agg15m.map((x: any) => x.c);
+      const k = 2 / (period + 1);
+      let ema = closes.slice(0, period).reduce((a: any, b: any) => a + b, 0) / period;
+      for (let j = period; j < closes.length; j++) {
+        ema = (closes[j] - ema) * k + ema;
+      }
+      ema20 = ema;
+    }
+
+    console.log(`${timeStr}    ${c.o.toFixed(2).padStart(8)}  ${c.h.toFixed(2).padStart(8)}  ${c.l.toFixed(2).padStart(8)}  ${c.c.toFixed(2).padStart(8)}  ${vwap.toFixed(2).padStart(8)}  ${ema20.toFixed(2).padStart(8)}`);
+
+    // Time filter: 09:30 to 14:45
     const mins = d.getUTCHours() * 60 + d.getUTCMinutes() + 5; // +5 for candle close
-    const inWindow = mins >= 10 * 60 + 15 && mins <= 14 * 60 + 30;
+    const inWindow = mins >= 9 * 60 + 30 && mins <= 14 * 60 + 45;
 
     // Manage active trade
     if (activeTrade) {
-      const risk = Math.abs(activeTrade.entryPrice - activeTrade.sl);
-      const target = activeTrade.side === "BUY" ? activeTrade.entryPrice + (risk * 2) : activeTrade.entryPrice - (risk * 2);
+      const risk = activeTrade.entryPrice * 0.01; // initial 1% risk
 
-      if (activeTrade.side === "BUY") {
-        if (c.l <= activeTrade.sl) {
-          console.log(`  [EXIT] SL HIT @ ${activeTrade.sl.toFixed(2)} at ${timeStr} | -1R`);
-          activeTrade = null;
-        } else if (c.h >= target) {
-          console.log(`  [EXIT] TARGET HIT @ ${target.toFixed(2)} at ${timeStr} | +2R`);
-          activeTrade = null;
+      // +1.2% Trail to Breakeven
+      if (c.h >= activeTrade.entryPrice * 1.012) {
+        if (activeTrade.sl < activeTrade.entryPrice) {
+          activeTrade.sl = activeTrade.entryPrice;
+          console.log(`  [TRAIL] Hit +1.2%, moving SL to Breakeven (${activeTrade.sl.toFixed(2)})`);
         }
-      } else {
-        if (c.h >= activeTrade.sl) {
-          console.log(`  [EXIT] SL HIT @ ${activeTrade.sl.toFixed(2)} at ${timeStr} | -1R`);
-          activeTrade = null;
-        } else if (c.l <= target) {
-          console.log(`  [EXIT] TARGET HIT @ ${target.toFixed(2)} at ${timeStr} | +2R`);
-          activeTrade = null;
+      }
+      // +2.0% continuous trail
+      if (c.h >= activeTrade.entryPrice * 1.020) {
+        const proposedSL = c.h * (1 - 0.012); // trail by 1.2%
+        if (proposedSL > activeTrade.sl) {
+          activeTrade.sl = proposedSL;
+          console.log(`  [TRAIL] Hit +2.0%, trailing SL to ${activeTrade.sl.toFixed(2)}`);
         }
+      }
+
+      if (c.l <= activeTrade.sl) {
+        const pnl = activeTrade.sl - activeTrade.entryPrice;
+        console.log(`  [EXIT] SL HIT @ ${activeTrade.sl.toFixed(2)} at ${timeStr} | PNL: ${pnl.toFixed(2)}`);
+        activeTrade = null;
       }
     }
 
-    // 3:14 PM auto square-off
+    // 3:15 PM auto square-off
     if (mins >= 15 * 60 + 14 && activeTrade) {
       const exitPrice = c.o;
-      const risk = Math.abs(activeTrade.entryPrice - activeTrade.sl);
-      const pnl = activeTrade.side === "BUY" ? exitPrice - activeTrade.entryPrice : activeTrade.entryPrice - exitPrice;
-      const rr = pnl / risk;
-      console.log(`  [EXIT] AUTO SQUARE-OFF @ ${exitPrice.toFixed(2)} at ${timeStr} | ${rr.toFixed(2)}R`);
+      const pnl = exitPrice - activeTrade.entryPrice;
+      console.log(`  [EXIT] AUTO SQUARE-OFF @ ${exitPrice.toFixed(2)} at ${timeStr} | PNL: ${pnl.toFixed(2)}`);
       activeTrade = null;
       break;
     }
 
     // Evaluate setups (only if no active trade and in time window)
-    if (!activeTrade && inWindow) {
-      const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
-      const touchedHighZone = c.l <= zoneTopH && c.h >= prevHigh;
-      const chasePctHigh = (c.c - prevHigh) / prevHigh;
-      const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
+    if (!activeTrade && inWindow && forceSide === "BUY" && vwap > 0 && ema20 > 0) {
+      const extPc = (c.c - ema20) / ema20;
+      const dayChangePct = (c.c - prevClose) / prevClose;
 
-      const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
-      const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
-      const chasePctLow = (prevLow - c.c) / prevLow;
-      const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
-
-      const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
-      const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-      const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
-
-      const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
-      const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-      const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
-
-      let setup = "";
-      let direction: "BUY" | "SELL" | "" = "";
-      let sl = 0;
-
-      if (freshHighBreakout && chaseAllowedHigh && touchedHighZone) {
-        setup = "HIGH BREAKOUT"; direction = "BUY";
-        sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
-      } else if (freshLowBreakdown && chaseAllowedLow && touchedLowZone) {
-        setup = "LOW BREAKDOWN"; direction = "SELL";
-        sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
-      } else if (validHighRejection) {
-        setup = "HIGH REJECTION"; direction = "SELL";
-        sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
-      } else if (validLowSupport) {
-        setup = "LOW SUPPORT"; direction = "BUY";
-        sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
-      }
-
-      if (direction) {
-        if (direction === forceSide) {
-          const risk = Math.abs(c.c - sl);
-          const target = direction === "BUY" ? c.c + risk * 2 : c.c - risk * 2;
-          console.log(`[ENTRY] ${setup} @ ${timeStr} | Entry: ${c.c.toFixed(2)} | SL: ${sl.toFixed(2)} | Target: ${target.toFixed(2)} | Risk: ${risk.toFixed(2)}`);
-          activeTrade = { side: direction, entryPrice: c.c, sl };
-          tradesTaken++;
-        } else {
-          console.log(`[SKIP] ${setup} (${direction}) @ ${timeStr} — forced ${forceSide} only`);
-        }
+      if (c.c > vwap && c.c > ema20 && extPc < 0.015 && dayChangePct > 0) {
+        const sl = c.c * 0.99; // -1.0% hard stop
+        console.log(`[ENTRY] SECTOR MOMENTUM @ ${timeStr} | Entry: ${c.c.toFixed(2)} | SL: ${sl.toFixed(2)}`);
+        activeTrade = { side: "BUY", entryPrice: c.c, sl };
+        tradesTaken++;
       }
     }
   }

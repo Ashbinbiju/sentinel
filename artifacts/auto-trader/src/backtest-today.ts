@@ -1,7 +1,6 @@
+// @ts-nocheck
 import axios from "axios";
 
-const TOUCH_BUFFER_PCT = 0.0015;
-const MAX_CHASE_PCT = 0.008;
 const MAX_DAILY_TRADES = 5;
 
 function getISTMinuteOfDay(epochSecs: number) {
@@ -18,15 +17,44 @@ function getISTTimeStr(epochSecs: number) {
   return d.toISOString().substring(11, 16);
 }
 
+function getEpochDateStr(epochSecs: number) {
+  const d = new Date(epochSecs * 1000);
+  d.setUTCHours(d.getUTCHours() + 5);
+  d.setUTCMinutes(d.getUTCMinutes() + 30);
+  return d.toISOString().slice(0, 10);
+}
+
+function aggregateCandles(candles: any[], timeframeSecs: number) {
+  const timeframeMins = timeframeSecs / 60;
+  const buckets = new Map<string, any>();
+  const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
+
+  for (const cd of candles) {
+    const mins = getISTMinuteOfDay(cd.t);
+    const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
+    const bucketIndex = Math.floor(relMins / timeframeMins);
+    const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
+    const existing = buckets.get(key);
+
+    if (!existing) {
+      buckets.set(key, { ...cd, t: cd.t });
+    } else {
+      existing.h = Math.max(existing.h, cd.h);
+      existing.l = Math.min(existing.l, cd.l);
+      existing.c = cd.c;
+      existing.v = (existing.v || 0) + (cd.v || 0);
+    }
+  }
+  return Array.from(buckets.values()).sort((a: any, b: any) => a.t - b.t);
+}
+
 async function runBacktest() {
   console.log("Fetching today's watchlist from IntradayScreener...");
   const url = "https://intradayscreener.com/api/trackStocks/cash";
   const res = await axios.get(url, { headers: { Accept: "application/json" } });
 
   const gainers = (res.data.intradayGainers || []).slice(0, 15).map((s: any) => ({ ...s, category: "GAINER" }));
-  const losers = (res.data.intradayLosers || []).slice(0, 15).map((s: any) => ({ ...s, category: "LOSER" }));
-  const combined = [...gainers, ...losers];
-  const uniqueStocks = Array.from(new Map(combined.map(s => [s.symbol?.trim(), s])).values());
+  const uniqueStocks = Array.from(new Map(gainers.map(s => [s.symbol?.trim(), s])).values());
 
   console.log(`Found ${uniqueStocks.length} unique stocks. Fetching data...`);
 
@@ -56,14 +84,14 @@ async function runBacktest() {
       const lastDate = dates[dates.length - 1];
       const lastDayCandles = prevCandles.filter((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000)) === lastDate);
 
-      const prevHigh = Math.max(...lastDayCandles.map((c: any) => c.h));
-      const prevLow = Math.min(...lastDayCandles.map((c: any) => c.l));
+      const prevClose = lastDayCandles[lastDayCandles.length - 1].c;
+      const allCandles = [...historicalCandles, ...sessionCandles].sort((a: any, b: any) => a.t - b.t);
 
       stockData.set(symbol, {
           category: s.category,
-          prevHigh,
-          prevLow,
-          sessionCandles
+          prevClose,
+          sessionCandles,
+          allCandles
       });
 
       for (const c of sessionCandles) {
@@ -79,7 +107,7 @@ async function runBacktest() {
   let totalSimulatedTrades = 0;
   let winningTrades = 0;
   let losingTrades = 0;
-  let totalRR = 0;
+  let totalPNL = 0;
 
   const activeTrades = new Map<string, any>();
   let dailyTradesCount = 0;
@@ -88,25 +116,25 @@ async function runBacktest() {
 
   for (const t of sortedSlots) {
       const timeStr = getISTTimeStr(t);
-      const minsOfDay = getISTMinuteOfDay(t);
+      const minsOfDay = getISTMinuteOfDay(t + 300); // 5 min close
 
-      // 1. Auto Square-Off at 3:14 PM (15:14 = 914 mins)
+      // 1. Auto Square-Off at 3:15 PM
       if (minsOfDay >= 15 * 60 + 14) {
           if (activeTrades.size > 0) {
-              console.log(`\n[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:14 PM)`);
+              console.log(`\n[BOT] 🚨 INTRADAY AUTO SQUARE-OFF TRIGGERED (3:15 PM)`);
               for (const [symbol, trade] of Array.from(activeTrades.entries())) {
                   const data = stockData.get(symbol);
                   const currentCandle = data?.sessionCandles.find((c: any) => c.t === t);
                   const exitPrice = currentCandle ? currentCandle.o : trade.entryPrice;
                   
-                  const pnl = trade.side === "BUY" ? exitPrice - trade.entryPrice : trade.entryPrice - exitPrice;
-                  const risk = Math.abs(trade.entryPrice - trade.sl);
+                  const pnl = exitPrice - trade.entryPrice;
+                  const risk = trade.entryPrice * 0.01;
                   const rr = risk > 0 ? pnl / risk : 0;
                   
                   console.log(`  [EXIT] ${symbol} Auto Squared-off at ${exitPrice} (Entry: ${trade.entryPrice}) RR: ${rr.toFixed(2)}R`);
                   totalSimulatedTrades++;
-                  if (rr > 0) winningTrades++; else losingTrades++;
-                  totalRR += rr;
+                  if (pnl > 0) winningTrades++; else losingTrades++;
+                  totalPNL += pnl;
                   activeTrades.delete(symbol);
               }
           }
@@ -119,34 +147,36 @@ async function runBacktest() {
           const c = data?.sessionCandles.find((c: any) => c.t === t);
           if (!c) continue;
 
-          const risk = Math.abs(trade.entryPrice - trade.sl);
-          const target = trade.side === "BUY" ? trade.entryPrice + (risk * 2) : trade.entryPrice - (risk * 2);
-           
-          if (trade.side === "BUY") {
-              if (c.l <= trade.sl) {
-                  console.log(`  [EXIT] ${symbol} SL hit at ${trade.sl} (Entry: ${trade.entryPrice}) -1R @ ${timeStr}`);
-                  totalSimulatedTrades++; losingTrades++; totalRR -= 1;
-                  activeTrades.delete(symbol);
-              } else if (c.h >= target) {
-                  console.log(`  [EXIT] ${symbol} Target hit at ${target} (Entry: ${trade.entryPrice}) +2R @ ${timeStr}`);
-                  totalSimulatedTrades++; winningTrades++; totalRR += 2;
-                  activeTrades.delete(symbol);
-              }
-          } else {
-              if (c.h >= trade.sl) {
-                  console.log(`  [EXIT] ${symbol} SL hit at ${trade.sl} (Entry: ${trade.entryPrice}) -1R @ ${timeStr}`);
-                  totalSimulatedTrades++; losingTrades++; totalRR -= 1;
-                  activeTrades.delete(symbol);
-              } else if (c.l <= target) {
-                  console.log(`  [EXIT] ${symbol} Target hit at ${target} (Entry: ${trade.entryPrice}) +2R @ ${timeStr}`);
-                  totalSimulatedTrades++; winningTrades++; totalRR += 2;
-                  activeTrades.delete(symbol);
-              }
+          // +1.2% Trail to Breakeven
+          if (c.h >= trade.entryPrice * 1.012) {
+            if (trade.sl < trade.entryPrice) {
+              trade.sl = trade.entryPrice;
+              console.log(`  [TRAIL] ${symbol} hit +1.2%, moving SL to Breakeven (${trade.sl.toFixed(2)})`);
+            }
+          }
+          // +2.0% continuous trail
+          if (c.h >= trade.entryPrice * 1.020) {
+            const proposedSL = c.h * (1 - 0.012); // trail by 1.2%
+            if (proposedSL > trade.sl) {
+              trade.sl = proposedSL;
+              console.log(`  [TRAIL] ${symbol} hit +2.0%, trailing SL to ${trade.sl.toFixed(2)}`);
+            }
+          }
+
+          if (c.l <= trade.sl) {
+            const pnl = trade.sl - trade.entryPrice;
+            const rr = pnl / (trade.entryPrice * 0.01);
+            console.log(`  [EXIT] ${symbol} SL hit at ${trade.sl.toFixed(2)} (Entry: ${trade.entryPrice}) ${rr.toFixed(2)}R @ ${timeStr}`);
+            totalSimulatedTrades++;
+            if (pnl >= 0) winningTrades++; else losingTrades++;
+            totalPNL += pnl;
+            activeTrades.delete(symbol);
           }
       }
 
       // 3. Process Entries
       if (dailyTradesCount >= MAX_DAILY_TRADES) continue;
+      if (minsOfDay < 9 * 60 + 30 || minsOfDay > 14 * 60 + 45) continue;
 
       for (const [symbol, data] of Array.from(stockData.entries())) {
           if (activeTrades.has(symbol)) continue;
@@ -154,64 +184,45 @@ async function runBacktest() {
 
           const sessionCandles = data.sessionCandles;
           const idx = sessionCandles.findIndex((c: any) => c.t === t);
-          if (idx < 2) continue; // Need prev and prevPrev
+          if (idx < 0) continue;
 
           const c = sessionCandles[idx];
-          const prevC = sessionCandles[idx - 1];
-          const prevPrevC = sessionCandles[idx - 2];
+          
+          let cumPV = 0;
+          let cumV = 0;
+          for (let i = 0; i <= idx; i++) {
+            const sc = sessionCandles[i];
+            const hlc3 = (sc.h + sc.l + sc.c) / 3;
+            cumPV += hlc3 * (sc.v || 0);
+            cumV += (sc.v || 0);
+          }
+          const vwap = cumV > 0 ? cumPV / cumV : 0;
 
-          const prevHigh = data.prevHigh;
-          const prevLow = data.prevLow;
-          const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
-          const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
-          const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
-          const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
-
-          const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
-          const touchedHighZone = c.l <= zoneTopH && c.h >= prevHigh;
-          const chasePctHigh = (c.c - prevHigh) / prevHigh;
-          const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
-
-          const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
-          const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
-          const chasePctLow = (prevLow - c.c) / prevLow;
-          const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
-
-          const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
-          const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-          const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
-
-          const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
-          const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-          const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
-
-          let setup = "";
-          let direction = "";
-          let sl = 0;
-
-          if (freshHighBreakout && chaseAllowedHigh && touchedHighZone) {
-              setup = "HIGH BREAKOUT"; direction = "BUY";
-              sl = Math.min(c.l, prevHigh * 0.99);
-          } else if (freshLowBreakdown && chaseAllowedLow && touchedLowZone) {
-              setup = "LOW BREAKDOWN"; direction = "SELL";
-              sl = Math.max(c.h, prevLow * 1.01);
-          } else if (validHighRejection) {
-              setup = "HIGH REJECTION"; direction = "SELL";
-              sl = Math.max(c.h, zoneTopH * 1.01);
-          } else if (validLowSupport) {
-              setup = "LOW SUPPORT"; direction = "BUY";
-              sl = Math.min(c.l, zoneBotL * 0.99);
+          const historySoFar = data.allCandles.filter((hc: any) => hc.t <= c.t);
+          const agg15m = aggregateCandles(historySoFar, 900);
+          
+          const period = 20;
+          let ema20 = 0;
+          if (agg15m.length >= period) {
+            const closes = agg15m.map((x: any) => x.c);
+            const k = 2 / (period + 1);
+            let ema = closes.slice(0, period).reduce((a: any, b: any) => a + b, 0) / period;
+            for (let j = period; j < closes.length; j++) {
+              ema = (closes[j] - ema) * k + ema;
+            }
+            ema20 = ema;
           }
 
-          if (direction) {
-              const mins = getISTMinuteOfDay(c.t + 300);
-              if (mins >= 10 * 60 + 15 && mins <= 14 * 60 + 30) {
-                  if ((direction === "BUY" && data.category === "GAINER") || (direction === "SELL" && data.category === "LOSER")) {
-                      console.log(`[ENTRY ${dailyTradesCount + 1}/5] ${symbol} @ ${timeStr} | ${setup} | Entry: ${c.c} | SL: ${sl.toFixed(2)}`);
-                      activeTrades.set(symbol, { side: direction, entryPrice: c.c, sl });
-                      dailyTradesCount++;
-                  }
-              }
+          if (vwap === 0 || ema20 === 0) continue;
+
+          const extPc = (c.c - ema20) / ema20;
+          const dayChangePct = (c.c - data.prevClose) / data.prevClose;
+
+          if (c.c > vwap && c.c > ema20 && extPc < 0.015 && dayChangePct > 0) {
+              const sl = c.c * 0.99; // -1.0% hard stop
+              console.log(`[ENTRY ${dailyTradesCount + 1}/5] ${symbol} @ ${timeStr} | SECTOR MOMENTUM | Entry: ${c.c} | SL: ${sl.toFixed(2)}`);
+              activeTrades.set(symbol, { side: "BUY", entryPrice: c.c, sl });
+              dailyTradesCount++;
           }
       }
   }
@@ -219,7 +230,6 @@ async function runBacktest() {
   console.log(`\n=== CHRONOLOGICAL BACKTEST SUMMARY ===`);
   console.log(`Total Trades Taken: ${totalSimulatedTrades}`);
   console.log(`Wins: ${winningTrades} | Losses: ${losingTrades}`);
-  console.log(`Net RR (R-Multiple): ${totalRR.toFixed(2)}R`);
 }
 
 runBacktest().catch(console.error);

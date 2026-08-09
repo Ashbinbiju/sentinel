@@ -27,22 +27,11 @@ const TARGET_RR = 2;
 // 0 = disabled.
 const MAX_TARGET_RANGE_RATIO = parseFloat(process.env.MAX_TARGET_RANGE_RATIO || "0");
 
-/**
- * Standard ("Traditional") floor pivots from the previous session's High/Low/Close.
- * Only P, R1 and S1 are used by the entry filter.
- */
-export function standardPivots(prevHigh: number, prevLow: number, prevClose: number) {
-  const p = (prevHigh + prevLow + prevClose) / 3;
-  return { p, r1: 2 * p - prevLow, s1: 2 * p - prevHigh };
-}
-
 export interface WatchlistContext {
   symbol: string;
   securityId: string;
-  prevHigh: number;
-  prevLow: number;
-  /** Previous session's closing price. Required by the pivot filter. */
-  prevClose?: number;
+  /** Previous session's closing price. Required to verify stock is up on the day. */
+  prevClose: number;
   category: string;
   ltp?: number;
   priceChangePct?: number;
@@ -137,9 +126,7 @@ export class ExecutionEngine {
             const candleClosedAtMs = (Number(c.t) + 300) * 1000;
             const signalDelayMs = Date.now() - candleClosedAtMs;
 
-            const prevHigh = ctx.prevHigh;
-            const prevLow = ctx.prevLow;
-            const slotIso = new Date(c.t * 1000).toISOString().substring(11, 16);
+            const slotIso = new Date((c.t + 300) * 1000).toISOString().substring(11, 16);
             const reject = (reason: string) => {
               console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
             };
@@ -152,28 +139,13 @@ export class ExecutionEngine {
               return reject("INSUFFICIENT_HISTORY");
             }
 
-            const prevC = history[history.length - 2];
-            const prevPrevC = history[history.length - 3];
-
             const getEpochDateStr = (epochSecs: number) => {
               const d = new Date(epochSecs * 1000);
               d.setUTCHours(d.getUTCHours() + 5);
               d.setUTCMinutes(d.getUTCMinutes() + 30);
               return d.toISOString().slice(0, 10);
             };
-
-            // On the first two candles of the day, prevC/prevPrevC come from the
-            // previous session. That is fine for the BREAKOUT setups, which only
-            // compare against prevC.c — and a gap-open that closes through PDH is
-            // a genuine fresh cross of the level.
-            //
-            // The FADE setups are different: approachedHighFromBelow encodes "price
-            // worked up to the level over the last two candles", which is only
-            // meaningful inside one session. Those stay gated on sameSession.
-            const sameSession =
-              getEpochDateStr(prevC.t) === getEpochDateStr(c.t) &&
-              getEpochDateStr(prevPrevC.t) === getEpochDateStr(c.t);
-
+            
             const getISTMinuteOfDay = (epochSecs: number) => {
               const d = new Date(epochSecs * 1000);
               d.setUTCHours(d.getUTCHours() + 5);
@@ -181,135 +153,96 @@ export class ExecutionEngine {
               return d.getUTCHours() * 60 + d.getUTCMinutes();
             };
 
-            const mins = getISTMinuteOfDay(c.t + 300);
-            if (mins < 9 * 60 + 20 || mins > 11 * 60 + 30) {
+            const aggregateCandles = (candles: any[], timeframeSecs: number): any[] => {
+              const timeframeMins = timeframeSecs / 60;
+              const buckets = new Map<string, any>();
+              const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
+            
+              for (const cd of [...candles].sort((a, b) => a.t - b.t)) {
+                const mins = getISTMinuteOfDay(cd.t);
+                const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
+                const bucketIndex = Math.floor(relMins / timeframeMins);
+                const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
+                const existing = buckets.get(key);
+            
+                if (!existing) {
+                  buckets.set(key, { ...cd, t: cd.t });
+                } else {
+                  existing.h = Math.max(existing.h, cd.h);
+                  existing.l = Math.min(existing.l, cd.l);
+                  existing.c = cd.c;
+                  existing.v = (existing.v || 0) + (cd.v || 0);
+                }
+              }
+              return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
+            };
+
+            const calculateEMA = (candles: any[], period: number): number => {
+              const closes = candles.map(c => c.c);
+              let ema = 0;
+              const k = 2 / (period + 1);
+              for (let i = 0; i < closes.length; i++) {
+                if (i === 0) ema = closes[i];
+                else ema = (closes[i] - ema) * k + ema;
+              }
+              return ema;
+            };
+
+            const mins = getISTMinuteOfDay(c.t + 60);
+            if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) {
               return reject("OUTSIDE_TIME");
             }
 
-            const pivots =
-              typeof ctx.prevClose === "number" && Number.isFinite(ctx.prevClose)
-                ? standardPivots(prevHigh, prevLow, ctx.prevClose)
-                : null;
+            if (history.length < 200) return reject("INSUFFICIENT_DATA");
 
-            const pivotLog = pivots
-              ? ` R1=${pivots.r1.toFixed(2)} S1=${pivots.s1.toFixed(2)}`
-              : " R1=n/a S1=n/a";
+            const c1 = history[history.length - 1];
+            
+            const prevDayCandles = history.filter(hc => getEpochDateStr(hc.t) < getEpochDateStr(c1.t));
+            if (prevDayCandles.length === 0) return reject("INSUFFICIENT_DATA");
+            
+            const pdh = Math.max(...prevDayCandles.map(hc => hc.h));
+            const pdl = Math.min(...prevDayCandles.map(hc => hc.l));
 
-            console.log(`[ENGINE] EVALUATING ${ctx.symbol} slot=${slotIso} O=${c.o} H=${c.h} L=${c.l} C=${c.c} PDH=${prevHigh} PDL=${prevLow}${pivotLog}`);
+            const agg15m = aggregateCandles(history, 900);
+            const agg2m = aggregateCandles(history, 120);
+
+            if (agg15m.length < 2 || agg2m.length < 200) return reject("INSUFFICIENT_DATA");
+
+            const past15m = agg15m.filter(xc => xc.t < agg2m[agg2m.length - 1].t);
+            if (past15m.length < 1) return reject("INSUFFICIENT_DATA");
+            const last15m = past15m[past15m.length - 1];
+            const current2m = agg2m[agg2m.length - 1];
+
+            const bullBreak = last15m.c > pdh;
+            const bearBreak = last15m.c < pdl;
+
+            if (!bullBreak && !bearBreak) return reject("NO_BREAKOUT");
+
+            const ema13 = calculateEMA(agg2m, 13);
+            const ema48 = calculateEMA(agg2m, 48);
+            const ema200 = calculateEMA(agg2m, 200);
+
+            const bullAligned = ema13 > ema48 && ema48 > ema200;
+            const bearAligned = ema13 < ema48 && ema48 < ema200;
 
             let setup = "";
             let direction: "BUY" | "SELL" | null = null;
             let sl = 0;
-            let entryPrice = c.c;
+            let entryPrice = current2m.c;
 
-            const candleRange = Math.max(c.h - c.l, 0.05);
-            const upperWick = c.h - Math.max(c.o, c.c);
-            const lowerWick = Math.min(c.o, c.c) - c.l;
-
-            const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
-            const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
-            const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
-            const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
-
-            // Effective breakout level. With the pivot filter on, a long has to clear
-            // BOTH PDH and R1, so the higher of the two is what actually binds. The
-            // fresh-cross test must be anchored there: anchoring on PDH alone burns
-            // the cross on a candle that has not yet reached R1, after which no later
-            // candle is ever "fresh" and the whole move is missed. Breaking the two
-            // levels on separate candles is expected and allowed.
-            const pivotReady = !USE_PIVOT_FILTER || pivots !== null;
-            const brkH = USE_PIVOT_FILTER && pivots ? Math.max(prevHigh, pivots.r1) : prevHigh;
-            const brkL = USE_PIVOT_FILTER && pivots ? Math.min(prevLow, pivots.s1) : prevLow;
-
-            const freshHighBreakout = prevC.c <= brkH && c.c > brkH;
-            const touchedHighZone = c.l <= brkH * (1 + TOUCH_BUFFER_PCT) && c.h >= brkH;
-            const chasePctHigh = (c.c - brkH) / brkH;
-            const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
-
-            const freshLowBreakdown = prevC.c >= brkL && c.c < brkL;
-            const touchedLowZone = c.h >= brkL * (1 - TOUCH_BUFFER_PCT) && c.l <= brkL;
-            const chasePctLow = (brkL - c.c) / brkL;
-            const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
-
-            const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
-            const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-            const validHighRejection = sameSession && approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
-
-            const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
-            const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-            const validLowSupport = sameSession && approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
-
-            const last20Candles = history.slice(Math.max(0, history.length - 21), history.length - 1);
-            const avgVol20 = last20Candles.length > 0
-              ? last20Candles.reduce((sum, curr) => sum + (curr.v || 0), 0) / last20Candles.length
-              : 0;
-            const currentVol = c.v || 0;
-            const volRatio = avgVol20 > 0 ? currentVol / avgVol20 : 0;
-            const hasVolumeSpike = avgVol20 === 0 || volRatio >= 2.0;
-
-            const MAX_CANDLE_RANGE_PCT = 0.025; // 2.5% Max Breakout Candle Size Cap
-            const candleRangePct = candleRange / c.c;
-            const isCandleSizeValid = candleRangePct <= MAX_CANDLE_RANGE_PCT;
-
-            // 20D Average Daily Value (ADVCr) Liquidity Filter
-            const ESTIMATED_DAILY_CANDLES = 75; // 75 5-min candles per trading day
-            const avgDailyValueCr = (avgVol20 * ESTIMATED_DAILY_CANDLES * c.c) / 10_000_000;
-            const MIN_ADV_CR = 10.0; // ₹ 10 Crores minimum 20D ADV threshold
-            const isLiquidityValid = avgDailyValueCr >= MIN_ADV_CR;
-
-            // Maximum Stock Price Filter (<= ₹3000)
-            const MAX_STOCK_PRICE = 3000;
-            const isPriceValid = c.c <= MAX_STOCK_PRICE;
-
-            if (freshHighBreakout) {
-              // Fail closed: without a previous close there is no R1 to clear.
-              if (!pivotReady) return reject("PIVOT_UNAVAILABLE");
-              if (!chaseAllowedHigh) return reject("CHASE_BLOCK");
-              if (c.c <= c.o) return reject("BEARISH_BREAKOUT_CANDLE");
-              if (upperWick / candleRange > 0.35) return reject("LONG_UPPER_REJECTION_WICK");
-              if (!hasVolumeSpike) return reject(`VOLUME_SPIKE_INSUFFICIENT(${volRatio.toFixed(1)}x < 2.0x)`);
-              if (!isCandleSizeValid) return reject(`BREAKOUT_CANDLE_TOO_LARGE(${(candleRangePct * 100).toFixed(2)}% > 1.2%)`);
-              if (!isLiquidityValid) return reject(`INSUFFICIENT_LIQUIDITY(₹${avgDailyValueCr.toFixed(1)}Cr < ₹${MIN_ADV_CR}Cr)`);
-              if (!isPriceValid) return reject(`EXCESSIVE_PRICE(₹${c.c.toFixed(2)} > ₹${MAX_STOCK_PRICE})`);
-              if (touchedHighZone) {
-                setup = "HIGH BREAKOUT"; direction = "BUY";
-                sl = Math.min(c.l, brkH * (1 - SL_BUFFER_PCT));
-              }
-            } else if (freshLowBreakdown) {
-              if (!pivotReady) return reject("PIVOT_UNAVAILABLE");
-              if (!chaseAllowedLow) return reject("CHASE_BLOCK");
-              if (c.c >= c.o) return reject("BULLISH_BREAKDOWN_CANDLE");
-              if (lowerWick / candleRange > 0.35) return reject("LONG_LOWER_REJECTION_WICK");
-              if (!hasVolumeSpike) return reject(`VOLUME_SPIKE_INSUFFICIENT(${volRatio.toFixed(1)}x < 2.0x)`);
-              if (!isCandleSizeValid) return reject(`BREAKDOWN_CANDLE_TOO_LARGE(${(candleRangePct * 100).toFixed(2)}% > 1.2%)`);
-              if (!isLiquidityValid) return reject(`INSUFFICIENT_LIQUIDITY(₹${avgDailyValueCr.toFixed(1)}Cr < ₹${MIN_ADV_CR}Cr)`);
-              if (!isPriceValid) return reject(`EXCESSIVE_PRICE(₹${c.c.toFixed(2)} > ₹${MAX_STOCK_PRICE})`);
-              if (touchedLowZone) {
-                setup = "LOW BREAKDOWN"; direction = "SELL";
-                sl = Math.max(c.h, brkL * (1 + SL_BUFFER_PCT));
-              }
-            }
-
-            if (!direction) {
+            if (bullBreak && bullAligned && current2m.l <= ema13 && current2m.c > ema13) {
+              setup = "15m/2m SNIPER BULL";
+              direction = "BUY";
+              sl = ema48 * 0.999;
+            } else if (bearBreak && bearAligned && current2m.h >= ema13 && current2m.c < ema13) {
+              setup = "15m/2m SNIPER BEAR";
+              direction = "SELL";
+              sl = ema48 * 1.001;
+            } else {
               return reject("NO_SETUP");
             }
 
-            entryPrice = c.c;
-
-            if (MAX_TARGET_RANGE_RATIO > 0) {
-              // Same risk formula initiateTrade uses for sizing, so the filter
-              // judges the exact distance the trade would need to travel.
-              const riskPerShare = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-              const targetDistance = riskPerShare * TARGET_RR;
-              const prevRange = prevHigh - prevLow;
-
-              if (prevRange > 0) {
-                const rangeRatio = targetDistance / prevRange;
-                if (rangeRatio > MAX_TARGET_RANGE_RATIO) {
-                  return reject(`TARGET_BEYOND_RANGE(${rangeRatio.toFixed(2)}x)`);
-                }
-              }
-            }
+            // Maximum Target Range constraint is disabled since Momentum exits are purely trailing
 
             const activeTrade = this.getActiveOrPendingTrade(securityId);
             if (activeTrade) {
@@ -547,12 +480,32 @@ export class ExecutionEngine {
       let reachedTrailRR = false;
       let trailSLPrice = trade.entryPrice;
 
-      if (trade.side === "BUY" && ltp >= trade.entryPrice + (risk * STRUCTURAL_TRAIL_RR)) {
-        reachedTrailRR = true;
-        trailSLPrice = this.roundToTick(trade.entryPrice - (risk * STRUCTURAL_TRAIL_RISK_BUFFER));
-      } else if (trade.side === "SELL" && ltp <= trade.entryPrice - (risk * STRUCTURAL_TRAIL_RR)) {
-        reachedTrailRR = true;
-        trailSLPrice = this.roundToTick(trade.entryPrice + (risk * STRUCTURAL_TRAIL_RISK_BUFFER));
+      if (trade.side === "BUY" && ltp >= trade.entryPrice * 1.012) {
+        // Step 1: Jump to Break-Even at +1.2%
+        if (trade.stopLossPrice < trade.entryPrice) {
+          reachedTrailRR = true;
+          trailSLPrice = this.roundToTick(trade.entryPrice);
+        }
+        // Step 2: Continuous Trail at +2.0%
+        if (ltp >= trade.entryPrice * 1.020) {
+          const proposedSL = this.roundToTick(ltp * (1 - 0.012)); // Trail by 1.2%
+          if (proposedSL > trade.stopLossPrice) {
+            reachedTrailRR = true;
+            trailSLPrice = proposedSL;
+          }
+        }
+      } else if (trade.side === "SELL" && ltp <= trade.entryPrice * (1 - 0.012)) {
+        if (trade.stopLossPrice > trade.entryPrice) {
+          reachedTrailRR = true;
+          trailSLPrice = this.roundToTick(trade.entryPrice);
+        }
+        if (ltp <= trade.entryPrice * (1 - 0.020)) {
+          const proposedSL = this.roundToTick(ltp * (1 + 0.012));
+          if (proposedSL < trade.stopLossPrice) {
+            reachedTrailRR = true;
+            trailSLPrice = proposedSL;
+          }
+        }
       }
 
       if (reachedTrailRR) {

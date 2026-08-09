@@ -1,0 +1,89 @@
+//@version=6
+// ============================================================================
+//  15m / 2m MULTI-TIMEFRAME SNIPER STRATEGY
+// ----------------------------------------------------------------------------
+//  Wait for 15m candle to confirm break of PDH (Previous Day High).
+//  Once broken, look for 13/48/200 EMA alignment on 2m.
+//  Enter on the first pullback to the 13 EMA.
+// ============================================================================
+strategy("A+ 15m/2m Sniper Pullback", overlay=true, initial_capital=50000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// 1. Inputs
+rr_target = input.float(3.0, "Risk:Reward Target", step=0.1)
+stop_buffer = input.float(0.1, "Stop Loss Buffer (%)", step=0.1)
+
+// 2. Fetch Previous Day High (PDH) and Low (PDL)
+pdh = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+pdl = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_on)
+
+plot(pdh, color=color.new(color.green, 50), style=plot.style_circles, linewidth=2, title="PDH")
+plot(pdl, color=color.new(color.red, 50), style=plot.style_circles, linewidth=2, title="PDL")
+
+// 3. Evaluate 15m Breakout Confirmed State
+// We use request.security to check if the last closed 15m candle closed above PDH
+is_15m_bull_breakout = request.security(syminfo.tickerid, "15", close[1] > pdh and close[2] <= pdh)
+is_15m_bear_breakout = request.security(syminfo.tickerid, "15", close[1] < pdl and close[2] >= pdl)
+
+// Keep the state active for the rest of the day once a 15m candle breaks it
+var bool bull_break_active = false
+var bool bear_break_active = false
+
+if session.isfirstbar
+    bull_break_active := false
+    bear_break_active := false
+
+if is_15m_bull_breakout
+    bull_break_active := true
+if is_15m_bear_breakout
+    bear_break_active := true
+
+// 4. Calculate 2m EMAs
+ema13 = ta.ema(close, 13)
+ema48 = ta.ema(close, 48)
+ema200 = ta.ema(close, 200)
+
+plot(ema13, color=color.yellow, title="EMA 13")
+plot(ema48, color=color.orange, title="EMA 48")
+plot(ema200, color=color.white, title="EMA 200")
+
+// 5. Entry Logic (2m Pullback to 13 EMA)
+bull_aligned = ema13 > ema48 and ema48 > ema200
+bear_aligned = ema13 < ema48 and ema48 < ema200
+
+// We want price to have been ABOVE the 13 EMA, and now it touches it (Low <= EMA13)
+bull_pullback = bull_break_active and bull_aligned and low <= ema13 and close > ema13
+bear_pullback = bear_break_active and bear_aligned and high >= ema13 and close < ema13
+
+// Ensure we only take the FIRST pullback after the breakout
+var bool long_taken_today = false
+var bool short_taken_today = false
+
+if session.isfirstbar
+    long_taken_today := false
+    short_taken_today := false
+
+long_condition = bull_pullback and not long_taken_today
+short_condition = bear_pullback and not short_taken_today
+
+var float sl_price = na
+var float tp_price = na
+
+if long_condition
+    sl_price := ema48 * (1 - (stop_buffer / 100)) // Stop just below 48 EMA
+    risk = close - sl_price
+    tp_price := close + (risk * rr_target)
+    strategy.entry("Sniper Long", strategy.long)
+    strategy.exit("Exit Long", "Sniper Long", stop=sl_price, limit=tp_price)
+    long_taken_today := true
+
+if short_condition
+    sl_price := ema48 * (1 + (stop_buffer / 100)) // Stop just above 48 EMA
+    risk = sl_price - close
+    tp_price := close - (risk * rr_target)
+    strategy.entry("Sniper Short", strategy.short)
+    strategy.exit("Exit Short", "Sniper Short", stop=sl_price, limit=tp_price)
+    short_taken_today := true
+
+// Close all at EOD
+if hour(time) == 15 and minute(time) >= 15
+    strategy.close_all("EOD Square Off")

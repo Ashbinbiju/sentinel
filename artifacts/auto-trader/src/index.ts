@@ -162,18 +162,13 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
                   const lastDate = dates[dates.length - 1];
                   const lastDayCandles = prevCandles.filter(c => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000)) === lastDate);
 
-                  const prevHigh = Math.max(...lastDayCandles.map(c => c.h));
-                  const prevLow = Math.min(...lastDayCandles.map(c => c.l));
-
-                  // Last candle of the previous session — feeds the pivot filter.
-                  const chronological = [...lastDayCandles].sort((a, b) => a.t - b.t);
-                  const prevClose = chronological[chronological.length - 1].c;
+                  const prevClose = lastDayCandles[lastDayCandles.length - 1].c;
 
                   if (!Number.isFinite(prevClose)) {
-                    console.warn(`[BOT] No previous close for ${symbol}. Pivot filter will block its setups.`);
+                    console.warn(`[BOT] No previous close for ${symbol}. Setup verification will fail.`);
                   }
 
-                  list.push({ symbol, securityId, prevHigh, prevLow, prevClose, category: s.category, ltp, priceChangePct: changePct });
+                  list.push({ symbol, securityId, prevClose, category: s.category, ltp, priceChangePct: changePct });
                 }
               }
             } catch (err: any) {
@@ -198,8 +193,8 @@ async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promis
         category: item.category,
         ltp: item.ltp,
         priceChangePct: item.priceChangePct,
-        prevHigh: item.prevHigh,
-        prevLow: item.prevLow,
+        prevHigh: 0,
+        prevLow: 0,
       }).catch(() => {})
     );
     await Promise.all(snapshotPromises);

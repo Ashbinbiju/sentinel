@@ -1057,7 +1057,7 @@ export async function fetchAngelCandles(symbol: string): Promise<CandleData | nu
         smartApi.getCandleData({
           exchange: "NSE",
           symboltoken: token,
-          interval: "FIVE_MINUTE",
+          interval: "ONE_MINUTE",
           fromdate: formatAngelDate(from),
           todate: formatAngelDate(now),
         })
@@ -1271,7 +1271,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
     exchangeSegment: "NSE_EQ",
     instrument: "EQUITY",
     expiryCode: 0,
-    interval: "5",
+    interval: "1",
     fromDate: fmt(fromDate),
     toDate: fmt(toDate)
   };
@@ -1374,7 +1374,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
     const currentEpochSecs = Math.floor(Date.now() / 1000);
 
     // 1. Historical candles (past N days, excludes today)
-    const histUrl = `https://api.upstox.com/v3/historical-candle/${encodedKey}/minutes/5/${fmt(toDate)}/${fmt(fromDate)}`;
+    const histUrl = `https://api.upstox.com/v3/historical-candle/${encodedKey}/minutes/1/${fmt(toDate)}/${fmt(fromDate)}`;
     const histResp = await fetch(histUrl, { headers });
     if (histResp.ok) {
       const histData = (await histResp.json()) as {
@@ -1395,7 +1395,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
     }
 
     // 2. Today's intraday candles
-    const intradayUrl = `https://api.upstox.com/v3/historical-candle/intraday/${encodedKey}/minutes/5`;
+    const intradayUrl = `https://api.upstox.com/v3/historical-candle/intraday/${encodedKey}/minutes/1`;
     const intradayResp = await fetch(intradayUrl, { headers });
     if (intradayResp.ok) {
       const intradayData = (await intradayResp.json()) as {
@@ -1428,7 +1428,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
 async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600;
-  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=600&currencyCode=INR`;
+  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=1&from=${from}&to=${to}&countback=600&currencyCode=INR`;
 
   const response = await fetch(url, { headers: MC_HEADERS });
   if (!response.ok) return null;
@@ -5771,87 +5771,99 @@ router.get("/momentum-picks", async (req, res) => {
               const candleData = await fetchCandles(stock.symbol);
               if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) return;
 
-              const prevDayCandlesAll = candleData.historicalCandles.filter(c => getCandleCloseDateIST(c) !== getTodayISTDateStr());
-              if (prevDayCandlesAll.length === 0) return;
+              const fullHistory = [...candleData.historicalCandles, ...candleData.sessionCandles];
+              
+              // 1. Sniper 15m/2m Strategy Logic
+              const aggregateCandles = (candles: any[], timeframeSecs: number): any[] => {
+                const timeframeMins = timeframeSecs / 60;
+                const buckets = new Map<string, any>();
+                const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
+              
+                for (const cd of [...candles].sort((a, b) => a.t - b.t)) {
+                  const mins = getISTMinuteOfDay(cd.t);
+                  const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
+                  const bucketIndex = Math.floor(relMins / timeframeMins);
+                  const key = `${getISTDateStr(cd.t)}:${bucketIndex}`;
+                  const existing = buckets.get(key);
+              
+                  if (!existing) {
+                    buckets.set(key, { ...cd, t: cd.t });
+                  } else {
+                    existing.h = Math.max(existing.h, cd.h);
+                    existing.l = Math.min(existing.l, cd.l);
+                    existing.c = cd.c;
+                    existing.v = (existing.v || 0) + (cd.v || 0);
+                  }
+                }
+                return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
+              };
 
-              const prevDates = Array.from(new Set(prevDayCandlesAll.map(c => getCandleCloseDateIST(c)))).sort();
-              const lastPrevDate = prevDates.at(-1);
-              if (!lastPrevDate) return;
+              const calculateEMA = (candles: any[], period: number): number => {
+                const closes = candles.map(c => c.c);
+                let ema = 0;
+                const k = 2 / (period + 1);
+                for (let i = 0; i < closes.length; i++) {
+                  if (i === 0) ema = closes[i];
+                  else ema = (closes[i] - ema) * k + ema;
+                }
+                return ema;
+              };
 
-              const prevDayCandles = prevDayCandlesAll.filter(c => getCandleCloseDateIST(c) === lastPrevDate);
+              if (fullHistory.length < 200) return;
+              
+              const c1 = fullHistory[fullHistory.length - 1]; // latest confirmed 1m candle
+              const mins = getISTMinuteOfDay(c1.t + 60);
+
+              if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) return; // Prime Time 09:30 - 14:45 IST
+
+              const prevDayCandles = fullHistory.filter(c => getCandleCloseDateIST(c) < getCandleCloseDateIST(c1));
               if (prevDayCandles.length === 0) return;
+              
+              const pdh = Math.max(...prevDayCandles.map(hc => hc.h));
+              const pdl = Math.min(...prevDayCandles.map(hc => hc.l));
+              const pdClose = prevDayCandles[prevDayCandles.length - 1].c;
 
-              const prevHigh = Math.max(...prevDayCandles.map((c) => c.h));
-              const prevLow = Math.min(...prevDayCandles.map((c) => c.l));
+              const agg15m = aggregateCandles(fullHistory, 900);
+              const agg2m = aggregateCandles(fullHistory, 120);
 
-              const confirmedSession = getConfirmedCandles(candleData.sessionCandles);
-              if (confirmedSession.length === 0) return;
+              if (agg15m.length < 2 || agg2m.length < 200) return;
 
-              const c = confirmedSession[confirmedSession.length - 1]; // latest confirmed 5m candle
-              const prevC = confirmedSession.length > 1 ? confirmedSession[confirmedSession.length - 2] : prevDayCandles[prevDayCandles.length - 1];
-              const prevPrevC = confirmedSession.length > 2 ? confirmedSession[confirmedSession.length - 3] : (confirmedSession.length === 2 ? prevDayCandles[prevDayCandles.length - 1] : (prevDayCandles[prevDayCandles.length - 2] || prevDayCandles[prevDayCandles.length - 1]));
+              const past15m = agg15m.filter(xc => xc.t < agg2m[agg2m.length - 1].t);
+              if (past15m.length < 1) return;
+              
+              const last15m = past15m[past15m.length - 1];
+              const c5 = agg2m[agg2m.length - 1]; // c5 is now current 2m candle
 
-              const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
+              const bullBreak = last15m.c > pdh;
+              const bearBreak = last15m.c < pdl;
 
-              if (mins < 10 * 60 + 15 || mins > 14 * 60 + 30) return; // Prime Time only
+              if (!bullBreak && !bearBreak) return;
+
+              const ema13 = calculateEMA(agg2m, 13);
+              const ema48 = calculateEMA(agg2m, 48);
+              const ema200 = calculateEMA(agg2m, 200);
+
+              const bullAligned = ema13 > ema48 && ema48 > ema200;
+              const bearAligned = ema13 < ema48 && ema48 < ema200;
 
               let setup = "";
               let direction: "LONG" | "SHORT" | null = null;
               let sl = 0;
-              let entryPrice = c.c;
+              let entryPrice = c5.c;
 
-              // Breakout rules
-              const freshHighBreakout = prevC.c <= prevHigh && c.c > prevHigh;
-              const touchedHighZone = c.l <= prevHigh * (1 + TOUCH_BUFFER_PCT) && c.h >= prevHigh;
-              const chasePctHigh = (c.c - prevHigh) / prevHigh;
-              const chaseAllowedHigh = chasePctHigh >= 0 && chasePctHigh <= MAX_CHASE_PCT;
-
-              const freshLowBreakdown = prevC.c >= prevLow && c.c < prevLow;
-              const touchedLowZone = c.h >= prevLow * (1 - TOUCH_BUFFER_PCT) && c.l <= prevLow;
-              const chasePctLow = (prevLow - c.c) / prevLow;
-              const chaseAllowedLow = chasePctLow >= 0 && chasePctLow <= MAX_CHASE_PCT;
-
-              // Rejection rules
-              const zoneTopH = prevHigh * (1 + TOUCH_BUFFER_PCT);
-              const zoneBotH = prevHigh * (1 - TOUCH_BUFFER_PCT);
-              const zoneTopL = prevLow * (1 + TOUCH_BUFFER_PCT);
-              const zoneBotL = prevLow * (1 - TOUCH_BUFFER_PCT);
-
-              const approachedHighFromBelow = prevPrevC.c < prevHigh && prevC.c < prevHigh;
-              const touchedHighRejectionZone = c.h >= zoneBotH && c.h <= prevHigh * (1 + MAX_CHASE_PCT);
-              const validHighRejection = approachedHighFromBelow && touchedHighRejectionZone && c.c < c.o && c.c <= prevHigh;
-
-              const approachedLowFromAbove = prevPrevC.c > prevLow && prevC.c > prevLow;
-              const touchedLowSupportZone = c.l <= zoneTopL && c.l >= prevLow * (1 - MAX_CHASE_PCT);
-              const validLowSupport = approachedLowFromAbove && touchedLowSupportZone && c.c > c.o && c.c >= prevLow;
-
-              if (freshHighBreakout) {
-                if (touchedHighZone && chaseAllowedHigh) {
-                  setup = "HIGH BREAKOUT"; direction = "LONG";
-                  sl = Math.min(c.l, prevHigh * (1 - SL_BUFFER_PCT));
-                } else {
-                  req.log.info({ symbol: stock.symbol, entry: c.c, breakoutLevel: prevHigh }, "Skipped HIGH BREAKOUT pick: Entry price too far (Anti-Chasing Filter)");
-                }
-              } else if (freshLowBreakdown) {
-                if (touchedLowZone && chaseAllowedLow) {
-                  setup = "LOW BREAKDOWN"; direction = "SHORT";
-                  sl = Math.max(c.h, prevLow * (1 + SL_BUFFER_PCT));
-                } else {
-                  req.log.info({ symbol: stock.symbol, entry: c.c, breakdownLevel: prevLow }, "Skipped LOW BREAKDOWN pick: Entry price too far (Anti-Chasing Filter)");
-                }
-              } else if (validHighRejection) {
-                setup = "HIGH REJECTION"; direction = "SHORT";
-                sl = Math.max(c.h, zoneTopH * (1 + SL_BUFFER_PCT));
-              } else if (validLowSupport) {
-                setup = "LOW SUPPORT"; direction = "LONG";
-                sl = Math.min(c.l, zoneBotL * (1 - SL_BUFFER_PCT));
+              if (bullBreak && bullAligned && c5.l <= ema13 && c5.c > ema13) {
+                setup = "15m/2m SNIPER BULL";
+                direction = "LONG";
+                sl = ema48 * 0.999;
+              } else if (bearBreak && bearAligned && c5.h >= ema13 && c5.c < ema13) {
+                setup = "15m/2m SNIPER BEAR";
+                direction = "SHORT";
+                sl = ema48 * 1.001;
               }
-
-              if (direction) entryPrice = c.c;
 
               if (direction) {
                 const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-                const target = direction === "LONG" ? entryPrice + (risk * 2) : entryPrice - (risk * 2);
+                const target = entryPrice + (risk * 2);
 
                 topPickCandidates.push({
                   symbol: stock.symbol,
@@ -5861,14 +5873,18 @@ router.get("/momentum-picks", async (req, res) => {
                   sl,
                   setup,
                   diagnostics: {
-                    prevHigh,
-                    prevLow,
-                    candleOpen: c.o,
-                    candleHigh: c.h,
-                    candleLow: c.l,
-                    candleClose: c.c,
+                    pdClose,
+                    pdh,
+                    pdl,
+                    ema13,
+                    ema48,
+                    ema200,
+                    candleOpen: c5.o,
+                    candleHigh: c5.h,
+                    candleLow: c5.l,
+                    candleClose: c5.c,
                     reason: setup,
-                    candleCloseTimeMs: (c.t + CANDLE_INTERVAL_SECS) * 1000,
+                    candleCloseTimeMs: (c5.t + 300) * 1000,
                   }
                 });
               }

@@ -543,7 +543,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "scripts_backtest",
-      "community": 148,
+      "community": 93,
       "norm_label": "backtest.ts"
     },
     {
@@ -553,7 +553,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "scripts_backtest_formatminstoist",
-      "community": 148,
+      "community": 93,
       "norm_label": "formatminstoist()"
     },
     {
@@ -563,7 +563,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "scripts_backtest_testcases",
-      "community": 148,
+      "community": 93,
       "norm_label": "testcases"
     },
     {
@@ -573,7 +573,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "scripts_backtest_getistdatestr",
-      "community": 148,
+      "community": 93,
       "norm_label": "getistdatestr()"
     },
     {
@@ -583,7 +583,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "scripts_backtest_getistminuteofday",
-      "community": 148,
+      "community": 93,
       "norm_label": "getistminuteofday()"
     },
     {
@@ -593,7 +593,7 @@
       "source_location": "L45",
       "_origin": "ast",
       "id": "scripts_backtest_getcandleclosedateist",
-      "community": 148,
+      "community": 93,
       "norm_label": "getcandleclosedateist()"
     },
     {
@@ -603,7 +603,7 @@
       "source_location": "L49",
       "_origin": "ast",
       "id": "scripts_backtest_delay",
-      "community": 148,
+      "community": 93,
       "norm_label": "delay()"
     },
     {
@@ -613,7 +613,7 @@
       "source_location": "L51",
       "_origin": "ast",
       "id": "scripts_backtest_fetchcandleswithretry",
-      "community": 148,
+      "community": 93,
       "norm_label": "fetchcandleswithretry()"
     },
     {
@@ -623,7 +623,7 @@
       "source_location": "L76",
       "_origin": "ast",
       "id": "scripts_backtest_trade",
-      "community": 148,
+      "community": 93,
       "norm_label": "trade"
     },
     {
@@ -633,7 +633,7 @@
       "source_location": "L99",
       "_origin": "ast",
       "id": "scripts_backtest_runbacktest",
-      "community": 148,
+      "community": 93,
       "norm_label": "runbacktest()"
     },
     {
@@ -1273,7 +1273,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_dump_stocks",
-      "community": 149,
+      "community": 93,
       "norm_label": "dump-stocks.ts"
     },
     {
@@ -1283,7 +1283,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "src_dump_stocks_standardpivots",
-      "community": 149,
+      "community": 93,
       "norm_label": "standardpivots()"
     },
     {
@@ -1293,7 +1293,7 @@
       "source_location": "L25",
       "_origin": "ast",
       "id": "src_dump_stocks_getistminuteofday",
-      "community": 149,
+      "community": 93,
       "norm_label": "getistminuteofday()"
     },
     {
@@ -1303,7 +1303,7 @@
       "source_location": "L32",
       "_origin": "ast",
       "id": "src_dump_stocks_getisttimestr",
-      "community": 149,
+      "community": 93,
       "norm_label": "getisttimestr()"
     },
     {
@@ -1313,7 +1313,7 @@
       "source_location": "L38",
       "_origin": "ast",
       "id": "src_dump_stocks_getcandleclosedateist",
-      "community": 149,
+      "community": 93,
       "norm_label": "getcandleclosedateist()"
     },
     {
@@ -1323,7 +1323,7 @@
       "source_location": "L44",
       "_origin": "ast",
       "id": "src_dump_stocks_delay",
-      "community": 149,
+      "community": 93,
       "norm_label": "delay()"
     },
     {
@@ -1333,7 +1333,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "src_dump_stocks_fetchcandleswithretry",
-      "community": 149,
+      "community": 93,
       "norm_label": "fetchcandleswithretry()"
     },
     {
@@ -1343,7 +1343,7 @@
       "source_location": "L66",
       "_origin": "ast",
       "id": "src_dump_stocks_auditadvcrfilter",
-      "community": 149,
+      "community": 93,
       "norm_label": "auditadvcrfilter()"
     },
     {
@@ -2313,7 +2313,7 @@
       "source_location": "L862",
       "_origin": "ast",
       "id": "routes_stocks_buildcandledata",
-      "community": 150,
+      "community": 63,
       "norm_label": "buildcandledata()"
     },
     {
@@ -2393,7 +2393,7 @@
       "source_location": "L1131",
       "_origin": "ast",
       "id": "routes_stocks_getupstoxinstrumentmap",
-      "community": 150,
+      "community": 63,
       "norm_label": "getupstoxinstrumentmap()"
     },
     {
@@ -2403,7 +2403,7 @@
       "source_location": "L1176",
       "_origin": "ast",
       "id": "routes_stocks_getdhaninstrumentmap",
-      "community": 150,
+      "community": 63,
       "norm_label": "getdhaninstrumentmap()"
     },
     {
@@ -2413,7 +2413,7 @@
       "source_location": "L1235",
       "_origin": "ast",
       "id": "routes_stocks_fetchdhancandles",
-      "community": 150,
+      "community": 63,
       "norm_label": "fetchdhancandles()"
     },
     {
@@ -2423,7 +2423,7 @@
       "source_location": "L1343",
       "_origin": "ast",
       "id": "routes_stocks_fetchupstoxcandles",
-      "community": 150,
+      "community": 63,
       "norm_label": "fetchupstoxcandles()"
     },
     {
@@ -2433,7 +2433,7 @@
       "source_location": "L1428",
       "_origin": "ast",
       "id": "routes_stocks_fetchmoneycontrolcandles",
-      "community": 150,
+      "community": 63,
       "norm_label": "fetchmoneycontrolcandles()"
     },
     {
@@ -2443,7 +2443,7 @@
       "source_location": "L1467",
       "_origin": "ast",
       "id": "routes_stocks_fetchcandles",
-      "community": 150,
+      "community": 93,
       "norm_label": "fetchcandles()"
     },
     {
@@ -2723,7 +2723,7 @@
       "source_location": "L2202",
       "_origin": "ast",
       "id": "routes_stocks_percentchange",
-      "community": 206,
+      "community": 63,
       "norm_label": "percentchange()"
     },
     {
@@ -2733,7 +2733,7 @@
       "source_location": "L2207",
       "_origin": "ast",
       "id": "routes_stocks_calculateswingrecentreturn",
-      "community": 206,
+      "community": 63,
       "norm_label": "calculateswingrecentreturn()"
     },
     {
@@ -2773,7 +2773,7 @@
       "source_location": "L2373",
       "_origin": "ast",
       "id": "routes_stocks_fetchupstoxdailycandles",
-      "community": 150,
+      "community": 63,
       "norm_label": "fetchupstoxdailycandles()"
     },
     {
@@ -2793,7 +2793,7 @@
       "source_location": "L2435",
       "_origin": "ast",
       "id": "routes_stocks_normalizeequitysymbol",
-      "community": 63,
+      "community": 206,
       "norm_label": "normalizeequitysymbol()"
     },
     {
@@ -2803,7 +2803,7 @@
       "source_location": "L2439",
       "_origin": "ast",
       "id": "routes_stocks_fetchniftydailyreturn",
-      "community": 206,
+      "community": 63,
       "norm_label": "fetchniftydailyreturn()"
     },
     {
@@ -2853,7 +2853,7 @@
       "source_location": "L2473",
       "_origin": "ast",
       "id": "routes_stocks_fetchtechnicalindicatorrows",
-      "community": 63,
+      "community": 206,
       "norm_label": "fetchtechnicalindicatorrows()"
     },
     {
@@ -2963,7 +2963,7 @@
       "source_location": "L2649",
       "_origin": "ast",
       "id": "routes_stocks_buildtechnicalindicatormap",
-      "community": 63,
+      "community": 206,
       "norm_label": "buildtechnicalindicatormap()"
     },
     {
@@ -2973,7 +2973,7 @@
       "source_location": "L2659",
       "_origin": "ast",
       "id": "routes_stocks_fetchtechnicalindicatormap",
-      "community": 63,
+      "community": 206,
       "norm_label": "fetchtechnicalindicatormap()"
     },
     {
@@ -3083,7 +3083,7 @@
       "source_location": "L2826",
       "_origin": "ast",
       "id": "routes_stocks_fetchinsidertradingrows",
-      "community": 25,
+      "community": 14,
       "norm_label": "fetchinsidertradingrows()"
     },
     {
@@ -3113,7 +3113,7 @@
       "source_location": "L2872",
       "_origin": "ast",
       "id": "routes_stocks_roleweightforinsidercategory",
-      "community": 0,
+      "community": 14,
       "norm_label": "roleweightforinsidercategory()"
     },
     {
@@ -3123,7 +3123,7 @@
       "source_location": "L2879",
       "_origin": "ast",
       "id": "routes_stocks_insidervaluescore",
-      "community": 0,
+      "community": 14,
       "norm_label": "insidervaluescore()"
     },
     {
@@ -3173,7 +3173,7 @@
       "source_location": "L2970",
       "_origin": "ast",
       "id": "routes_stocks_fetchinsideractivitymap",
-      "community": 25,
+      "community": 14,
       "norm_label": "fetchinsideractivitymap()"
     },
     {
@@ -4083,7 +4083,7 @@
       "source_location": "L4840",
       "_origin": "ast",
       "id": "routes_stocks_isopenswingtradestatus",
-      "community": 63,
+      "community": 206,
       "norm_label": "isopenswingtradestatus()"
     },
     {
@@ -4123,7 +4123,7 @@
       "source_location": "L4872",
       "_origin": "ast",
       "id": "routes_stocks_preferredopenswingtrade",
-      "community": 63,
+      "community": 206,
       "norm_label": "preferredopenswingtrade()"
     },
     {
@@ -4133,7 +4133,7 @@
       "source_location": "L4885",
       "_origin": "ast",
       "id": "routes_stocks_dedupeopenswingtrades",
-      "community": 63,
+      "community": 206,
       "norm_label": "dedupeopenswingtrades()"
     },
     {
@@ -4273,7 +4273,7 @@
       "source_location": "L6016",
       "_origin": "ast",
       "id": "routes_stocks_getcachedcandledata",
-      "community": 150,
+      "community": 17,
       "norm_label": "getcachedcandledata()"
     },
     {
@@ -4343,7 +4343,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "src_test_dbl",
-      "community": 143,
+      "community": 93,
       "norm_label": "test_dbl.ts"
     },
     {
@@ -4353,7 +4353,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "src_test_dbl_formatminstoist",
-      "community": 143,
+      "community": 93,
       "norm_label": "formatminstoist()"
     },
     {
@@ -4363,7 +4363,7 @@
       "source_location": "L30",
       "_origin": "ast",
       "id": "src_test_dbl_testcases",
-      "community": 143,
+      "community": 93,
       "norm_label": "testcases"
     },
     {
@@ -4373,7 +4373,7 @@
       "source_location": "L33",
       "_origin": "ast",
       "id": "src_test_dbl_getistdatestr",
-      "community": 143,
+      "community": 93,
       "norm_label": "getistdatestr()"
     },
     {
@@ -4383,7 +4383,7 @@
       "source_location": "L39",
       "_origin": "ast",
       "id": "src_test_dbl_getistminuteofday",
-      "community": 143,
+      "community": 93,
       "norm_label": "getistminuteofday()"
     },
     {
@@ -4393,7 +4393,7 @@
       "source_location": "L46",
       "_origin": "ast",
       "id": "src_test_dbl_getcandleclosedateist",
-      "community": 143,
+      "community": 93,
       "norm_label": "getcandleclosedateist()"
     },
     {
@@ -4403,7 +4403,7 @@
       "source_location": "L50",
       "_origin": "ast",
       "id": "src_test_dbl_delay",
-      "community": 143,
+      "community": 93,
       "norm_label": "delay()"
     },
     {
@@ -4413,7 +4413,7 @@
       "source_location": "L52",
       "_origin": "ast",
       "id": "src_test_dbl_fetchcandleswithretry",
-      "community": 143,
+      "community": 93,
       "norm_label": "fetchcandleswithretry()"
     },
     {
@@ -4423,7 +4423,7 @@
       "source_location": "L77",
       "_origin": "ast",
       "id": "src_test_dbl_trade",
-      "community": 143,
+      "community": 93,
       "norm_label": "trade"
     },
     {
@@ -4433,7 +4433,7 @@
       "source_location": "L100",
       "_origin": "ast",
       "id": "src_test_dbl_runbacktest",
-      "community": 143,
+      "community": 93,
       "norm_label": "runbacktest()"
     },
     {
@@ -4483,7 +4483,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "api_server_test_fetch",
-      "community": 150,
+      "community": 93,
       "norm_label": "test-fetch.ts"
     },
     {
@@ -4493,7 +4493,7 @@
       "source_location": "L3",
       "_origin": "ast",
       "id": "api_server_test_fetch_getistdatestr",
-      "community": 150,
+      "community": 93,
       "norm_label": "getistdatestr()"
     },
     {
@@ -4503,7 +4503,7 @@
       "source_location": "L6",
       "_origin": "ast",
       "id": "api_server_test_fetch_getcandleclosedateist",
-      "community": 150,
+      "community": 93,
       "norm_label": "getcandleclosedateist()"
     },
     {
@@ -4513,7 +4513,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "api_server_test_fetch_gettodayistdatestr",
-      "community": 150,
+      "community": 93,
       "norm_label": "gettodayistdatestr()"
     },
     {
@@ -4523,7 +4523,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "api_server_test_fetch_run",
-      "community": 150,
+      "community": 93,
       "norm_label": "run()"
     },
     {
@@ -4863,7 +4863,7 @@
       "source_location": "L19",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies",
-      "community": 21,
+      "community": 143,
       "norm_label": "devdependencies"
     },
     {
@@ -4873,7 +4873,7 @@
       "source_location": "L20",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_node",
-      "community": 21,
+      "community": 143,
       "norm_label": "@types/node"
     },
     {
@@ -4883,7 +4883,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_totp_generator",
-      "community": 21,
+      "community": 143,
       "norm_label": "@types/totp-generator"
     },
     {
@@ -4893,7 +4893,7 @@
       "source_location": "L22",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_types_ws",
-      "community": 21,
+      "community": 143,
       "norm_label": "@types/ws"
     },
     {
@@ -4903,7 +4903,7 @@
       "source_location": "L23",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_tsx",
-      "community": 21,
+      "community": 143,
       "norm_label": "tsx"
     },
     {
@@ -4913,7 +4913,7 @@
       "source_location": "L24",
       "_origin": "ast",
       "id": "auto_trader_package_devdependencies_typescript",
-      "community": 21,
+      "community": 143,
       "norm_label": "typescript"
     },
     {
@@ -11383,7 +11383,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label",
-      "community": 12,
+      "community": 148,
       "norm_label": "label.tsx"
     },
     {
@@ -11393,7 +11393,7 @@
       "source_location": "L9",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label_labelvariants",
-      "community": 12,
+      "community": 148,
       "norm_label": "labelvariants"
     },
     {
@@ -11403,7 +11403,7 @@
       "source_location": "L13",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_label_tsx_ui_label_label",
-      "community": 12,
+      "community": 148,
       "norm_label": "label"
     },
     {
@@ -11793,7 +11793,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group",
-      "community": 225,
+      "community": 12,
       "norm_label": "radio-group.tsx"
     },
     {
@@ -11803,7 +11803,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroup",
-      "community": 225,
+      "community": 12,
       "norm_label": "radiogroup"
     },
     {
@@ -11813,7 +11813,7 @@
       "source_location": "L21",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_radio_group_tsx_ui_radio_group_radiogroupitem",
-      "community": 225,
+      "community": 12,
       "norm_label": "radiogroupitem"
     },
     {
@@ -12773,7 +12773,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_toggle_tsx_ui_toggle",
-      "community": 12,
+      "community": 149,
       "norm_label": "toggle.tsx"
     },
     {
@@ -12783,7 +12783,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_toggle_tsx_ui_toggle_togglevariants",
-      "community": 12,
+      "community": 149,
       "norm_label": "togglevariants"
     },
     {
@@ -12793,7 +12793,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "artifacts_mockup_sandbox_src_components_ui_toggle_tsx_ui_toggle_toggle",
-      "community": 12,
+      "community": 149,
       "norm_label": "toggle"
     },
     {
@@ -14763,7 +14763,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_calendar_tsx_ui_calendar",
-      "community": 215,
+      "community": 12,
       "norm_label": "calendar.tsx"
     },
     {
@@ -14773,7 +14773,7 @@
       "source_location": "L12",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_calendar_tsx_ui_calendar_calendar",
-      "community": 215,
+      "community": 12,
       "norm_label": "calendar()"
     },
     {
@@ -14783,7 +14783,7 @@
       "source_location": "L173",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_calendar_tsx_ui_calendar_calendardaybutton",
-      "community": 215,
+      "community": 12,
       "norm_label": "calendardaybutton()"
     },
     {
@@ -17643,7 +17643,7 @@
       "source_location": "L1",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_toggle_tsx_ui_toggle",
-      "community": 12,
+      "community": 150,
       "norm_label": "toggle.tsx"
     },
     {
@@ -17653,7 +17653,7 @@
       "source_location": "L7",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_toggle_tsx_ui_toggle_togglevariants",
-      "community": 12,
+      "community": 150,
       "norm_label": "togglevariants"
     },
     {
@@ -17663,7 +17663,7 @@
       "source_location": "L29",
       "_origin": "ast",
       "id": "artifacts_stock_screener_src_components_ui_toggle_tsx_ui_toggle_toggle",
-      "community": 12,
+      "community": 150,
       "norm_label": "toggle"
     },
     {
@@ -24313,6 +24313,26 @@
       "id": "api_server_backtest_results_intraday_backtest_results_chronological",
       "community": 198,
       "norm_label": "intraday backtest results (chronological)"
+    },
+    {
+      "label": "jul31_stocks_list.md",
+      "file_type": "document",
+      "source_file": "artifacts/jul31_stocks_list.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "artifacts_jul31_stocks_list",
+      "community": 215,
+      "norm_label": "jul31_stocks_list.md"
+    },
+    {
+      "label": "Watchlist Stock List \u2014 July 31, 2026",
+      "file_type": "document",
+      "source_file": "artifacts/jul31_stocks_list.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "artifacts_jul31_stocks_list_watchlist_stock_list_july_31_2026",
+      "community": 215,
+      "norm_label": "watchlist stock list \u2014 july 31, 2026"
     },
     {
       "label": "sentinel_api_specification.md",
@@ -61357,12 +61377,22 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "artifacts/jul31_stocks_list.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "artifacts_jul31_stocks_list",
+      "target": "artifacts_jul31_stocks_list_watchlist_stock_list_july_31_2026",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L1",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification",
-      "target": "artifacts_sentinel_api_specification_sentinel_trading_system_external_api_specifications_integration_guide",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sentinel_trading_system_external_api_specifications_integration_guide"
     },
     {
       "relation": "contains",
@@ -61370,9 +61400,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L7",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_sentinel_trading_system_external_api_specifications_integration_guide",
-      "target": "artifacts_sentinel_api_specification_1_dynamic_stock_selection_api_intraday_screener",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_1_dynamic_stock_selection_api_intraday_screener"
     },
     {
       "relation": "contains",
@@ -61380,9 +61410,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L59",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_sentinel_trading_system_external_api_specifications_integration_guide",
-      "target": "artifacts_sentinel_api_specification_2_intraday_candle_history_api_upstox",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_2_intraday_candle_history_api_upstox"
     },
     {
       "relation": "contains",
@@ -61390,9 +61420,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L97",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_sentinel_trading_system_external_api_specifications_integration_guide",
-      "target": "artifacts_sentinel_api_specification_3_live_execution_broker_api_dhan",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_3_live_execution_broker_api_dhan"
     },
     {
       "relation": "contains",
@@ -61400,9 +61430,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L179",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_sentinel_trading_system_external_api_specifications_integration_guide",
-      "target": "artifacts_sentinel_api_specification_summary_of_strategy_calculations_applied_to_api_data",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_summary_of_strategy_calculations_applied_to_api_data"
     },
     {
       "relation": "contains",
@@ -61410,9 +61440,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_1_dynamic_stock_selection_api_intraday_screener",
-      "target": "artifacts_sentinel_api_specification_a_sector_performance_ranking",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_a_sector_performance_ranking"
     },
     {
       "relation": "contains",
@@ -61420,9 +61450,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L31",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_1_dynamic_stock_selection_api_intraday_screener",
-      "target": "artifacts_sentinel_api_specification_b_sector_constituent_stock_watchlist",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_b_sector_constituent_stock_watchlist"
     },
     {
       "relation": "contains",
@@ -61430,9 +61460,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L19",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_a_sector_performance_ranking",
-      "target": "artifacts_sentinel_api_specification_sample_response",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sample_response"
     },
     {
       "relation": "contains",
@@ -61440,9 +61470,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L37",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_b_sector_constituent_stock_watchlist",
-      "target": "artifacts_sentinel_api_specification_sample_response_37",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sample_response_37"
     },
     {
       "relation": "contains",
@@ -61450,9 +61480,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L66",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_2_intraday_candle_history_api_upstox",
-      "target": "artifacts_sentinel_api_specification_sample_response_66",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sample_response_66"
     },
     {
       "relation": "contains",
@@ -61460,9 +61490,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L99",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_3_live_execution_broker_api_dhan",
-      "target": "artifacts_sentinel_api_specification_a_fund_limit_account_balance",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_a_fund_limit_account_balance"
     },
     {
       "relation": "contains",
@@ -61470,9 +61500,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L121",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_3_live_execution_broker_api_dhan",
-      "target": "artifacts_sentinel_api_specification_b_place_5x_leveraged_super_order_bracket_order_with_entry_sl_target",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_b_place_5x_leveraged_super_order_bracket_order_with_entry_sl_target"
     },
     {
       "relation": "contains",
@@ -61480,9 +61510,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L159",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_3_live_execution_broker_api_dhan",
-      "target": "artifacts_sentinel_api_specification_c_live_market_feed_dhan_websocket",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_c_live_market_feed_dhan_websocket"
     },
     {
       "relation": "contains",
@@ -61490,9 +61520,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L109",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_a_fund_limit_account_balance",
-      "target": "artifacts_sentinel_api_specification_sample_response_109",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sample_response_109"
     },
     {
       "relation": "contains",
@@ -61500,9 +61530,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L131",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_b_place_5x_leveraged_super_order_bracket_order_with_entry_sl_target",
-      "target": "artifacts_sentinel_api_specification_sample_request_body",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sample_request_body"
     },
     {
       "relation": "contains",
@@ -61510,9 +61540,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L149",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_b_place_5x_leveraged_super_order_bracket_order_with_entry_sl_target",
-      "target": "artifacts_sentinel_api_specification_sample_response_149",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_sample_response_149"
     },
     {
       "relation": "contains",
@@ -61520,9 +61550,9 @@
       "source_file": "artifacts/sentinel_api_specification.md",
       "source_location": "L163",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "artifacts_sentinel_api_specification_c_live_market_feed_dhan_websocket",
-      "target": "artifacts_sentinel_api_specification_subscription_json_packet",
-      "confidence_score": 1.0
+      "target": "artifacts_sentinel_api_specification_subscription_json_packet"
     },
     {
       "relation": "contains",
@@ -61807,5 +61837,5 @@
       "source_file": "render.yaml"
     }
   ],
-  "built_at_commit": "67ceb9d04b7d47f130a79fd93d109db60cd660de"
+  "built_at_commit": "029fbe7a25505d55e78571069071f81fe049ed98"
 }
