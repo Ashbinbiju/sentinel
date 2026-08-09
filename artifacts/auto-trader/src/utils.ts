@@ -21,7 +21,10 @@ export function getISTMinutes(): number {
   const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(now);
   let hour = 0, minute = 0;
   for (const p of parts) {
-    if (p.type === 'hour') hour = parseInt(p.value, 10);
+    if (p.type === 'hour') {
+      hour = parseInt(p.value, 10);
+      if (hour === 24) hour = 0;
+    }
     if (p.type === 'minute') minute = parseInt(p.value, 10);
   }
   return hour * 60 + minute;
