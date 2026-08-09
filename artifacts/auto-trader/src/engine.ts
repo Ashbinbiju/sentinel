@@ -123,10 +123,10 @@ export class ExecutionEngine {
 
         const evaluateTask = async () => {
           try {
-            const candleClosedAtMs = (Number(c.t) + 300) * 1000;
+            const candleClosedAtMs = (Number(c.t) + 60) * 1000;
             const signalDelayMs = Date.now() - candleClosedAtMs;
 
-            const slotIso = new Date((c.t + 300) * 1000).toISOString().substring(11, 16);
+            const slotIso = new Date((c.t + 60) * 1000).toISOString().substring(11, 16);
             const reject = (reason: string) => {
               console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
             };

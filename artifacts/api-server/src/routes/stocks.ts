@@ -69,7 +69,7 @@ type AngelCandleRow = [
 
 const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
-const CANDLE_INTERVAL_SECS = 5 * 60;
+const CANDLE_INTERVAL_SECS = 1 * 60;
 const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
 const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
 const ENTRY_SIGNAL_END_MIN_IST = 15 * 60 + 15;
@@ -1316,7 +1316,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
         if (isNaN(epochSecs)) continue;
         
         // Exclude unclosed forming candles
-        if (currentEpochSecs < epochSecs + 300) {
+        if (currentEpochSecs < epochSecs + 60) {
           continue;
         }
 
@@ -1328,7 +1328,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
       if (allCandles.length > 0) {
         const cdata = buildCandleData(allCandles);
         if (cdata) {
-          console.log(`[DATA] ${symbol}: using Dhan native 5-min candles (${allCandles.length} bars).`);
+          console.log(`[DATA] ${symbol}: using Dhan native 1-min candles (${allCandles.length} bars).`);
           return cdata;
         }
       }
@@ -1385,7 +1385,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
         for (const row of histData.data.candles) {
           const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
           if (isNaN(epochSecs)) continue;
-          if (currentEpochSecs < epochSecs + 300) continue;
+          if (currentEpochSecs < epochSecs + 60) continue;
           allCandles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
         }
       }
@@ -1406,7 +1406,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
         for (const row of intradayData.data.candles) {
           const epochSecs = Math.floor(Date.parse(row[0]) / 1000);
           if (isNaN(epochSecs)) continue;
-          if (currentEpochSecs < epochSecs + 300) continue;
+          if (currentEpochSecs < epochSecs + 60) continue;
           allCandles.push({ t: epochSecs, o: row[1], h: row[2], l: row[3], c: row[4], v: row[5] });
         }
       }
@@ -1450,7 +1450,7 @@ async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | nu
   
   for (let i = 0; i < data.t.length; i++) {
     const epochSecs = data.t[i];
-    if (currentEpochSecs < epochSecs + 300) continue;
+    if (currentEpochSecs < epochSecs + 60) continue;
     all.push({
       t: epochSecs,
       o: data.o?.[i] ?? 0,
@@ -5884,7 +5884,7 @@ router.get("/momentum-picks", async (req, res) => {
                     candleLow: c5.l,
                     candleClose: c5.c,
                     reason: setup,
-                    candleCloseTimeMs: (c5.t + 300) * 1000,
+                    candleCloseTimeMs: (c5.t + 120) * 1000,
                   }
                 });
               }
