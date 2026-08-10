@@ -46,7 +46,25 @@ export class ExecutionEngine {
   private sessionEquityDate: string | null = null;
 
   public get sessionEquityLimit(): number {
-    return this.sessionEquity ? this.sessionEquity * -0.03 : -2500;
+    const today = getISTDateStr();
+    if (
+      this.sessionEquity === null ||
+      this.sessionEquityDate !== today ||
+      !Number.isFinite(this.sessionEquity) ||
+      this.sessionEquity <= 0
+    ) {
+      return -2500;
+    }
+    return this.sessionEquity * -0.03;
+  }
+
+  public async refreshSessionEquity(): Promise<void> {
+    const today = getISTDateStr();
+    if (this.sessionEquity === null || this.sessionEquityDate !== today) {
+      this.sessionEquity = await this.broker.getAccountBalance();
+      this.sessionEquityDate = today;
+      console.log(`[ENGINE] Cached session equity for ${today}: ${this.sessionEquity}`);
+    }
   }
 
   constructor(broker: DhanBroker) {

@@ -597,6 +597,7 @@ async function main() {
 
       // Kill Switch Validation
       if (!DRY_RUN) {
+        await executionEngine.refreshSessionEquity();
         const todayTrades = (await TradeDB.getTradesForDate(getISTDateStr()));
         let realizedPnl = 0;
 
