@@ -5748,8 +5748,9 @@ router.get("/momentum-picks", async (req, res) => {
                 CANDLE_INTERVAL_SECS,
               ).filter((candle) => candle.t + CANDLE_INTERVAL_SECS <= nowSecs);
               if (aggregatedHistory.length < 50) return;
+              const today = getTodayISTDateStr();
               const c = aggregatedHistory.at(-1);
-              if (!c) return;
+              if (!c || getCandleCloseDateIST(c) !== today) return;
               const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
 
               if (mins < 9 * 60 + 20 || mins > 15 * 60) return; // 09:20 - 15:00 IST
