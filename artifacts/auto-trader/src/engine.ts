@@ -164,7 +164,28 @@ export class ExecutionEngine {
             const utState = computeUTBot(history, 1, 10, 0.25, 6, 1);
             const currentState = utState[utState.length - 1];
 
-            if (!currentState.buy && !currentState.sell) return reject("NO_SETUP");
+            const calculateEMA = (candles: any[], period: number): number => {
+              const closes = candles.map(c => c.c);
+              let ema = 0;
+              const k = 2 / (period + 1);
+              for (let i = 0; i < closes.length; i++) {
+                if (i === 0) ema = closes[i];
+                else ema = (closes[i] - ema) * k + ema;
+              }
+              return ema;
+            };
+
+            const ema13 = calculateEMA(history, 13);
+            const ema48 = calculateEMA(history, 48);
+            const ema200 = calculateEMA(history, 200);
+
+            let bullAligned = ema13 > ema48 && ema48 > ema200;
+            let bearAligned = ema13 < ema48 && ema48 < ema200;
+
+            let validBuy = currentState.buy && bullAligned;
+            let validSell = currentState.sell && bearAligned;
+
+            if (!validBuy && !validSell) return reject("NO_SETUP");
 
             let setup = "";
             let direction: "BUY" | "SELL" | null = null;
@@ -172,12 +193,12 @@ export class ExecutionEngine {
             let entryPrice = c.c;
             let target = 0;
 
-            if (currentState.buy) {
+            if (validBuy) {
               setup = "UT BOT 5m BULL";
               direction = "BUY";
               sl = entryPrice - currentState.atr * 1.5;
               target = entryPrice + currentState.atr * 5.0; // Place order at TP5, exit dynamically
-            } else if (currentState.sell) {
+            } else if (validSell) {
               setup = "UT BOT 5m BEAR";
               direction = "SELL";
               sl = entryPrice + currentState.atr * 1.5;

@@ -5,6 +5,7 @@ import { db } from '@workspace/db';
 import { watchlistSnapshotsTable } from '@workspace/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import axios from 'axios';
+import { computeUTBot } from './ut-bot.js';
 
 const MAX_DAILY_TRADES = 100;
 const MAX_PER_STOCK = 1;
@@ -176,27 +177,23 @@ async function runBacktest() {
       // 2. Process Exits
       for (const [symbol, trade] of Array.from(activeTrades.entries())) {
           const data = stockData.get(symbol);
-          const c = data?.sessionCandles.find((c: any) => c.t === t);
-          if (!c) continue;
+          const historySoFar = data.allCandles.filter((hc: any) => hc.t <= t);
+          
+          if (historySoFar.length < 50) continue;
+          const utState = computeUTBot(historySoFar, 1, 10, 0.25, 6, 1);
+          const currentState = utState[utState.length - 1];
 
-          if (trade.side === "BUY") {
-            // +1.2% Trail to Breakeven
-            if (c.h >= trade.entryPrice * 1.012) {
-              if (trade.sl < trade.entryPrice) {
-                trade.sl = trade.entryPrice;
-                console.log(`  [TRAIL] ${symbol} hit +1.2%, moving SL to Breakeven (${trade.sl.toFixed(2)})`);
-              }
-            }
-            // +2.0% continuous trail
-            if (c.h >= trade.entryPrice * 1.020) {
-              const proposedSL = c.h * (1 - 0.012); // trail by 1.2%
-              if (proposedSL > trade.sl) {
-                trade.sl = proposedSL;
-                console.log(`  [TRAIL] ${symbol} hit +2.0%, trailing SL to ${trade.sl.toFixed(2)}`);
-              }
-            }
+          // Trailing
+          const proposedSL = currentState.xATRTrailingStop;
+          const isBetter = trade.side === "BUY" ? proposedSL > trade.sl : proposedSL < trade.sl;
+          if (isBetter) {
+             trade.sl = proposedSL;
+             console.log(`  [TRAIL] ${symbol} UT Bot Trailed SL to ${trade.sl.toFixed(2)}`);
+          }
 
-            if (c.l <= trade.sl) {
+          const c = historySoFar[historySoFar.length - 1];
+
+          if (trade.side === "BUY" && c.c <= trade.sl) {
               const pnl = trade.sl - trade.entryPrice;
               const rr = pnl / (trade.entryPrice * 0.01);
               console.log(`  [EXIT] ${symbol} SL hit at ${trade.sl.toFixed(2)} (Entry: ${trade.entryPrice}) ${rr.toFixed(2)}R @ ${timeStr}`);
@@ -204,24 +201,7 @@ async function runBacktest() {
               if (pnl >= 0) winningTrades++; else losingTrades++;
               totalPNL += pnl;
               activeTrades.delete(symbol);
-            }
-          } else {
-            // SELL Side Trailing
-            if (c.l <= trade.entryPrice * 0.988) {
-              if (trade.sl > trade.entryPrice) {
-                trade.sl = trade.entryPrice;
-                console.log(`  [TRAIL] ${symbol} hit +1.2%, moving SL to Breakeven (${trade.sl.toFixed(2)})`);
-              }
-            }
-            if (c.l <= trade.entryPrice * 0.980) {
-              const proposedSL = c.l * (1 + 0.012); 
-              if (proposedSL < trade.sl) {
-                trade.sl = proposedSL;
-                console.log(`  [TRAIL] ${symbol} hit +2.0%, trailing SL to ${trade.sl.toFixed(2)}`);
-              }
-            }
-
-            if (c.h >= trade.sl) {
+          } else if (trade.side === "SELL" && c.c >= trade.sl) {
               const pnl = trade.entryPrice - trade.sl;
               const rr = pnl / (trade.entryPrice * 0.01);
               console.log(`  [EXIT] ${symbol} SL hit at ${trade.sl.toFixed(2)} (Entry: ${trade.entryPrice}) ${rr.toFixed(2)}R @ ${timeStr}`);
@@ -229,7 +209,6 @@ async function runBacktest() {
               if (pnl >= 0) winningTrades++; else losingTrades++;
               totalPNL += pnl;
               activeTrades.delete(symbol);
-            }
           }
       }
 
@@ -241,37 +220,19 @@ async function runBacktest() {
           if ((tradesPerStock.get(symbol) || 0) >= MAX_PER_STOCK) continue;
           if (dailyTradesCount >= MAX_DAILY_TRADES) break;
 
-          const sessionCandles = data.sessionCandles;
-          const idx = sessionCandles.findIndex((c: any) => c.t === t);
-          if (idx < 0) continue;
+          const historySoFar = data.allCandles.filter((hc: any) => hc.t <= t);
+          if (historySoFar.length < 50) continue;
+          
+          const c = historySoFar[historySoFar.length - 1];
+          if (c.t !== t) continue;
 
-          const c = sessionCandles[idx];
-          
-          // Pine script says "No entries before 09:30 or after 14:45"
-          // In 5-minute candles, the 09:25 candle closes at 09:30, so the first valid candle is the 09:25 open (t)
-          const aggregateCandles = (candles: any[], timeframeSecs: number): any[] => {
-            const timeframeMins = timeframeSecs / 60;
-            const buckets = new Map<string, any>();
-            const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
-          
-            for (const cd of [...candles].sort((a, b) => a.t - b.t)) {
-              const mins = getISTMinuteOfDay(cd.t);
-              const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
-              const bucketIndex = Math.floor(relMins / timeframeMins);
-              const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
-              const existing = buckets.get(key);
-          
-              if (!existing) {
-                buckets.set(key, { ...cd, t: cd.t });
-              } else {
-                existing.h = Math.max(existing.h, cd.h);
-                existing.l = Math.min(existing.l, cd.l);
-                existing.c = cd.c;
-                existing.v = (existing.v || 0) + (cd.v || 0);
-              }
-            }
-            return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
-          };
+          const mins = getISTMinuteOfDay(c.t + 300);
+          if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) continue;
+
+          const utState = computeUTBot(historySoFar, 1, 10, 0.25, 6, 1);
+          const currentState = utState[utState.length - 1];
+
+          if (!currentState.buy && !currentState.sell) continue;
 
           const calculateEMA = (candles: any[], period: number): number => {
             const closes = candles.map(c => c.c);
@@ -284,52 +245,25 @@ async function runBacktest() {
             return ema;
           };
 
-          const mins = getISTMinuteOfDay(c.t + 60);
-          if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) continue;
+          const ema13 = calculateEMA(historySoFar, 13);
+          const ema48 = calculateEMA(historySoFar, 48);
+          const ema200 = calculateEMA(historySoFar, 200);
 
-          const historySoFar = data.allCandles.filter((hc: any) => hc.t <= c.t);
-          if (historySoFar.length < 200) continue; // Needs enough bars for 200 EMA
+          let bullAligned = ema13 > ema48 && ema48 > ema200;
+          let bearAligned = ema13 < ema48 && ema48 < ema200;
 
-          const c1 = historySoFar[historySoFar.length - 1];
-          const prevDayCandles = data.allCandles.filter((hc: any) => getEpochDateStr(hc.t) < getEpochDateStr(c1.t));
-          if (prevDayCandles.length === 0) continue;
-          
-          const pdh = Math.max(...prevDayCandles.map((hc: any) => hc.h));
-          const pdl = Math.min(...prevDayCandles.map((hc: any) => hc.l));
+          let validBuy = currentState.buy && bullAligned;
+          let validSell = currentState.sell && bearAligned;
 
-          const agg15m = aggregateCandles(historySoFar, 900);
-          const agg2m = aggregateCandles(historySoFar, 120);
+          if (!validBuy && !validSell) continue;
 
-          if (agg15m.length < 2 || agg2m.length < 200) continue;
+          const side = validBuy ? "BUY" : "SELL";
+          const sl = currentState.buy ? c.c - currentState.atr * 1.5 : c.c + currentState.atr * 1.5;
 
-          const past15m = agg15m.filter(xc => xc.t < agg2m[agg2m.length - 1].t);
-          if (past15m.length < 1) continue;
-          const last15m = past15m[past15m.length - 1];
-          const current2m = agg2m[agg2m.length - 1];
-
-          const bullBreak = last15m.c > pdh;
-          const bearBreak = last15m.c < pdl;
-
-          if (!bullBreak && !bearBreak) continue;
-
-          const ema13 = calculateEMA(agg2m, 13);
-          const ema48 = calculateEMA(agg2m, 48);
-          const ema200 = calculateEMA(agg2m, 200);
-
-          const bullAligned = ema13 > ema48 && ema48 > ema200;
-          const bearAligned = ema13 < ema48 && ema48 < ema200;
-
-          const bull_cross = bullBreak && bullAligned && current2m.l <= ema13 && current2m.c > ema13;
-          const bear_cross = bearBreak && bearAligned && current2m.h >= ema13 && current2m.c < ema13;
-
-          if (bull_cross || bear_cross) {
-              const side = bull_cross ? "BUY" : "SELL";
-              const sl = bull_cross ? ema48 * 0.999 : ema48 * 1.001;
-              console.log(`[ENTRY ${dailyTradesCount + 1}/${MAX_DAILY_TRADES}] ${symbol} @ ${timeStr} | ${side} | Entry: ${current2m.c} | SL: ${sl.toFixed(2)}`);
-              activeTrades.set(symbol, { side, entryPrice: current2m.c, sl });
-              tradesPerStock.set(symbol, (tradesPerStock.get(symbol) || 0) + 1);
-              dailyTradesCount++;
-          }
+          console.log(`[ENTRY ${dailyTradesCount + 1}/${MAX_DAILY_TRADES}] ${symbol} @ ${timeStr} | ${side} | Entry: ${c.c} | SL: ${sl.toFixed(2)}`);
+          activeTrades.set(symbol, { side, entryPrice: c.c, sl });
+          tradesPerStock.set(symbol, (tradesPerStock.get(symbol) || 0) + 1);
+          dailyTradesCount++;
       }
   }
 

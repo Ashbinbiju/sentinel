@@ -5822,7 +5822,17 @@ router.get("/momentum-picks", async (req, res) => {
               const utState = computeUTBot(fullHistory, 1, 10, 0.25, 6, 1);
               const currentState = utState[utState.length - 1];
 
-              if (!currentState.buy && !currentState.sell) return;
+              const ema13 = calculateEMA(fullHistory, 13);
+              const ema48 = calculateEMA(fullHistory, 48);
+              const ema200 = calculateEMA(fullHistory, 200);
+
+              let bullAligned = ema13 > ema48 && ema48 > ema200;
+              let bearAligned = ema13 < ema48 && ema48 < ema200;
+
+              let validBuy = currentState.buy && bullAligned;
+              let validSell = currentState.sell && bearAligned;
+
+              if (!validBuy && !validSell) return;
 
               let setup = "";
               let direction: "LONG" | "SHORT" | null = null;
@@ -5830,12 +5840,12 @@ router.get("/momentum-picks", async (req, res) => {
               let entryPrice = c.c;
               let target = 0;
 
-              if (currentState.buy) {
+              if (validBuy) {
                 setup = "UT BOT 5m BULL";
                 direction = "LONG";
                 sl = entryPrice - currentState.atr * 1.5; // atrSLmult = 1.5
                 target = entryPrice + currentState.atr * 5.0; // TP5 = 5.0
-              } else if (currentState.sell) {
+              } else if (validSell) {
                 setup = "UT BOT 5m BEAR";
                 direction = "SHORT";
                 sl = entryPrice + currentState.atr * 1.5;
