@@ -71,7 +71,7 @@ function buildSeededHistory(
   const session = ([...sessionCandles] as Candle[]).sort((a, b) => a.t - b.t);
 
   const hasInternalGap = session.some(
-    (candle, index) => index > 0 && Number(candle.t) - Number(session[index - 1].t) !== 60
+    (candle, index) => index > 0 && Number(candle.t) - Number(session[index - 1].t) !== 300
   );
   if (hasInternalGap) return null;
 
@@ -415,15 +415,15 @@ async function main() {
 
         const lastCandle = candles[candles.length - 1];
         const epochSecs = Math.floor(Date.now() / 1000);
-        const currentSlot1m = Math.floor(epochSecs / 60) * 60;
-        const expectedLastClosed1m = currentSlot1m - 60;
+        const currentSlot5m = Math.floor(epochSecs / 300) * 300;
+        const expectedLastClosed5m = currentSlot5m - 300;
         const currentMins = getISTMinutes();
 
         if (currentMins >= 9 * 60 + 20) {
-          if (Number(lastCandle.t) !== expectedLastClosed1m) {
+          if (Number(lastCandle.t) !== expectedLastClosed5m) {
             console.warn(
               `[BOT] Stale backfill for ${item.symbol}. ` +
-              `Last=${lastCandle.t}, expected=${expectedLastClosed1m}`
+              `Last=${lastCandle.t}, expected=${expectedLastClosed5m}`
             );
           }
         }

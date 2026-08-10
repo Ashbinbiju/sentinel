@@ -5,6 +5,7 @@ import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
 import { randomUUID } from "crypto";
 import { getISTDateStr, resolveTradePosition } from "./utils";
 import { Notifier } from "./notifier";
+import { computeUTBot } from "./ut-bot";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
@@ -123,10 +124,10 @@ export class ExecutionEngine {
 
         const evaluateTask = async () => {
           try {
-            const candleClosedAtMs = (Number(c.t) + 60) * 1000;
+            const candleClosedAtMs = (Number(c.t) + 300) * 1000;
             const signalDelayMs = Date.now() - candleClosedAtMs;
 
-            const slotIso = new Date((c.t + 60) * 1000).toISOString().substring(11, 16);
+            const slotIso = new Date((c.t + 300) * 1000).toISOString().substring(11, 16);
             const reject = (reason: string) => {
               console.log(`[ENGINE] REJECTED ${ctx.symbol} slot=${slotIso} reason=${reason}`);
             };
@@ -153,99 +154,62 @@ export class ExecutionEngine {
               return d.getUTCHours() * 60 + d.getUTCMinutes();
             };
 
-            const aggregateCandles = (candles: any[], timeframeSecs: number): any[] => {
-              const timeframeMins = timeframeSecs / 60;
-              const buckets = new Map<string, any>();
-              const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
-            
-              for (const cd of [...candles].sort((a, b) => a.t - b.t)) {
-                const mins = getISTMinuteOfDay(cd.t);
-                const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
-                const bucketIndex = Math.floor(relMins / timeframeMins);
-                const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
-                const existing = buckets.get(key);
-            
-                if (!existing) {
-                  buckets.set(key, { ...cd, t: cd.t });
-                } else {
-                  existing.h = Math.max(existing.h, cd.h);
-                  existing.l = Math.min(existing.l, cd.l);
-                  existing.c = cd.c;
-                  existing.v = (existing.v || 0) + (cd.v || 0);
-                }
-              }
-              return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
-            };
-
-            const calculateEMA = (candles: any[], period: number): number => {
-              const closes = candles.map(c => c.c);
-              let ema = 0;
-              const k = 2 / (period + 1);
-              for (let i = 0; i < closes.length; i++) {
-                if (i === 0) ema = closes[i];
-                else ema = (closes[i] - ema) * k + ema;
-              }
-              return ema;
-            };
-
-            const mins = getISTMinuteOfDay(c.t + 60);
+            const mins = getISTMinuteOfDay(c.t + 300);
             if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) {
               return reject("OUTSIDE_TIME");
             }
 
-            if (history.length < 200) return reject("INSUFFICIENT_DATA");
+            if (history.length < 50) return reject("INSUFFICIENT_DATA");
 
-            const c1 = history[history.length - 1];
-            
-            const prevDayCandles = history.filter(hc => getEpochDateStr(hc.t) < getEpochDateStr(c1.t));
-            if (prevDayCandles.length === 0) return reject("INSUFFICIENT_DATA");
-            
-            const pdh = Math.max(...prevDayCandles.map(hc => hc.h));
-            const pdl = Math.min(...prevDayCandles.map(hc => hc.l));
+            const utState = computeUTBot(history, 1, 10, 0.25, 6, 1);
+            const currentState = utState[utState.length - 1];
 
-            const agg15m = aggregateCandles(history, 900);
-            const agg2m = aggregateCandles(history, 120);
-
-            if (agg15m.length < 2 || agg2m.length < 200) return reject("INSUFFICIENT_DATA");
-
-            const past15m = agg15m.filter(xc => xc.t < agg2m[agg2m.length - 1].t);
-            if (past15m.length < 1) return reject("INSUFFICIENT_DATA");
-            const last15m = past15m[past15m.length - 1];
-            const current2m = agg2m[agg2m.length - 1];
-
-            const bullBreak = last15m.c > pdh;
-            const bearBreak = last15m.c < pdl;
-
-            if (!bullBreak && !bearBreak) return reject("NO_BREAKOUT");
-
-            const ema13 = calculateEMA(agg2m, 13);
-            const ema48 = calculateEMA(agg2m, 48);
-            const ema200 = calculateEMA(agg2m, 200);
-
-            const bullAligned = ema13 > ema48 && ema48 > ema200;
-            const bearAligned = ema13 < ema48 && ema48 < ema200;
+            if (!currentState.buy && !currentState.sell) return reject("NO_SETUP");
 
             let setup = "";
             let direction: "BUY" | "SELL" | null = null;
             let sl = 0;
-            let entryPrice = current2m.c;
+            let entryPrice = c.c;
+            let target = 0;
 
-            if (bullBreak && bullAligned && current2m.l <= ema13 && current2m.c > ema13) {
-              setup = "15m/2m SNIPER BULL";
+            if (currentState.buy) {
+              setup = "UT BOT 5m BULL";
               direction = "BUY";
-              sl = ema48 * 0.999;
-            } else if (bearBreak && bearAligned && current2m.h >= ema13 && current2m.c < ema13) {
-              setup = "15m/2m SNIPER BEAR";
+              sl = entryPrice - currentState.atr * 1.5;
+              target = entryPrice + currentState.atr * 5.0; // Place order at TP5, exit dynamically
+            } else if (currentState.sell) {
+              setup = "UT BOT 5m BEAR";
               direction = "SELL";
-              sl = ema48 * 1.001;
+              sl = entryPrice + currentState.atr * 1.5;
+              target = entryPrice - currentState.atr * 5.0;
             } else {
               return reject("NO_SETUP");
             }
 
-            // Maximum Target Range constraint is disabled since Momentum exits are purely trailing
-
             const activeTrade = this.getActiveOrPendingTrade(securityId);
             if (activeTrade) {
+              if (activeTrade.state === "PROTECTION_CONFIRMED" || activeTrade.state === "TRAIL_CONFIRMED") {
+                const trailTo = currentState.xATRTrailingStop;
+                const roundedTrailTo = this.roundToTick(trailTo);
+                
+                const isBetter = activeTrade.side === "BUY" 
+                  ? roundedTrailTo > activeTrade.stopLossPrice
+                  : roundedTrailTo < activeTrade.stopLossPrice;
+                  
+                if (isBetter) {
+                  console.log(`[ENGINE] UT Bot Trailing SL for ${ctx.symbol} to ${roundedTrailTo}`);
+                  await TradeDB.updateState(activeTrade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: roundedTrailTo });
+                  await this.syncActiveTrades();
+                  try {
+                    await this.broker.moveSuperOrderStopToBreakeven(activeTrade.superOrderId, roundedTrailTo, activeTrade.trailingJump);
+                    await TradeDB.updateState(activeTrade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: roundedTrailTo });
+                    await this.syncActiveTrades();
+                    this.notifier.sendTrailApplied(ctx.symbol, roundedTrailTo).catch(e => console.error(e));
+                  } catch (err: any) {
+                    console.error(`[ENGINE] Failed to trail Super Order for ${ctx.symbol}:`, err.message);
+                  }
+                }
+              }
               return reject("ACTIVE_OR_PENDING_TRADE");
             }
 
@@ -262,7 +226,7 @@ export class ExecutionEngine {
             }
 
             console.log(`[ENGINE] SETUP DETECTED! ${setup} for ${ctx.symbol} at ${entryPrice}`);
-            await this.initiateTrade(ctx, direction, entryPrice, sl);
+            await this.initiateTrade(ctx, direction, entryPrice, sl, target);
           } catch (err: any) {
             console.error(`[ENGINE] evaluateClosedCandle error for ${securityId}:`, err);
           }
@@ -292,10 +256,9 @@ export class ExecutionEngine {
     return Math.round(val / NSE_TICK_SIZE) * NSE_TICK_SIZE;
   }
 
-  private async initiateTrade(ctx: WatchlistContext, side: "BUY" | "SELL", entryPrice: number, sl: number) {
+  private async initiateTrade(ctx: WatchlistContext, side: "BUY" | "SELL", entryPrice: number, sl: number, target: number) {
     try {
       const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-      const target = side === "BUY" ? entryPrice + (risk * TARGET_RR) : entryPrice - (risk * TARGET_RR);
 
       let cycleBalance: number;
       if (process.env.DRY_RUN === "true") {
@@ -472,59 +435,8 @@ export class ExecutionEngine {
   }
 
   private async _evaluateLiveTick(securityId: string, ltp: number, trade: ActiveTrade) {
-    if (trade.state !== "PROTECTION_CONFIRMED" && trade.state !== "TRAIL_CONFIRMED") return;
-
-    const risk = Math.abs(trade.entryPrice - trade.stopLossPrice);
-
-    if (trade.state === "PROTECTION_CONFIRMED" && !trade.trailApplied) {
-      let reachedTrailRR = false;
-      let trailSLPrice = trade.entryPrice;
-
-      if (trade.side === "BUY" && ltp >= trade.entryPrice * 1.012) {
-        // Step 1: Jump to Break-Even at +1.2%
-        if (trade.stopLossPrice < trade.entryPrice) {
-          reachedTrailRR = true;
-          trailSLPrice = this.roundToTick(trade.entryPrice);
-        }
-        // Step 2: Continuous Trail at +2.0%
-        if (ltp >= trade.entryPrice * 1.020) {
-          const proposedSL = this.roundToTick(ltp * (1 - 0.012)); // Trail by 1.2%
-          if (proposedSL > trade.stopLossPrice) {
-            reachedTrailRR = true;
-            trailSLPrice = proposedSL;
-          }
-        }
-      } else if (trade.side === "SELL" && ltp <= trade.entryPrice * (1 - 0.012)) {
-        if (trade.stopLossPrice > trade.entryPrice) {
-          reachedTrailRR = true;
-          trailSLPrice = this.roundToTick(trade.entryPrice);
-        }
-        if (ltp <= trade.entryPrice * (1 - 0.020)) {
-          const proposedSL = this.roundToTick(ltp * (1 + 0.012));
-          if (proposedSL < trade.stopLossPrice) {
-            reachedTrailRR = true;
-            trailSLPrice = proposedSL;
-          }
-        }
-      }
-
-      if (reachedTrailRR) {
-        console.log(`[ENGINE] Trade ${trade.symbol} reached ${STRUCTURAL_TRAIL_RR}R! Trailing Super Order SL to ${trailSLPrice}.`);
-        await TradeDB.updateState(trade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: trailSLPrice });
-
-        await this.syncActiveTrades();
-
-        try {
-          await this.broker.moveSuperOrderStopToBreakeven(trade.superOrderId, trailSLPrice, trade.trailingJump);
-          await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: trailSLPrice });
-          await this.syncActiveTrades();
-          this.notifier.sendTrailApplied(trade.symbol, trailSLPrice).catch(e => console.error(e));
-        } catch (err: any) {
-          console.error(`[ENGINE] Failed to trail Super Order for ${trade.symbol}:`, err.message);
-          // Left as TRAIL_REQUESTED for broker reconciliation
-        }
-      }
-    }
+    // UT Bot trailing is handled at the candle level in evaluateClosedCandle.
+    // Live tick trailing is disabled for this strategy to allow ATR space to breathe.
   }
 
   private async initiateExit(trade: ActiveTrade, exitPrice: number, reason: string) {

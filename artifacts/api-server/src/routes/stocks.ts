@@ -12,6 +12,7 @@ import { and, eq, gte, desc } from "drizzle-orm";
 import { TOTP } from "totp-generator";
 import * as fs from "fs";
 import * as path from "path";
+import { computeUTBot } from "../ut-bot.js";
 
 // @ts-ignore
 import { SmartAPI } from "smartapi-javascript";
@@ -69,7 +70,7 @@ type AngelCandleRow = [
 
 const IST_OFFSET_SECS = 19800; // UTC+5:30
 const IST_OFFSET_MS = IST_OFFSET_SECS * 1000;
-const CANDLE_INTERVAL_SECS = 1 * 60;
+const CANDLE_INTERVAL_SECS = 5 * 60;
 const INTRADAY_SQUARE_OFF_TIME_IST = "15:15";
 const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
 const ENTRY_SIGNAL_END_MIN_IST = 15 * 60 + 15;
@@ -1271,7 +1272,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
     exchangeSegment: "NSE_EQ",
     instrument: "EQUITY",
     expiryCode: 0,
-    interval: "1",
+    interval: "5",
     fromDate: fmt(fromDate),
     toDate: fmt(toDate)
   };
@@ -1316,7 +1317,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
         if (isNaN(epochSecs)) continue;
         
         // Exclude unclosed forming candles
-        if (currentEpochSecs < epochSecs + 60) {
+        if (currentEpochSecs < epochSecs + 300) {
           continue;
         }
 
@@ -1328,7 +1329,7 @@ async function fetchDhanCandles(symbol: string): Promise<CandleData | null> {
       if (allCandles.length > 0) {
         const cdata = buildCandleData(allCandles);
         if (cdata) {
-          console.log(`[DATA] ${symbol}: using Dhan native 1-min candles (${allCandles.length} bars).`);
+          console.log(`[DATA] ${symbol}: using Dhan native 5-min candles (${allCandles.length} bars).`);
           return cdata;
         }
       }
@@ -1374,7 +1375,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
     const currentEpochSecs = Math.floor(Date.now() / 1000);
 
     // 1. Historical candles (past N days, excludes today)
-    const histUrl = `https://api.upstox.com/v3/historical-candle/${encodedKey}/minutes/1/${fmt(toDate)}/${fmt(fromDate)}`;
+    const histUrl = `https://api.upstox.com/v3/historical-candle/${encodedKey}/minutes/5/${fmt(toDate)}/${fmt(fromDate)}`;
     const histResp = await fetch(histUrl, { headers });
     if (histResp.ok) {
       const histData = (await histResp.json()) as {
@@ -1395,7 +1396,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
     }
 
     // 2. Today's intraday candles
-    const intradayUrl = `https://api.upstox.com/v3/historical-candle/intraday/${encodedKey}/minutes/1`;
+    const intradayUrl = `https://api.upstox.com/v3/historical-candle/intraday/${encodedKey}/minutes/5`;
     const intradayResp = await fetch(intradayUrl, { headers });
     if (intradayResp.ok) {
       const intradayData = (await intradayResp.json()) as {
@@ -1428,7 +1429,7 @@ async function fetchUpstoxCandles(symbol: string): Promise<CandleData | null> {
 async function fetchMoneycontrolCandles(symbol: string): Promise<CandleData | null> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600;
-  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=1&from=${from}&to=${to}&countback=600&currencyCode=INR`;
+  const url = `https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history?symbol=${encodeURIComponent(symbol)}&resolution=5&from=${from}&to=${to}&countback=600&currencyCode=INR`;
 
   const response = await fetch(url, { headers: MC_HEADERS });
   if (!response.ok) return null;
@@ -5809,62 +5810,37 @@ router.get("/momentum-picks", async (req, res) => {
                 return ema;
               };
 
-              if (fullHistory.length < 200) return;
+              if (fullHistory.length < 50) return;
               
-              const c1 = fullHistory[fullHistory.length - 1]; // latest confirmed 1m candle
-              const mins = getISTMinuteOfDay(c1.t + 60);
+              const c = fullHistory[fullHistory.length - 1]; // latest confirmed 5m candle
+              const mins = getISTMinuteOfDay(c.t + 300);
 
               if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) return; // Prime Time 09:30 - 14:45 IST
 
-              const prevDayCandles = fullHistory.filter(c => getCandleCloseDateIST(c) < getCandleCloseDateIST(c1));
-              if (prevDayCandles.length === 0) return;
-              
-              const pdh = Math.max(...prevDayCandles.map(hc => hc.h));
-              const pdl = Math.min(...prevDayCandles.map(hc => hc.l));
-              const pdClose = prevDayCandles[prevDayCandles.length - 1].c;
+              const utState = computeUTBot(fullHistory, 1, 10, 0.25, 6, 1);
+              const currentState = utState[utState.length - 1];
 
-              const agg15m = aggregateCandles(fullHistory, 900);
-              const agg2m = aggregateCandles(fullHistory, 120);
-
-              if (agg15m.length < 2 || agg2m.length < 200) return;
-
-              const past15m = agg15m.filter(xc => xc.t < agg2m[agg2m.length - 1].t);
-              if (past15m.length < 1) return;
-              
-              const last15m = past15m[past15m.length - 1];
-              const c5 = agg2m[agg2m.length - 1]; // c5 is now current 2m candle
-
-              const bullBreak = last15m.c > pdh;
-              const bearBreak = last15m.c < pdl;
-
-              if (!bullBreak && !bearBreak) return;
-
-              const ema13 = calculateEMA(agg2m, 13);
-              const ema48 = calculateEMA(agg2m, 48);
-              const ema200 = calculateEMA(agg2m, 200);
-
-              const bullAligned = ema13 > ema48 && ema48 > ema200;
-              const bearAligned = ema13 < ema48 && ema48 < ema200;
+              if (!currentState.buy && !currentState.sell) return;
 
               let setup = "";
               let direction: "LONG" | "SHORT" | null = null;
               let sl = 0;
-              let entryPrice = c5.c;
+              let entryPrice = c.c;
+              let target = 0;
 
-              if (bullBreak && bullAligned && c5.l <= ema13 && c5.c > ema13) {
-                setup = "15m/2m SNIPER BULL";
+              if (currentState.buy) {
+                setup = "UT BOT 5m BULL";
                 direction = "LONG";
-                sl = ema48 * 0.999;
-              } else if (bearBreak && bearAligned && c5.h >= ema13 && c5.c < ema13) {
-                setup = "15m/2m SNIPER BEAR";
+                sl = entryPrice - currentState.atr * 1.5; // atrSLmult = 1.5
+                target = entryPrice + currentState.atr * 5.0; // TP5 = 5.0
+              } else if (currentState.sell) {
+                setup = "UT BOT 5m BEAR";
                 direction = "SHORT";
-                sl = ema48 * 1.001;
+                sl = entryPrice + currentState.atr * 1.5;
+                target = entryPrice - currentState.atr * 5.0;
               }
 
               if (direction) {
-                const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-                const target = entryPrice + (risk * 2);
-
                 topPickCandidates.push({
                   symbol: stock.symbol,
                   direction,
@@ -5873,18 +5849,18 @@ router.get("/momentum-picks", async (req, res) => {
                   sl,
                   setup,
                   diagnostics: {
-                    pdClose,
-                    pdh,
-                    pdl,
-                    ema13,
-                    ema48,
-                    ema200,
-                    candleOpen: c5.o,
-                    candleHigh: c5.h,
-                    candleLow: c5.l,
-                    candleClose: c5.c,
+                    pdClose: 0,
+                    pdh: 0,
+                    pdl: 0,
+                    ema13: 0,
+                    ema48: 0,
+                    ema200: 0,
+                    candleOpen: c.o,
+                    candleHigh: c.h,
+                    candleLow: c.l,
+                    candleClose: c.c,
                     reason: setup,
-                    candleCloseTimeMs: (c5.t + 120) * 1000,
+                    candleCloseTimeMs: (c.t + 300) * 1000,
                   }
                 });
               }
