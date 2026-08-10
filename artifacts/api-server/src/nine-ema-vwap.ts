@@ -62,6 +62,7 @@ export function aggregateCandles(candles: Candle[], timeframeSecs: number): Cand
   for (const cd of [...candles].sort((a, b) => a.t - b.t)) {
     const mins = getISTMinuteOfDay(cd.t);
     const dateStr = getISTDateStr(cd.t);
+    if (mins < ENTRY_SIGNAL_START_MIN_IST) continue;
     const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
     const bucketIndex = Math.floor(relMins / timeframeMins);
     const bucketStartMins = ENTRY_SIGNAL_START_MIN_IST + bucketIndex * timeframeMins;
