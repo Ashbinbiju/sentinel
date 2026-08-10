@@ -88,43 +88,17 @@ function buildSeededHistory(
 async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
-    const url = "https://intradayscreener.com/api/indices/sectorData/1";
+    const url = "https://api.bottomstreet.com/?index=NIFTY&type=gainers&limit=15";
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
 
     let uniqueStocks: any[] = [];
-    if (res.data && res.data.labels) {
-      const sectorData = res.data;
-      const allSectors = sectorData.labels.map((name: string, i: number) => ({
-        name,
-        keyword: sectorData.keywords[i],
-        changePct: sectorData.datasets[i] ?? 0,
+    if (res.data && res.data.stocks) {
+      uniqueStocks = res.data.stocks.map((s: any) => ({
+        symbol: s.symbol?.trim(),
+        ltp: s.ltp,
+        changePct: s.changePct,
+        category: "TOP_MOMENTUM"
       }));
-
-      const topSectors = [...allSectors]
-        .sort((a, b) => b.changePct - a.changePct)
-        .slice(0, 2);
-
-      const combinedStocks: any[] = [];
-      for (const sector of topSectors) {
-        try {
-          const conUrl = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
-          const conRes = await axios.get(conUrl, { headers: { Accept: "application/json" } });
-          if (conRes.data) {
-            const all = [
-              ...(conRes.data.indexConstituents ?? []),
-              ...(conRes.data.nonIndexConstituents ?? []),
-            ];
-            const top = all
-              .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 3)
-              .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0))
-              .map((s: any) => ({ ...s, category: "SECTOR_MOMENTUM" }));
-            combinedStocks.push(...top);
-          }
-        } catch (e) {
-            console.error(`[ENGINE] Failed to fetch sector constituents for ${sector.keyword}`);
-        }
-      }
-      uniqueStocks = Array.from(new Map(combinedStocks.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
 
       for (const s of uniqueStocks) {
       const symbol = s.symbol?.trim();
