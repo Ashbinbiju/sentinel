@@ -180,11 +180,9 @@ export class ExecutionEngine {
             let entryPrice = c.c;
             let target = 0;
 
-            // Only evaluate NEW ENTRIES on the exact close of a 5-minute bucket (09:19, 09:24, etc.)
-            // The Dhan 1-minute candle `c.t` is the START time of that minute.
-            // A 5-minute bucket starting at 09:15 ends at 09:20. The last 1-minute candle in it is 09:19.
-            // 9 * 60 + 19 = 559. 559 % 5 === 4.
-            const isFiveMinClose = mins % 5 === 4;
+            // `c` is a 5-minute candle and `c.t` is the bucket start, so `mins`
+            // is the bucket close minute of day and is already 5-minute aligned.
+            const isFiveMinClose = mins % 5 === 0;
 
             if (isFiveMinClose) {
               if (currentState.setupLong) {
