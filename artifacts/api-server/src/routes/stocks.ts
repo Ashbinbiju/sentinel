@@ -5742,15 +5742,15 @@ router.get("/momentum-picks", async (req, res) => {
               const candleData = await fetchCandles(stock.symbol);
               if (!candleData || candleData.historicalCandles.length === 0 || candleData.sessionCandles.length === 0) return;
 
-              if (candleData.historicalCandles.length < 50) return;
-              
+              const nowSecs = Math.floor(Date.now() / 1000);
               const aggregatedHistory = aggregateCandles(
                 candleData.historicalCandles,
-                300,
-              ).filter((candle) => candle.t + 300 <= Math.floor(Date.now() / 1000));
+                CANDLE_INTERVAL_SECS,
+              ).filter((candle) => candle.t + CANDLE_INTERVAL_SECS <= nowSecs);
+              if (aggregatedHistory.length < 50) return;
               const c = aggregatedHistory.at(-1);
               if (!c) return;
-              const mins = getISTMinuteOfDay(c.t + 300);
+              const mins = getISTMinuteOfDay(c.t + CANDLE_INTERVAL_SECS);
 
               if (mins < 9 * 60 + 20 || mins > 15 * 60) return; // 09:20 - 15:00 IST
               const stateArray = computeEmaVwap(aggregatedHistory);
