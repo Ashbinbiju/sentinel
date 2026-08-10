@@ -5,7 +5,7 @@ import { db } from '@workspace/db';
 import { watchlistSnapshotsTable } from '@workspace/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import axios from 'axios';
-import { computeUTBot } from './ut-bot.js';
+import { computeEmaVwap, aggregateCandles } from './nine-ema-vwap.js';
 
 const MAX_DAILY_TRADES = 100;
 const MAX_PER_STOCK = 1;
@@ -31,58 +31,14 @@ function getEpochDateStr(epochSecs: number) {
   return d.toISOString().slice(0, 10);
 }
 
-function aggregateCandles(candles: any[], timeframeSecs: number) {
-  const timeframeMins = timeframeSecs / 60;
-  const buckets = new Map<string, any>();
-  const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
-
-  for (const cd of candles) {
-    const mins = getISTMinuteOfDay(cd.t);
-    const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
-    const bucketIndex = Math.floor(relMins / timeframeMins);
-    const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
-    const existing = buckets.get(key);
-
-    if (!existing) {
-      buckets.set(key, { ...cd, t: cd.t });
-    } else {
-      existing.h = Math.max(existing.h, cd.h);
-      existing.l = Math.min(existing.l, cd.l);
-      existing.c = cd.c;
-      existing.v = (existing.v || 0) + (cd.v || 0);
-    }
-  }
-  return Array.from(buckets.values()).sort((a: any, b: any) => a.t - b.t);
-}
-
 async function runBacktest() {
-  const datesRes = await db.selectDistinct({ date: watchlistSnapshotsTable.date })
-    .from(watchlistSnapshotsTable)
-    .orderBy(desc(watchlistSnapshotsTable.date))
-    .limit(2);
-
-  if (datesRes.length === 0) {
-    console.log("No dates found in watchlistSnapshotsTable.");
-    return;
-  }
-
-  const targetDate = datesRes[1]?.date;
-  console.log(`Running backtest for Thursday (2026-08-06): ${targetDate}`);
-
-  const snapshotRows = await db.select()
-    .from(watchlistSnapshotsTable)
-    .where(eq(watchlistSnapshotsTable.date, targetDate));
-
-  const uniqueStocksMap = new Map<string, any>();
-  for (const row of snapshotRows) {
-    // only keep the first occurrence to act as the primary filter for the day
-    if (!uniqueStocksMap.has(row.symbol)) {
-      uniqueStocksMap.set(row.symbol, row);
-    }
-  }
-
-  const uniqueStocks = Array.from(uniqueStocksMap.values());
-  console.log(`Found ${uniqueStocks.length} unique stocks on ${targetDate}. Fetching data...`);
+  console.log(`Fetching NIFTY top gainers for today's backtest from Bottomstreet API...`);
+  const isRes = await axios.get("https://api.bottomstreet.com/?index=NIFTY&type=gainers&limit=15");
+  const data = isRes.data;
+  const uniqueStocks = data.stocks.map((s: any) => ({ symbol: s.symbol?.trim() })).filter((s: any) => s.symbol);
+  
+  const targetDate = "2026-08-10";
+  console.log(`Found ${uniqueStocks.length} unique stocks. Fetching data for ${targetDate}...`);
 
   const stockData = new Map<string, any>();
   let allTimeSlots = new Set<number>();
@@ -110,7 +66,8 @@ async function runBacktest() {
       const lastDayCandles = prevCandles.filter((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000)) === lastDate);
 
       const prevClose = lastDayCandles[lastDayCandles.length - 1].c;
-      const allCandles = [...historicalCandles, ...sessionCandles].sort((a: any, b: any) => a.t - b.t);
+      const rawAllCandles = [...historicalCandles, ...sessionCandles].sort((a: any, b: any) => a.t - b.t);
+      const allCandles = aggregateCandles(rawAllCandles, 300);
 
       // We need to filter for targetDate
       const actualSessionCandles = allCandles.filter((c: any) => {
@@ -144,7 +101,12 @@ async function runBacktest() {
   const activeTrades = new Map<string, any>();
   const tradesPerStock = new Map<string, number>();
   let dailyTradesCount = 0;
+  const MAX_DAILY_TRADES = 2;
 
+  if (sortedSlots.length === 0) {
+      console.log(`\nNo candle data available for ${targetDate}. Backtest aborted.`);
+      return;
+  }
   console.log(`Starting chronological simulation from ${getISTTimeStr(sortedSlots[0])} to ${getISTTimeStr(sortedSlots[sortedSlots.length-1])}...\n`);
 
   for (const t of sortedSlots) {
@@ -180,22 +142,38 @@ async function runBacktest() {
           const historySoFar = data.allCandles.filter((hc: any) => hc.t <= t);
           
           if (historySoFar.length < 50) continue;
-          const utState = computeUTBot(historySoFar, 1, 10, 0.25, 6, 1);
-          const currentState = utState[utState.length - 1];
+          const stateArray = computeEmaVwap(historySoFar);
+          const currentState = stateArray[stateArray.length - 1];
 
           // Trailing
-          const proposedSL = currentState.xATRTrailingStop;
+          const tradeBars = historySoFar.filter((h: any) => h.t >= trade.entryTime);
+          let proposedSL = trade.sl;
+          
+          if (trade.side === "BUY") {
+            const runMax = Math.max(...tradeBars.map((h: any) => h.h), trade.entryPrice);
+            const mfe = runMax - trade.entryPrice;
+            if (mfe >= currentState.atr * 0.5) {
+              proposedSL = Math.max(trade.sl, runMax - 2.5 * currentState.atr);
+            }
+          } else {
+            const runMin = Math.min(...tradeBars.map((h: any) => h.l), trade.entryPrice);
+            const mfe = trade.entryPrice - runMin;
+            if (mfe >= currentState.atr * 0.5) {
+              proposedSL = Math.min(trade.sl, runMin + 2.5 * currentState.atr);
+            }
+          }
+          
           const isBetter = trade.side === "BUY" ? proposedSL > trade.sl : proposedSL < trade.sl;
           if (isBetter) {
              trade.sl = proposedSL;
-             console.log(`  [TRAIL] ${symbol} UT Bot Trailed SL to ${trade.sl.toFixed(2)}`);
+             console.log(`  [TRAIL] ${symbol} 9EMA VWAP Trailed SL to ${trade.sl.toFixed(2)}`);
           }
 
           const c = historySoFar[historySoFar.length - 1];
 
           if (trade.side === "BUY" && c.c <= trade.sl) {
               const pnl = trade.sl - trade.entryPrice;
-              const rr = pnl / (trade.entryPrice * 0.01);
+              const rr = pnl / (trade.entryPrice * 0.01); // Approx R = 1%
               console.log(`  [EXIT] ${symbol} SL hit at ${trade.sl.toFixed(2)} (Entry: ${trade.entryPrice}) ${rr.toFixed(2)}R @ ${timeStr}`);
               totalSimulatedTrades++;
               if (pnl >= 0) winningTrades++; else losingTrades++;
@@ -227,41 +205,18 @@ async function runBacktest() {
           if (c.t !== t) continue;
 
           const mins = getISTMinuteOfDay(c.t + 300);
-          if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) continue;
+          if (mins < 9 * 60 + 20 || mins > 15 * 60) continue; // 09:20 - 15:00
 
-          const utState = computeUTBot(historySoFar, 1, 10, 0.25, 6, 1);
-          const currentState = utState[utState.length - 1];
+          const stateArray = computeEmaVwap(historySoFar);
+          const currentState = stateArray[stateArray.length - 1];
 
-          if (!currentState.buy && !currentState.sell) continue;
+          if (!currentState.setupLong && !currentState.setupShort) continue;
 
-          const calculateEMA = (candles: any[], period: number): number => {
-            const closes = candles.map(c => c.c);
-            let ema = 0;
-            const k = 2 / (period + 1);
-            for (let i = 0; i < closes.length; i++) {
-              if (i === 0) ema = closes[i];
-              else ema = (closes[i] - ema) * k + ema;
-            }
-            return ema;
-          };
-
-          const ema13 = calculateEMA(historySoFar, 13);
-          const ema48 = calculateEMA(historySoFar, 48);
-          const ema200 = calculateEMA(historySoFar, 200);
-
-          let bullAligned = ema13 > ema48 && ema48 > ema200;
-          let bearAligned = ema13 < ema48 && ema48 < ema200;
-
-          let validBuy = currentState.buy && bullAligned;
-          let validSell = currentState.sell && bearAligned;
-
-          if (!validBuy && !validSell) continue;
-
-          const side = validBuy ? "BUY" : "SELL";
-          const sl = currentState.buy ? c.c - currentState.atr * 1.5 : c.c + currentState.atr * 1.5;
+          const side = currentState.setupLong ? "BUY" : "SELL";
+          const sl = currentState.setupLong ? currentState.rawLongSl : currentState.rawShortSl;
 
           console.log(`[ENTRY ${dailyTradesCount + 1}/${MAX_DAILY_TRADES}] ${symbol} @ ${timeStr} | ${side} | Entry: ${c.c} | SL: ${sl.toFixed(2)}`);
-          activeTrades.set(symbol, { side, entryPrice: c.c, sl });
+          activeTrades.set(symbol, { side, entryPrice: c.c, sl, entryTime: c.t });
           tradesPerStock.set(symbol, (tradesPerStock.get(symbol) || 0) + 1);
           dailyTradesCount++;
       }

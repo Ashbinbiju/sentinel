@@ -23,7 +23,6 @@ if (DRY_RUN && LIVE_CANARY) {
 const API_BASE_URL = process.env.API_URL || "http://localhost:3000";
 
 const MAX_DAILY_TRADES = LIVE_CANARY ? 1 : (process.env.MAX_DAILY_TRADES ? parseInt(process.env.MAX_DAILY_TRADES, 10) : 5);
-const MAX_DAILY_LOSS = -2500;
 const MAX_CONSECUTIVE_LOSSES = 3;
 
 let isShuttingDown = false;
@@ -620,8 +619,8 @@ async function main() {
           }
         }
 
-        if (realizedPnl <= MAX_DAILY_LOSS || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
-          console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl}, Losing Trades: ${closedLosingTrades}. Squaring off!`);
+        if (realizedPnl <= executionEngine.sessionEquityLimit || closedLosingTrades >= MAX_CONSECUTIVE_LOSSES) {
+          console.error(`[KILL SWITCH] Max loss reached! P&L: ${realizedPnl} (Limit: ${executionEngine.sessionEquityLimit}), Losing Trades: ${closedLosingTrades}. Squaring off!`);
           
           try {
             const notifier = new Notifier();

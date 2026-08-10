@@ -5,7 +5,7 @@ import { DhanBroker, PlaceSuperOrderInput } from "./dhan";
 import { randomUUID } from "crypto";
 import { getISTDateStr, resolveTradePosition } from "./utils";
 import { Notifier } from "./notifier";
-import { computeUTBot } from "./ut-bot";
+import { computeEmaVwap, aggregateCandles } from "./nine-ema-vwap.js";
 
 const TOUCH_BUFFER_PCT = 0.0015;
 const MAX_CHASE_PCT = 0.008;
@@ -42,6 +42,12 @@ export class ExecutionEngine {
   private broker: DhanBroker;
   private notifier: Notifier;
   private watchlist: Map<string, WatchlistContext> = new Map();
+  private sessionEquity: number | null = null;
+  private sessionEquityDate: string | null = null;
+
+  public get sessionEquityLimit(): number {
+    return this.sessionEquity ? this.sessionEquity * -0.03 : -2500;
+  }
 
   constructor(broker: DhanBroker) {
     this.broker = broker;
@@ -161,31 +167,12 @@ export class ExecutionEngine {
 
             if (history.length < 50) return reject("INSUFFICIENT_DATA");
 
-            const utState = computeUTBot(history, 1, 10, 0.25, 6, 1);
-            const currentState = utState[utState.length - 1];
-
-            const calculateEMA = (candles: any[], period: number): number => {
-              const closes = candles.map(c => c.c);
-              let ema = 0;
-              const k = 2 / (period + 1);
-              for (let i = 0; i < closes.length; i++) {
-                if (i === 0) ema = closes[i];
-                else ema = (closes[i] - ema) * k + ema;
-              }
-              return ema;
-            };
-
-            const ema13 = calculateEMA(history, 13);
-            const ema48 = calculateEMA(history, 48);
-            const ema200 = calculateEMA(history, 200);
-
-            let bullAligned = ema13 > ema48 && ema48 > ema200;
-            let bearAligned = ema13 < ema48 && ema48 < ema200;
-
-            let validBuy = currentState.buy && bullAligned;
-            let validSell = currentState.sell && bearAligned;
-
-            if (!validBuy && !validSell) return reject("NO_SETUP");
+            // We MUST aggregate 1-minute live data into strict 5-minute buckets for 9EMA/VWAP
+            const aggregatedHistory = aggregateCandles(history, 300);
+            if (aggregatedHistory.length === 0) return reject("NO_AGGREGATED_DATA");
+            
+            const stateArray = computeEmaVwap(aggregatedHistory);
+            const currentState = stateArray[stateArray.length - 1];
 
             let setup = "";
             let direction: "BUY" | "SELL" | null = null;
@@ -193,50 +180,75 @@ export class ExecutionEngine {
             let entryPrice = c.c;
             let target = 0;
 
-            if (validBuy) {
-              setup = "UT BOT 5m BULL";
-              direction = "BUY";
-              sl = entryPrice - currentState.atr * 1.5;
-              target = entryPrice + currentState.atr * 5.0; // Place order at TP5, exit dynamically
-            } else if (validSell) {
-              setup = "UT BOT 5m BEAR";
-              direction = "SELL";
-              sl = entryPrice + currentState.atr * 1.5;
-              target = entryPrice - currentState.atr * 5.0;
-            } else {
-              return reject("NO_SETUP");
+            // Only evaluate NEW ENTRIES on the exact close of a 5-minute bucket (09:19, 09:24, etc.)
+            // The Dhan 1-minute candle `c.t` is the START time of that minute.
+            // A 5-minute bucket starting at 09:15 ends at 09:20. The last 1-minute candle in it is 09:19.
+            // 9 * 60 + 19 = 559. 559 % 5 === 4.
+            const isFiveMinClose = mins % 5 === 4;
+
+            if (isFiveMinClose) {
+              if (currentState.setupLong) {
+                setup = "9EMA VWAP BULL";
+                direction = "BUY";
+                sl = currentState.rawLongSl;
+                target = entryPrice + currentState.atr * 5.0; // Place order far away, exit dynamically via trail
+              } else if (currentState.setupShort) {
+                setup = "9EMA VWAP BEAR";
+                direction = "SELL";
+                sl = currentState.rawShortSl;
+                target = entryPrice - currentState.atr * 5.0;
+              }
             }
 
             const activeTrade = this.getActiveOrPendingTrade(securityId);
             if (activeTrade) {
               if (activeTrade.state === "PROTECTION_CONFIRMED" || activeTrade.state === "TRAIL_CONFIRMED") {
-                const trailTo = currentState.xATRTrailingStop;
-                const roundedTrailTo = this.roundToTick(trailTo);
-                
-                const isBetter = activeTrade.side === "BUY" 
-                  ? roundedTrailTo > activeTrade.stopLossPrice
-                  : roundedTrailTo < activeTrade.stopLossPrice;
+                const tradeBars = history.filter(h => h.t * 1000 >= new Date(activeTrade.createdAt).getTime());
+                let trailTo = 0;
+                let mfe = 0;
+
+                if (activeTrade.side === "BUY") {
+                  const runMax = Math.max(...tradeBars.map(h => h.h), activeTrade.entryPrice);
+                  mfe = runMax - activeTrade.entryPrice;
+                  if (mfe >= currentState.atr * 0.5) {
+                    trailTo = runMax - 2.5 * currentState.atr;
+                  }
+                } else {
+                  const runMin = Math.min(...tradeBars.map(h => h.l), activeTrade.entryPrice);
+                  mfe = activeTrade.entryPrice - runMin;
+                  if (mfe >= currentState.atr * 0.5) {
+                    trailTo = runMin + 2.5 * currentState.atr;
+                  }
+                }
+
+                if (trailTo > 0) {
+                  const roundedTrailTo = this.roundToTick(trailTo);
                   
-                if (isBetter) {
-                  console.log(`[ENGINE] UT Bot Trailing SL for ${ctx.symbol} to ${roundedTrailTo}`);
-                  await TradeDB.updateState(activeTrade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: roundedTrailTo });
-                  await this.syncActiveTrades();
-                  try {
-                    await this.broker.moveSuperOrderStopToBreakeven(activeTrade.superOrderId, roundedTrailTo, activeTrade.trailingJump);
-                    await TradeDB.updateState(activeTrade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: roundedTrailTo });
+                  const isBetter = activeTrade.side === "BUY" 
+                    ? roundedTrailTo > activeTrade.stopLossPrice
+                    : roundedTrailTo < activeTrade.stopLossPrice;
+                    
+                  if (isBetter) {
+                    console.log(`[ENGINE] 9EMA VWAP Trailing SL for ${ctx.symbol} to ${roundedTrailTo} (MFE: ${mfe.toFixed(2)})`);
+                    await TradeDB.updateState(activeTrade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: roundedTrailTo });
                     await this.syncActiveTrades();
-                    this.notifier.sendTrailApplied(ctx.symbol, roundedTrailTo).catch(e => console.error(e));
-                  } catch (err: any) {
-                    console.error(`[ENGINE] Failed to trail Super Order for ${ctx.symbol}:`, err.message);
+                    try {
+                      await this.broker.moveSuperOrderStopToBreakeven(activeTrade.superOrderId, roundedTrailTo, activeTrade.trailingJump);
+                      await TradeDB.updateState(activeTrade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: roundedTrailTo });
+                      await this.syncActiveTrades();
+                      this.notifier.sendTrailApplied(ctx.symbol, roundedTrailTo).catch(e => console.error(e));
+                    } catch (err: any) {
+                      console.error(`[ENGINE] Failed to trail Super Order for ${ctx.symbol}:`, err.message);
+                    }
                   }
                 }
               }
               return reject("ACTIVE_OR_PENDING_TRADE");
             }
 
-            const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true"
-              ? 1
-              : parseInt(process.env.MAX_DAILY_TRADES || "5", 10);
+            if (!direction) return reject("NO_SETUP");
+
+            const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 2;
 
             const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
               trade.state !== "REJECTED"
@@ -282,10 +294,17 @@ export class ExecutionEngine {
       const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
 
       let cycleBalance: number;
+      const today = getISTDateStr();
+
       if (process.env.DRY_RUN === "true") {
         cycleBalance = parseFloat(process.env.DRY_RUN_CAPITAL || "50000");
       } else {
-        cycleBalance = await this.broker.getAccountBalance();
+        if (this.sessionEquity === null || this.sessionEquityDate !== today) {
+           this.sessionEquity = await this.broker.getAccountBalance();
+           this.sessionEquityDate = today;
+           console.log(`[ENGINE] Cached session equity for ${today}: ${this.sessionEquity}`);
+        }
+        cycleBalance = this.sessionEquity;
       }
 
       const riskPerTrade = cycleBalance * 0.01;
@@ -456,7 +475,7 @@ export class ExecutionEngine {
   }
 
   private async _evaluateLiveTick(securityId: string, ltp: number, trade: ActiveTrade) {
-    // UT Bot trailing is handled at the candle level in evaluateClosedCandle.
+    // Trailing is handled at the candle level in evaluateClosedCandle.
     // Live tick trailing is disabled for this strategy to allow ATR space to breathe.
   }
 

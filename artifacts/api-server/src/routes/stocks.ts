@@ -12,7 +12,7 @@ import { and, eq, gte, desc } from "drizzle-orm";
 import { TOTP } from "totp-generator";
 import * as fs from "fs";
 import * as path from "path";
-import { computeUTBot } from "../ut-bot.js";
+import { computeEmaVwap } from "../nine-ema-vwap.js";
 
 // @ts-ignore
 import { SmartAPI } from "smartapi-javascript";
@@ -5715,54 +5715,22 @@ router.get("/momentum-picks", async (req, res) => {
 
     let momentumStocks: any[] = [];
     try {
-      const isUrl = "https://intradayscreener.com/api/indices/sectorData/1";
+      const isUrl = "https://api.bottomstreet.com/?index=NIFTY&type=gainers&limit=15";
       const isRes = await fetch(isUrl, { headers: HEADERS });
       if (isRes.ok) {
-        const sectorData = (await isRes.json()) as any;
-        if (sectorData && sectorData.labels) {
-          const allSectors = sectorData.labels.map((name: string, i: number) => ({
-            name,
-            keyword: sectorData.keywords[i],
-            changePct: sectorData.datasets[i] ?? 0,
-          }));
-
-          const topSectors = [...allSectors]
-            .sort((a, b) => b.changePct - a.changePct)
-            .slice(0, 2);
-
-          const combinedStocks: any[] = [];
-          for (const sector of topSectors) {
-            try {
-              const conUrl = `https://intradayscreener.com/api/indices/index-constituents/${sector.keyword}/1?filter=cash`;
-              const conRes = await fetch(conUrl, { headers: HEADERS });
-              if (conRes.ok) {
-                const conData = await conRes.json() as any;
-                const all = [
-                  ...(conData.indexConstituents ?? []),
-                  ...(conData.nonIndexConstituents ?? []),
-                ];
-                const top = all
-                  .filter((s: any) => s.ltp > 100 && (s.changePct ?? s.priceChangePct ?? 0) < 3)
-                  .sort((a: any, b: any) => (b.changePct ?? b.priceChangePct ?? 0) - (a.changePct ?? a.priceChangePct ?? 0));
-                combinedStocks.push(...top);
-              }
-            } catch (e) {
-              req.log.error(`Failed to fetch sector constituents for ${sector.keyword}`);
-            }
-          }
-          
-          const uniqueStocks = Array.from(new Map(combinedStocks.map((s: any) => [s.symbol?.trim(), s])).values()) as any[];
-          momentumStocks = uniqueStocks.map((s: any) => ({
+        const data = (await isRes.json()) as any;
+        if (data && data.stocks) {
+          momentumStocks = data.stocks.map((s: any) => ({
             symbol: s.symbol?.trim(),
             ltp: s.ltp,
-            changePct: s.changePct ?? s.priceChangePct ?? 0
-          })).filter(s => s.symbol && s.ltp > 100);
+            changePct: s.changePercent ?? 0
+          })).filter((s: any) => s.symbol && s.ltp > 100);
         }
       } else {
-        req.log.warn(`IntradayScreener Sector API responded with ${isRes.status}`);
+        req.log.warn(`Bottomstreet API responded with ${isRes.status}`);
       }
     } catch (err: any) {
-      req.log.error({ err }, "Failed to fetch IntradayScreener Sector list");
+      req.log.error({ err }, "Failed to fetch Bottomstreet Sector list");
     }
 
     const CHUNK_SIZE = 5;
@@ -5776,63 +5744,18 @@ router.get("/momentum-picks", async (req, res) => {
 
               const fullHistory = [...candleData.historicalCandles, ...candleData.sessionCandles];
               
-              // 1. Sniper 15m/2m Strategy Logic
-              const aggregateCandles = (candles: any[], timeframeSecs: number): any[] => {
-                const timeframeMins = timeframeSecs / 60;
-                const buckets = new Map<string, any>();
-                const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
-              
-                for (const cd of [...candles].sort((a, b) => a.t - b.t)) {
-                  const mins = getISTMinuteOfDay(cd.t);
-                  const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
-                  const bucketIndex = Math.floor(relMins / timeframeMins);
-                  const key = `${getISTDateStr(cd.t)}:${bucketIndex}`;
-                  const existing = buckets.get(key);
-              
-                  if (!existing) {
-                    buckets.set(key, { ...cd, t: cd.t });
-                  } else {
-                    existing.h = Math.max(existing.h, cd.h);
-                    existing.l = Math.min(existing.l, cd.l);
-                    existing.c = cd.c;
-                    existing.v = (existing.v || 0) + (cd.v || 0);
-                  }
-                }
-                return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
-              };
-
-              const calculateEMA = (candles: any[], period: number): number => {
-                const closes = candles.map(c => c.c);
-                let ema = 0;
-                const k = 2 / (period + 1);
-                for (let i = 0; i < closes.length; i++) {
-                  if (i === 0) ema = closes[i];
-                  else ema = (closes[i] - ema) * k + ema;
-                }
-                return ema;
-              };
-
               if (fullHistory.length < 50) return;
               
               const c = fullHistory[fullHistory.length - 1]; // latest confirmed 5m candle
               const mins = getISTMinuteOfDay(c.t + 300);
 
-              if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) return; // Prime Time 09:30 - 14:45 IST
+              if (mins < 9 * 60 + 20 || mins > 15 * 60) return; // 09:20 - 15:00 IST
+              
+              const aggregatedHistory = aggregateCandles(fullHistory, 300);
+              const stateArray = computeEmaVwap(aggregatedHistory);
+              const currentState = stateArray[stateArray.length - 1];
 
-              const utState = computeUTBot(fullHistory, 1, 10, 0.25, 6, 1);
-              const currentState = utState[utState.length - 1];
-
-              const ema13 = calculateEMA(fullHistory, 13);
-              const ema48 = calculateEMA(fullHistory, 48);
-              const ema200 = calculateEMA(fullHistory, 200);
-
-              let bullAligned = ema13 > ema48 && ema48 > ema200;
-              let bearAligned = ema13 < ema48 && ema48 < ema200;
-
-              let validBuy = currentState.buy && bullAligned;
-              let validSell = currentState.sell && bearAligned;
-
-              if (!validBuy && !validSell) return;
+              if (!currentState.setupLong && !currentState.setupShort) return;
 
               let setup = "";
               let direction: "LONG" | "SHORT" | null = null;
@@ -5840,16 +5763,16 @@ router.get("/momentum-picks", async (req, res) => {
               let entryPrice = c.c;
               let target = 0;
 
-              if (validBuy) {
-                setup = "UT BOT 5m BULL";
+              if (currentState.setupLong) {
+                setup = "9EMA VWAP BULL";
                 direction = "LONG";
-                sl = entryPrice - currentState.atr * 1.5; // atrSLmult = 1.5
-                target = entryPrice + currentState.atr * 5.0; // TP5 = 5.0
-              } else if (validSell) {
-                setup = "UT BOT 5m BEAR";
+                sl = currentState.rawLongSl; 
+                target = entryPrice + currentState.atr * 2.5; 
+              } else if (currentState.setupShort) {
+                setup = "9EMA VWAP BEAR";
                 direction = "SHORT";
-                sl = entryPrice + currentState.atr * 1.5;
-                target = entryPrice - currentState.atr * 5.0;
+                sl = currentState.rawShortSl;
+                target = entryPrice - currentState.atr * 2.5;
               }
 
               if (direction) {
