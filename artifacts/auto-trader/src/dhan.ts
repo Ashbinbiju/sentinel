@@ -528,6 +528,10 @@ export class DhanBroker extends EventEmitter {
       } catch (err: any) {
         console.warn("[BROKER] Error closing old WebSocket instance:", err.message);
       }
+      
+      // Add a 2-second delay to ensure Dhan's backend fully registers the disconnect
+      // before we bombard it with a new connection request from the same Client ID.
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     return new Promise((resolve, reject) => {
       // AuthType 2 for JWT
