@@ -95,6 +95,7 @@ export class DhanBroker extends EventEmitter {
   private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
   private pingInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private stableTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts: number = 0;
   private subscribedSymbols: Set<string> = new Set();
   
@@ -542,7 +543,13 @@ export class DhanBroker extends EventEmitter {
       
       this.ws.on("open", () => {
         console.log("[BROKER] Dhan WebSocket Connected.");
-        this.reconnectAttempts = 0; // Reset backoff on successful connect
+        // Only reset backoff if the connection stays alive for 10 seconds.
+        // This prevents flapping connections from resetting the exponential backoff.
+        if (this.stableTimeout) clearTimeout(this.stableTimeout);
+        this.stableTimeout = setTimeout(() => {
+          this.reconnectAttempts = 0;
+        }, 10000);
+
         this.pingInterval = setInterval(() => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.ping();
@@ -557,9 +564,15 @@ export class DhanBroker extends EventEmitter {
       });
       
       this.ws.on("close", () => {
+        if (this.stableTimeout) {
+          clearTimeout(this.stableTimeout);
+          this.stableTimeout = null;
+        }
+        
         const delay = Math.min(60000, 15000 * Math.pow(2, this.reconnectAttempts));
         this.reconnectAttempts++;
         console.warn(`[BROKER] WebSocket Closed. Attempting reconnect in ${delay / 1000}s...`);
+        
         if (this.pingInterval) {
           clearInterval(this.pingInterval);
           this.pingInterval = null;
