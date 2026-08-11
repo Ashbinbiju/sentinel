@@ -183,11 +183,9 @@ export class ExecutionEngine {
               return reject("OUTSIDE_TIME");
             }
 
-            if (history.length < 50) return reject("INSUFFICIENT_DATA");
-
             // We MUST aggregate 1-minute live data into strict 5-minute buckets for 9EMA/VWAP
             const aggregatedHistory = aggregateCandles(history, 300);
-            if (aggregatedHistory.length === 0) return reject("NO_AGGREGATED_DATA");
+            if (aggregatedHistory.length < 50) return reject("INSUFFICIENT_DATA");
             
             const stateArray = computeEmaVwap(aggregatedHistory);
             const currentState = stateArray[stateArray.length - 1];

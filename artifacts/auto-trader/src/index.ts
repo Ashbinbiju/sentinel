@@ -38,7 +38,7 @@ process.on("SIGTERM", shutdown);
 // Candles from the previous session prepended to today's, so a breakout on the
 // opening candle has a prevC to compare against. Two is the minimum the engine
 // needs (history.length >= 3 with today's first candle).
-const WARMUP_SEED_CANDLES = 2;
+const WARMUP_SEED_CANDLES = 50;
 
 function getCandleISTDate(epochSecs: number): string {
   return new Intl.DateTimeFormat("en-CA", {
