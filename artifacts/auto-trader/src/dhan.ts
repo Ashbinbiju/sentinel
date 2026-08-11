@@ -94,6 +94,7 @@ export class DhanBroker extends EventEmitter {
   private ws: WebSocket | null = null;
   private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
   private pingInterval: NodeJS.Timeout | null = null;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
   private subscribedSymbols: Set<string> = new Set();
   
   constructor() {
@@ -506,6 +507,11 @@ export class DhanBroker extends EventEmitter {
       throw new Error("Cannot connect WebSocket: Not authenticated.");
     }
 
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
     if (this.ws) {
       try {
         console.log("[BROKER] Closing old WebSocket connection...");
@@ -551,7 +557,10 @@ export class DhanBroker extends EventEmitter {
           this.pingInterval = null;
         }
         this.emit("onDisconnect");
-        setTimeout(() => this.connectWebSocket().catch(e => console.error("[BROKER] Reconnect error:", e.message)), 15000);
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+        }
+        this.reconnectTimeout = setTimeout(() => this.connectWebSocket().catch(e => console.error("[BROKER] Reconnect error:", e.message)), 15000);
       });
       
       this.ws.on("error", (err: any) => {
