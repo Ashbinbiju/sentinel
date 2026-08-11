@@ -522,39 +522,44 @@ export class DhanBroker extends EventEmitter {
         console.warn("[BROKER] Error closing old WebSocket instance:", err.message);
       }
     }
-    
-    // AuthType 2 for JWT
-    const wsUrl = `wss://api-feed.dhan.co?version=2&token=${this.accessToken}&clientId=${this.clientId}&authType=2`;
-    
-    this.ws = new WebSocket(wsUrl);
-    this.subscribedSymbols.clear();
-    
-    this.ws.on("open", () => {
-      console.log("[BROKER] Dhan WebSocket Connected.");
-      this.pingInterval = setInterval(() => {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.ping();
+    return new Promise((resolve, reject) => {
+      // AuthType 2 for JWT
+      const wsUrl = `wss://api-feed.dhan.co?version=2&token=${this.accessToken}&clientId=${this.clientId}&authType=2`;
+      
+      this.ws = new WebSocket(wsUrl);
+      this.subscribedSymbols.clear();
+      
+      this.ws.on("open", () => {
+        console.log("[BROKER] Dhan WebSocket Connected.");
+        this.pingInterval = setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.ping();
+          }
+        }, 30000);
+        this.emit("onReconnect");
+        resolve();
+      });
+      
+      this.ws.on("message", (data: Buffer) => {
+        this.parseBinaryMessage(data);
+      });
+      
+      this.ws.on("close", () => {
+        console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 15s...");
+        if (this.pingInterval) {
+          clearInterval(this.pingInterval);
+          this.pingInterval = null;
         }
-      }, 30000);
-      this.emit("onReconnect");
-    });
-    
-    this.ws.on("message", (data: Buffer) => {
-      this.parseBinaryMessage(data);
-    });
-    
-    this.ws.on("close", () => {
-      console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 15s...");
-      if (this.pingInterval) {
-        clearInterval(this.pingInterval);
-        this.pingInterval = null;
-      }
-      this.emit("onDisconnect");
-      setTimeout(() => this.connectWebSocket(), 15000);
-    });
-    
-    this.ws.on("error", (err: any) => {
-      console.error("[BROKER] WebSocket Error:", err);
+        this.emit("onDisconnect");
+        setTimeout(() => this.connectWebSocket().catch(e => console.error("[BROKER] Reconnect error:", e.message)), 15000);
+      });
+      
+      this.ws.on("error", (err: any) => {
+        console.error("[BROKER] WebSocket Error:", err);
+        if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+          reject(err);
+        }
+      });
     });
   }
 
