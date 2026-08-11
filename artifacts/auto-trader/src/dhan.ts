@@ -513,6 +513,10 @@ export class DhanBroker extends EventEmitter {
           clearInterval(this.pingInterval);
           this.pingInterval = null;
         }
+        // Remove event listeners before closing so the old socket's 'close' 
+        // event doesn't queue a redundant reconnect loop!
+        this.ws.removeAllListeners();
+        this.ws.on("error", () => {}); // Catch dangling close errors
         this.ws.close();
       } catch (err: any) {
         console.warn("[BROKER] Error closing old WebSocket instance:", err.message);
@@ -540,13 +544,13 @@ export class DhanBroker extends EventEmitter {
     });
     
     this.ws.on("close", () => {
-      console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 5s...");
+      console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 15s...");
       if (this.pingInterval) {
         clearInterval(this.pingInterval);
         this.pingInterval = null;
       }
       this.emit("onDisconnect");
-      setTimeout(() => this.connectWebSocket(), 5000);
+      setTimeout(() => this.connectWebSocket(), 15000);
     });
     
     this.ws.on("error", (err: any) => {
