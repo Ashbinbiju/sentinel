@@ -95,6 +95,7 @@ export class DhanBroker extends EventEmitter {
   private wsCallbacks: ((tick: DhanMarketTick) => void)[] = [];
   private pingInterval: NodeJS.Timeout | null = null;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private reconnectAttempts: number = 0;
   private subscribedSymbols: Set<string> = new Set();
   
   constructor() {
@@ -537,6 +538,7 @@ export class DhanBroker extends EventEmitter {
       
       this.ws.on("open", () => {
         console.log("[BROKER] Dhan WebSocket Connected.");
+        this.reconnectAttempts = 0; // Reset backoff on successful connect
         this.pingInterval = setInterval(() => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.ping();
@@ -551,7 +553,9 @@ export class DhanBroker extends EventEmitter {
       });
       
       this.ws.on("close", () => {
-        console.warn("[BROKER] WebSocket Closed. Attempting reconnect in 15s...");
+        const delay = Math.min(60000, 15000 * Math.pow(2, this.reconnectAttempts));
+        this.reconnectAttempts++;
+        console.warn(`[BROKER] WebSocket Closed. Attempting reconnect in ${delay / 1000}s...`);
         if (this.pingInterval) {
           clearInterval(this.pingInterval);
           this.pingInterval = null;
@@ -560,7 +564,7 @@ export class DhanBroker extends EventEmitter {
         if (this.reconnectTimeout) {
           clearTimeout(this.reconnectTimeout);
         }
-        this.reconnectTimeout = setTimeout(() => this.connectWebSocket().catch(e => console.error("[BROKER] Reconnect error:", e.message)), 15000);
+        this.reconnectTimeout = setTimeout(() => this.connectWebSocket().catch(e => console.error("[BROKER] Reconnect error:", e.message)), delay);
       });
       
       this.ws.on("error", (err: any) => {
