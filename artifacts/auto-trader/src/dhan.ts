@@ -98,6 +98,7 @@ export class DhanBroker extends EventEmitter {
   private stableTimeout: NodeJS.Timeout | null = null;
   private reconnectAttempts: number = 0;
   private subscribedSymbols: Set<string> = new Set();
+  private pendingSubscriptions: Set<string> = new Set();
   
   constructor() {
     super();
@@ -555,6 +556,15 @@ export class DhanBroker extends EventEmitter {
             this.ws.ping();
           }
         }, 30000);
+
+        // Flush any subscriptions that were queued while the WS was down
+        if (this.pendingSubscriptions.size > 0) {
+          const pending = [...this.pendingSubscriptions];
+          this.pendingSubscriptions.clear();
+          console.log(`[BROKER] Flushing ${pending.length} pending subscriptions...`);
+          this.subscribeToSecurityIds(pending);
+        }
+
         this.emit("onReconnect");
         resolve();
       });
@@ -762,11 +772,17 @@ export class DhanBroker extends EventEmitter {
   }
 
   subscribeToSecurityIds(securityIds: string[]) {
+    if (securityIds.length === 0) return;
+
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("[BROKER] WebSocket not ready. Cannot subscribe.");
+      // Queue for later — they'll be flushed when the socket reconnects
+      const queued = securityIds.filter(id => !this.subscribedSymbols.has(id) && !this.pendingSubscriptions.has(id));
+      queued.forEach(id => this.pendingSubscriptions.add(id));
+      if (queued.length > 0) {
+        console.warn(`[BROKER] WebSocket not ready. Queued ${queued.length} subscriptions for when it reconnects.`);
+      }
       return;
     }
-    if (securityIds.length === 0) return;
 
     const newSymbols = securityIds.filter(id => !this.subscribedSymbols.has(id));
     if (newSymbols.length === 0) return;
