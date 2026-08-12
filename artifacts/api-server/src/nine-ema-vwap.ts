@@ -84,7 +84,7 @@ export function aggregateCandles(candles: Candle[], timeframeSecs: number): Cand
   return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
 }
 
-export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: number = 14, armBars: number = 6, warmBars: number = 6, vwapDistAtr: number = 0.15, minBodyPct: number = 40.0, closeExtPct: number = 70.0): EmaVwapState[] {
+export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: number = 14, armBars: number = 6, warmBars: number = 6, vwapDistAtr: number = 0.15, maxEmaDistAtr: number = 1.0, minBodyPct: number = 40.0, closeExtPct: number = 70.0): EmaVwapState[] {
   if (candles.length === 0) return [];
 
   const states: EmaVwapState[] = [];
@@ -201,9 +201,13 @@ export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: nu
     const bodyUpOK = (c.c > c.o && bodyPct >= minBodyPct) || strongUp;
     const bodyDnOK = (c.c < c.o && bodyPct >= minBodyPct) || strongDn;
 
+    // Overextension check: don't enter if price has shot too far from the EMA
+    const emaDistAtr = atr > 0 ? Math.abs(c.c - ema) / atr : 0.0;
+    const notExtended = emaDistAtr <= maxEmaDistAtr;
+
     // Trigger
-    const setupLong = alignedLong && sinceArmL <= armBars && !longUsed && distOK && bodyUpOK;
-    const setupShort = alignedShort && sinceArmS <= armBars && !shortUsed && distOK && bodyDnOK;
+    const setupLong = alignedLong && sinceArmL <= armBars && !longUsed && distOK && notExtended && bodyUpOK;
+    const setupShort = alignedShort && sinceArmS <= armBars && !shortUsed && distOK && notExtended && bodyDnOK;
 
     if (setupLong) longUsed = true;
     if (setupShort) shortUsed = true;
