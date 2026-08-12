@@ -155,9 +155,14 @@ export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: nu
     const crossUp = ema > vwap && prevEma <= prevVwap;
     const crossDn = ema < vwap && prevEma >= prevVwap;
 
-    // Arm ONLY on a genuine cross (no pre-arm gap-and-go)
-    const armLong = warmOK && crossUp;
-    const armShort = warmOK && crossDn;
+    // Reject flat-line crosses: EMA must be actually moving (not just wobbling
+    // sideways through VWAP). Require EMA slope >= 10% of ATR per bar.
+    const emaSlope = Math.abs(ema - prevEma);
+    const hasMomentum = atr > 0 && emaSlope >= atr * 0.10;
+
+    // Arm ONLY on a genuine cross with momentum behind it
+    const armLong = warmOK && crossUp && hasMomentum;
+    const armShort = warmOK && crossDn && hasMomentum;
 
     if (armLong) {
       sinceArmL = 0;
