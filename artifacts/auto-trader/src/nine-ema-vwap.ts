@@ -85,7 +85,7 @@ export function aggregateCandles(candles: Candle[], timeframeSecs: number): Cand
   return Array.from(buckets.values()).sort((a, b) => a.t - b.t);
 }
 
-export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: number = 14, armBars: number = 6, warmBars: number = 6, vwapDistAtr: number = 0.15, maxEmaDistAtr: number = 1.0, minBodyPct: number = 40.0, closeExtPct: number = 70.0): EmaVwapState[] {
+export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: number = 14, armBars: number = 0, warmBars: number = 6, vwapDistAtr: number = 0.15, maxEmaDistAtr: number = 1.0, minBodyPct: number = 40.0, closeExtPct: number = 70.0): EmaVwapState[] {
   if (candles.length === 0) return [];
 
   const states: EmaVwapState[] = [];
