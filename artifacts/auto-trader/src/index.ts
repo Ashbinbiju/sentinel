@@ -88,15 +88,15 @@ function buildSeededHistory(
 async function getDailyWatchlist(existingWatchlist?: WatchlistContext[]): Promise<WatchlistContext[]> {
   const list: WatchlistContext[] = [];
   try {
-    const url = "https://api.bottomstreet.com/?index=NIFTY&type=gainers&limit=15";
+    const url = "https://intradayscreener.com/api/trackStocks/cash";
     const res = await axios.get(url, { headers: { Accept: "application/json" } });
 
     let uniqueStocks: any[] = [];
-    if (res.data && res.data.stocks) {
-      uniqueStocks = res.data.stocks.map((s: any) => ({
+    if (res.data && res.data.intradayGainers) {
+      uniqueStocks = res.data.intradayGainers.slice(0, 15).map((s: any) => ({
         symbol: s.symbol?.trim(),
         ltp: s.ltp,
-        changePct: s.changePct,
+        changePct: s.priceChangePct,
         category: "TOP_MOMENTUM"
       }));
 
