@@ -1,179 +1,221 @@
+// @ts-nocheck
+/**
+ * Single-stock backtest: Fixed ₹5 target, 1 trade/day, full capital at 5x leverage.
+ * Usage: npx tsx src/backtest-single.ts DRREDDY
+ */
 import axios from "axios";
+import { computeEmaVwap, aggregateCandles } from "./nine-ema-vwap.js";
 
-const TOUCH_BUFFER_PCT = 0.0015;
-const MAX_CHASE_PCT = 0.008;
-const SL_BUFFER_PCT = 0.01;
+const FIXED_TARGET_POINTS = 5;
+const CAPITAL = 50000; // Simulated capital
+const LEVERAGE = 5;
+const MAX_DAILY_TRADES = 1;
 
-async function backtestSymbol(symbol: string, forceSide: "BUY" | "SELL") {
-  console.log(`\n=== BACKTESTING ${symbol} (${forceSide} ONLY) ===\n`);
+function getISTMinuteOfDay(epochSecs: number) {
+  const d = new Date(epochSecs * 1000);
+  d.setUTCHours(d.getUTCHours() + 5);
+  d.setUTCMinutes(d.getUTCMinutes() + 30);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
+}
 
-  const histRes = await axios.get(`http://localhost:3000/api/stocks/${symbol}/candles`);
+function getISTTimeStr(epochSecs: number) {
+  const d = new Date(epochSecs * 1000);
+  d.setUTCHours(d.getUTCHours() + 5);
+  d.setUTCMinutes(d.getUTCMinutes() + 30);
+  return d.toISOString().substring(11, 16);
+}
+
+function getEpochDateStr(epochSecs: number) {
+  const d = new Date(epochSecs * 1000);
+  d.setUTCHours(d.getUTCHours() + 5);
+  d.setUTCMinutes(d.getUTCMinutes() + 30);
+  return d.toISOString().slice(0, 10);
+}
+
+function roundToTick(val: number): number {
+  return Math.round(val / 0.05) * 0.05;
+}
+
+async function runBacktest() {
+  const symbol = process.argv[2] || "DRREDDY";
+  const API_BASE = process.env.API_URL || "http://localhost:3000";
+  
+  console.log(`\n🔬 BACKTEST: ${symbol} | Target: ₹${FIXED_TARGET_POINTS} | Capital: ₹${CAPITAL} | Leverage: ${LEVERAGE}x`);
+  console.log(`${"─".repeat(80)}`);
+
+  // Fetch candle data from sentinel-api
+  const histRes = await axios.get(`${API_BASE}/api/stocks/${symbol}/candles`);
   const historicalCandles = histRes.data?.historicalCandles || [];
   const sessionCandles = histRes.data?.sessionCandles || [];
 
-  if (historicalCandles.length === 0) { console.log("No historical candles found."); return; }
-  if (sessionCandles.length < 3) { console.log("Not enough session candles."); return; }
+  if (historicalCandles.length === 0 || sessionCandles.length < 3) {
+    console.log("❌ Insufficient data for backtest.");
+    return;
+  }
 
-  // PDH/PDL
-  const todaySlot = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-  const prevCandles = historicalCandles.filter((c: any) => {
+  // Determine today's date
+  const todayIST = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+
+  // Aggregate all candles into 5-min buckets
+  const rawAllCandles = [...historicalCandles, ...sessionCandles].sort((a: any, b: any) => a.t - b.t);
+  const allCandles = aggregateCandles(rawAllCandles, 300);
+
+  // Filter today's 5-min candles
+  const todayCandles = allCandles.filter((c: any) => {
     const dtStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000));
-    return dtStr !== todaySlot;
+    return dtStr === todayIST;
   });
-  const prevDates = [...new Set(prevCandles.map((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000))))].sort() as string[];
-  const lastDate = prevDates[prevDates.length - 1];
-  const lastDayCandles = prevCandles.filter((c: any) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(c.t * 1000)) === lastDate);
 
-  const prevClose = lastDayCandles[lastDayCandles.length - 1].c;
-  console.log(`Prev Close: ${prevClose}\n`);
+  if (todayCandles.length === 0) {
+    console.log(`❌ No candle data for today (${todayIST}).`);
+    return;
+  }
 
-  // Print all session candles
-  console.log("TIME     O        H        L        C        VWAP     EMA20");
-  console.log("-----    -------  -------  -------  -------  -------  -------");
+  console.log(`📊 ${allCandles.length} total 5-min candles | ${todayCandles.length} today (${todayIST})`);
+  console.log(`${"─".repeat(80)}\n`);
 
+  let trade: any = null;
+  let dailyTradesCount = 0;
+  let result: any = null;
 
-  let activeTrade: any = null;
-  let tradesTaken = 0;
+  // Walk through each 5-min candle chronologically
+  for (const candle of todayCandles) {
+    const closeTime = candle.t + 300;
+    const mins = getISTMinuteOfDay(closeTime);
+    const timeStr = getISTTimeStr(closeTime);
 
-  console.log("\n--- SIGNAL SCAN ---\n");
+    // Get full history up to this candle for indicator computation
+    const historySoFar = allCandles.filter((hc: any) => hc.t <= candle.t);
+    if (historySoFar.length < 50) continue;
 
-  const allCandles = [...historicalCandles, ...sessionCandles].sort((a: any, b: any) => a.t - b.t);
+    const stateArray = computeEmaVwap(historySoFar);
+    const currentState = stateArray[stateArray.length - 1];
 
-  const getISTMinuteOfDay = (epochSecs: number) => {
-    const d = new Date(epochSecs * 1000);
-    d.setUTCHours(d.getUTCHours() + 5);
-    d.setUTCMinutes(d.getUTCMinutes() + 30);
-    return d.getUTCHours() * 60 + d.getUTCMinutes();
-  };
+    // --- Process exits first ---
+    if (trade) {
+      // Check target hit (intra-candle)
+      if (trade.side === "BUY" && candle.h >= trade.target) {
+        const pnl = trade.target - trade.entryPrice;
+        const totalPnl = pnl * trade.qty;
+        result = { pnl, totalPnl, exitPrice: trade.target, exitTime: timeStr, reason: "TARGET HIT ✅" };
+        console.log(`  🎯 [TARGET HIT] ${symbol} @ ${timeStr} | Exit: ${trade.target.toFixed(2)} | P&L: ₹${totalPnl.toFixed(2)} (${pnl.toFixed(2)} pts × ${trade.qty} qty)`);
+        trade = null;
+        continue;
+      }
+      if (trade.side === "SELL" && candle.l <= trade.target) {
+        const pnl = trade.entryPrice - trade.target;
+        const totalPnl = pnl * trade.qty;
+        result = { pnl, totalPnl, exitPrice: trade.target, exitTime: timeStr, reason: "TARGET HIT ✅" };
+        console.log(`  🎯 [TARGET HIT] ${symbol} @ ${timeStr} | Exit: ${trade.target.toFixed(2)} | P&L: ₹${totalPnl.toFixed(2)} (${pnl.toFixed(2)} pts × ${trade.qty} qty)`);
+        trade = null;
+        continue;
+      }
 
-  const getEpochDateStr = (epochSecs: number) => {
-    const d = new Date(epochSecs * 1000);
-    d.setUTCHours(d.getUTCHours() + 5);
-    d.setUTCMinutes(d.getUTCMinutes() + 30);
-    return d.toISOString().slice(0, 10);
-  };
+      // Check SL hit (intra-candle)
+      if (trade.side === "BUY" && candle.l <= trade.sl) {
+        const pnl = trade.sl - trade.entryPrice;
+        const totalPnl = pnl * trade.qty;
+        result = { pnl, totalPnl, exitPrice: trade.sl, exitTime: timeStr, reason: "SL HIT ❌" };
+        console.log(`  🛑 [SL HIT] ${symbol} @ ${timeStr} | Exit: ${trade.sl.toFixed(2)} | P&L: ₹${totalPnl.toFixed(2)} (${pnl.toFixed(2)} pts × ${trade.qty} qty)`);
+        trade = null;
+        continue;
+      }
+      if (trade.side === "SELL" && candle.h >= trade.sl) {
+        const pnl = trade.entryPrice - trade.sl;
+        const totalPnl = pnl * trade.qty;
+        result = { pnl, totalPnl, exitPrice: trade.sl, exitTime: timeStr, reason: "SL HIT ❌" };
+        console.log(`  🛑 [SL HIT] ${symbol} @ ${timeStr} | Exit: ${trade.sl.toFixed(2)} | P&L: ₹${totalPnl.toFixed(2)} (${pnl.toFixed(2)} pts × ${trade.qty} qty)`);
+        trade = null;
+        continue;
+      }
 
-  const aggregateCandles = (candles: any[], timeframeSecs: number) => {
-    const timeframeMins = timeframeSecs / 60;
-    const buckets = new Map<string, any>();
-    const ENTRY_SIGNAL_START_MIN_IST = 9 * 60 + 15;
-  
-    for (const cd of candles) {
-      const mins = getISTMinuteOfDay(cd.t);
-      const relMins = Math.max(0, mins - ENTRY_SIGNAL_START_MIN_IST);
-      const bucketIndex = Math.floor(relMins / timeframeMins);
-      const key = `${getEpochDateStr(cd.t)}:${bucketIndex}`;
-      const existing = buckets.get(key);
-  
-      if (!existing) {
-        buckets.set(key, { ...cd, t: cd.t });
+      // ATR-based trailing (same as live engine)
+      const tradeBars = historySoFar.filter((h: any) => h.t >= trade.entryTime);
+      if (trade.side === "BUY") {
+        const runMax = Math.max(...tradeBars.map((h: any) => h.h), trade.entryPrice);
+        const mfe = runMax - trade.entryPrice;
+        if (mfe >= currentState.atr * 0.5) {
+          const proposedSL = runMax - 2.5 * currentState.atr;
+          if (proposedSL > trade.sl) {
+            trade.sl = roundToTick(proposedSL);
+            console.log(`  📈 [TRAIL] ${symbol} @ ${timeStr} | SL → ${trade.sl.toFixed(2)} (MFE: ${mfe.toFixed(2)})`);
+          }
+        }
       } else {
-        existing.h = Math.max(existing.h, cd.h);
-        existing.l = Math.min(existing.l, cd.l);
-        existing.c = cd.c;
-        existing.v = (existing.v || 0) + (cd.v || 0);
-      }
-    }
-    return Array.from(buckets.values()).sort((a: any, b: any) => a.t - b.t);
-  };
-
-  let cumPV = 0;
-  let cumV = 0;
-
-  for (let i = 0; i < sessionCandles.length; i++) {
-    const c = sessionCandles[i];
-    const d = new Date(c.t * 1000);
-    d.setUTCHours(d.getUTCHours() + 5); d.setUTCMinutes(d.getUTCMinutes() + 30);
-    const timeStr = d.toISOString().substring(11, 16);
-
-    const hlc3 = (c.h + c.l + c.c) / 3;
-    cumPV += hlc3 * (c.v || 0);
-    cumV += (c.v || 0);
-    const vwap = cumV > 0 ? cumPV / cumV : 0;
-
-    const historySoFar = allCandles.filter((hc: any) => hc.t <= c.t);
-    const agg15m = aggregateCandles(historySoFar, 900);
-    
-    const period = 20;
-    let ema20 = 0;
-    if (agg15m.length >= period) {
-      const closes = agg15m.map((x: any) => x.c);
-      const k = 2 / (period + 1);
-      let ema = closes.slice(0, period).reduce((a: any, b: any) => a + b, 0) / period;
-      for (let j = period; j < closes.length; j++) {
-        ema = (closes[j] - ema) * k + ema;
-      }
-      ema20 = ema;
-    }
-
-    console.log(`${timeStr}    ${c.o.toFixed(2).padStart(8)}  ${c.h.toFixed(2).padStart(8)}  ${c.l.toFixed(2).padStart(8)}  ${c.c.toFixed(2).padStart(8)}  ${vwap.toFixed(2).padStart(8)}  ${ema20.toFixed(2).padStart(8)}`);
-
-    // Time filter: 09:30 to 14:45
-    const mins = d.getUTCHours() * 60 + d.getUTCMinutes() + 5; // +5 for candle close
-    const inWindow = mins >= 9 * 60 + 30 && mins <= 14 * 60 + 45;
-
-    // Manage active trade
-    if (activeTrade) {
-      const risk = activeTrade.entryPrice * 0.01; // initial 1% risk
-
-      // +1.2% Trail to Breakeven
-      if (c.h >= activeTrade.entryPrice * 1.012) {
-        if (activeTrade.sl < activeTrade.entryPrice) {
-          activeTrade.sl = activeTrade.entryPrice;
-          console.log(`  [TRAIL] Hit +1.2%, moving SL to Breakeven (${activeTrade.sl.toFixed(2)})`);
-        }
-      }
-      // +2.0% continuous trail
-      if (c.h >= activeTrade.entryPrice * 1.020) {
-        const proposedSL = c.h * (1 - 0.012); // trail by 1.2%
-        if (proposedSL > activeTrade.sl) {
-          activeTrade.sl = proposedSL;
-          console.log(`  [TRAIL] Hit +2.0%, trailing SL to ${activeTrade.sl.toFixed(2)}`);
+        const runMin = Math.min(...tradeBars.map((h: any) => h.l), trade.entryPrice);
+        const mfe = trade.entryPrice - runMin;
+        if (mfe >= currentState.atr * 0.5) {
+          const proposedSL = runMin + 2.5 * currentState.atr;
+          if (proposedSL < trade.sl) {
+            trade.sl = roundToTick(proposedSL);
+            console.log(`  📉 [TRAIL] ${symbol} @ ${timeStr} | SL → ${trade.sl.toFixed(2)} (MFE: ${mfe.toFixed(2)})`);
+          }
         }
       }
 
-      if (c.l <= activeTrade.sl) {
-        const pnl = activeTrade.sl - activeTrade.entryPrice;
-        console.log(`  [EXIT] SL HIT @ ${activeTrade.sl.toFixed(2)} at ${timeStr} | PNL: ${pnl.toFixed(2)}`);
-        activeTrade = null;
+      // Auto square-off at 3:15 PM
+      if (mins >= 15 * 60 + 14) {
+        const exitPrice = candle.c;
+        const pnl = trade.side === "BUY" ? exitPrice - trade.entryPrice : trade.entryPrice - exitPrice;
+        const totalPnl = pnl * trade.qty;
+        result = { pnl, totalPnl, exitPrice, exitTime: timeStr, reason: "AUTO SQUARE-OFF 🕒" };
+        console.log(`  🕒 [SQUARE-OFF] ${symbol} @ ${timeStr} | Exit: ${exitPrice.toFixed(2)} | P&L: ₹${totalPnl.toFixed(2)} (${pnl.toFixed(2)} pts × ${trade.qty} qty)`);
+        trade = null;
+        break;
       }
+
+      continue; // Skip entry logic while in a trade
     }
 
-    // 3:15 PM auto square-off
-    if (mins >= 15 * 60 + 14 && activeTrade) {
-      const exitPrice = c.o;
-      const pnl = exitPrice - activeTrade.entryPrice;
-      console.log(`  [EXIT] AUTO SQUARE-OFF @ ${exitPrice.toFixed(2)} at ${timeStr} | PNL: ${pnl.toFixed(2)}`);
-      activeTrade = null;
-      break;
-    }
+    // --- Process entries ---
+    if (dailyTradesCount >= MAX_DAILY_TRADES) continue;
+    if (mins < 9 * 60 + 30 || mins > 14 * 60 + 45) continue;
 
-    // Evaluate setups (only if no active trade and in time window)
-    if (!activeTrade && inWindow && forceSide === "BUY" && vwap > 0 && ema20 > 0) {
-      const extPc = (c.c - ema20) / ema20;
-      const dayChangePct = (c.c - prevClose) / prevClose;
+    if (!currentState.setupLong && !currentState.setupShort) continue;
 
-      if (c.c > vwap && c.c > ema20 && extPc < 0.015 && dayChangePct > 0) {
-        const sl = c.c * 0.99; // -1.0% hard stop
-        console.log(`[ENTRY] SECTOR MOMENTUM @ ${timeStr} | Entry: ${c.c.toFixed(2)} | SL: ${sl.toFixed(2)}`);
-        activeTrade = { side: "BUY", entryPrice: c.c, sl };
-        tradesTaken++;
-      }
-    }
+    const side = currentState.setupLong ? "BUY" : "SELL";
+    const entryPrice = candle.c;
+    const sl = roundToTick(currentState.setupLong ? currentState.rawLongSl : currentState.rawShortSl);
+    const target = roundToTick(side === "BUY" ? entryPrice + FIXED_TARGET_POINTS : entryPrice - FIXED_TARGET_POINTS);
+    const risk = Math.abs(entryPrice - sl);
+    const qty = Math.floor((CAPITAL * LEVERAGE) / entryPrice);
+
+    if (qty < 1) continue;
+
+    trade = { side, entryPrice, sl, target, qty, entryTime: candle.t };
+    dailyTradesCount++;
+
+    console.log(`  ⚡ [ENTRY ${dailyTradesCount}/${MAX_DAILY_TRADES}] ${symbol} @ ${timeStr}`);
+    console.log(`     Side: ${side} | Entry: ${entryPrice.toFixed(2)} | SL: ${sl.toFixed(2)} (${risk.toFixed(2)} pts risk) | Target: ${target.toFixed(2)} (+₹${FIXED_TARGET_POINTS})`);
+    console.log(`     Qty: ${qty} shares | Capital deployed: ₹${(qty * entryPrice).toFixed(0)} (${LEVERAGE}x leverage on ₹${CAPITAL})`);
+    console.log(`     Max Loss: ₹${(risk * qty).toFixed(2)} | Max Gain: ₹${(FIXED_TARGET_POINTS * qty).toFixed(2)}`);
+    console.log(``);
   }
 
-  // EOD close
-  if (activeTrade) {
-    const lastC = sessionCandles[sessionCandles.length - 1];
-    const risk = Math.abs(activeTrade.entryPrice - activeTrade.sl);
-    const pnl = activeTrade.side === "BUY" ? lastC.c - activeTrade.entryPrice : activeTrade.entryPrice - lastC.c;
-    const rr = pnl / risk;
-    console.log(`  [EXIT] EOD CLOSE @ ${lastC.c.toFixed(2)} | ${rr.toFixed(2)}R`);
+  // If trade is still open at end of data
+  if (trade) {
+    const lastCandle = todayCandles[todayCandles.length - 1];
+    const exitPrice = lastCandle.c;
+    const pnl = trade.side === "BUY" ? exitPrice - trade.entryPrice : trade.entryPrice - exitPrice;
+    const totalPnl = pnl * trade.qty;
+    result = { pnl, totalPnl, exitPrice, exitTime: getISTTimeStr(lastCandle.t + 300), reason: "STILL OPEN 🔄" };
+    console.log(`  🔄 [OPEN] ${symbol} @ ${getISTTimeStr(lastCandle.t + 300)} | LTP: ${exitPrice.toFixed(2)} | Unrealized P&L: ₹${totalPnl.toFixed(2)} (${pnl.toFixed(2)} pts × ${trade.qty} qty)`);
   }
 
-  if (tradesTaken === 0) {
-    console.log("\nNo valid setups found for forced direction today.");
+  // Summary
+  console.log(`\n${"═".repeat(80)}`);
+  console.log(`  📋 BACKTEST RESULT: ${symbol} on ${todayIST}`);
+  console.log(`${"═".repeat(80)}`);
+  if (result) {
+    console.log(`  Outcome:  ${result.reason}`);
+    console.log(`  P&L:      ₹${result.totalPnl.toFixed(2)} (${result.pnl.toFixed(2)} pts)`);
+    console.log(`  Capital:  ₹${CAPITAL} at ${LEVERAGE}x leverage`);
+    const returnPct = (result.totalPnl / CAPITAL) * 100;
+    console.log(`  Return:   ${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% on capital`);
+  } else {
+    console.log(`  No trade signal generated today.`);
   }
+  console.log(`${"═".repeat(80)}\n`);
 }
 
-backtestSymbol("GRAPHITE", "BUY").catch(console.error);
+runBacktest().catch(console.error);

@@ -155,13 +155,9 @@ export function computeEmaVwap(candles: Candle[], emaLen: number = 9, atrLen: nu
     const crossUp = ema > vwap && prevEma <= prevVwap;
     const crossDn = ema < vwap && prevEma >= prevVwap;
 
-    // Pre-arm at exactly warmBars if already trending (handles gap-and-go without crossover)
-    const justWarmedUp = barsIntoSess === warmBars;
-    const preArmLong = justWarmedUp && ema > vwap;
-    const preArmShort = justWarmedUp && ema < vwap;
-
-    const armLong = (warmOK && crossUp) || preArmLong;
-    const armShort = (warmOK && crossDn) || preArmShort;
+    // Arm ONLY on a genuine cross (no pre-arm gap-and-go)
+    const armLong = warmOK && crossUp;
+    const armShort = warmOK && crossDn;
 
     if (armLong) {
       sinceArmL = 0;
