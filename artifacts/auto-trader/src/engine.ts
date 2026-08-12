@@ -19,8 +19,8 @@ const NSE_TICK_SIZE = 0.05;
 // PDH/PDL-only behaviour.
 const USE_PIVOT_FILTER = process.env.USE_PIVOT_FILTER !== "false";
 
-// Reward multiple applied to risk when placing the target.
-const TARGET_RR = 2;
+// Fixed target in absolute price points (₹). Every trade exits at ₹5 profit.
+const FIXED_TARGET_POINTS = 5;
 
 // Reject a setup when its target sits further away than the instrument's
 // previous-day range multiplied by this factor. A target the stock does not
@@ -205,12 +205,12 @@ export class ExecutionEngine {
                 setup = "9EMA VWAP BULL";
                 direction = "BUY";
                 sl = currentState.rawLongSl;
-                target = entryPrice + currentState.atr * 5.0; // Place order far away, exit dynamically via trail
+                target = entryPrice + FIXED_TARGET_POINTS;
               } else if (currentState.setupShort) {
                 setup = "9EMA VWAP BEAR";
                 direction = "SELL";
                 sl = currentState.rawShortSl;
-                target = entryPrice - currentState.atr * 5.0;
+                target = entryPrice - FIXED_TARGET_POINTS;
               }
             }
 
@@ -262,7 +262,7 @@ export class ExecutionEngine {
 
             if (!direction) return reject("NO_SETUP");
 
-            const MAX_DAILY_TRADES = process.env.LIVE_CANARY === "true" ? 1 : 2;
+            const MAX_DAILY_TRADES = 1;
 
             const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
               trade.state !== "REJECTED"
@@ -321,17 +321,14 @@ export class ExecutionEngine {
         cycleBalance = this.sessionEquity;
       }
 
-      const riskPerTrade = cycleBalance * 0.01;
-      let qty = Math.floor(riskPerTrade / risk);
-      if (qty < 1) qty = 1;
-
-      const maxLeveragedQty = Math.floor((cycleBalance * 5) / entryPrice);
-      if (maxLeveragedQty < 1) {
-        console.warn(`[ENGINE] Insufficient balance for one-share canary for ${ctx.symbol}. Required: ${entryPrice}. Available: ${cycleBalance}`);
+      // Full capital, max leverage (5x for intraday Super Orders)
+      let qty = Math.floor((cycleBalance * 5) / entryPrice);
+      if (qty < 1) {
+        console.warn(`[ENGINE] Insufficient balance for ${ctx.symbol}. Required: ${entryPrice}. Available (5x): ${cycleBalance * 5}`);
         return;
       }
 
-      qty = process.env.LIVE_CANARY === "true" ? 1 : Math.min(qty, maxLeveragedQty);
+      if (process.env.LIVE_CANARY === "true") qty = 1;
 
       if (qty <= 0) {
         console.warn(`[ENGINE] Insufficient balance for ${ctx.symbol}. Required: ${entryPrice}. Available: ${cycleBalance}`);
