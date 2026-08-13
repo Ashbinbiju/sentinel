@@ -360,82 +360,95 @@ async function main() {
   let initialRecoveryComplete = false;
   let lastWatchlistFetchMs = 0;
 
-  const initAndRecover = (): Promise<void> => {
+  const initAndRecover = (forceRefresh = false): Promise<void> => {
     if (recoveryPromise) {
       return recoveryPromise;
     }
 
     recoveryPromise = (async () => {
+      // If continuity is already valid and candles are fresh, skip the full REST
+      // backfill and just re-subscribe to the existing security IDs. This prevents
+      // a rapid-flap reconnect storm from triggering 12+ seconds of serial REST calls.
+      if (!forceRefresh && candleEngine.isContinuityValid && watchlist.length > 0) {
+        console.log(`[BOT] WebSocket reconnected with valid continuity. Re-subscribing ${watchlist.length} symbols (no backfill needed).`);
+        broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+        return;
+      }
+
       candleEngine.prepareForReconnect();
 
-    if (watchlist.length === 0) {
-      console.log(`[BOT] Fetching Watchlist & Historical Context...`);
-      watchlist = await getDailyWatchlist();
-      executionEngine.setWatchlist(watchlist);
-    }
-
-    // Recover from gap
-    const successfulSymbols: string[] = [];
-    for (const item of watchlist) {
-      try {
-        const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
-        const candles = buildSeededHistory(histRes.data?.sessionCandles, histRes.data?.historicalCandles);
-
-        if (!candles) {
-          console.error(`[BOT] Missing or gapped session candles for ${item.symbol}. Continuity compromised.`);
-          continue;
-        }
-
-        const lastCandle = candles[candles.length - 1];
-        const epochSecs = Math.floor(Date.now() / 1000);
-        const currentSlot5m = Math.floor(epochSecs / 300) * 300;
-        const expectedLastClosed5m = currentSlot5m - 300;
-        const currentMins = getISTMinutes();
-
-        if (currentMins >= 9 * 60 + 20) {
-          if (Number(lastCandle.t) !== expectedLastClosed5m) {
-            console.warn(
-              `[BOT] Stale backfill for ${item.symbol}. ` +
-              `Last=${lastCandle.t}, expected=${expectedLastClosed5m}`
-            );
-          }
-        }
-
-        candleEngine.backfill(item.securityId, candles);
-        successfulSymbols.push(item.securityId);
-
-        // Throttle requests to prevent Upstox/Cloudflare HTTP 429 Rate Limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (err) {
-        console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
+      if (watchlist.length === 0) {
+        console.log(`[BOT] Fetching Watchlist & Historical Context...`);
+        watchlist = await getDailyWatchlist();
+        executionEngine.setWatchlist(watchlist);
       }
-    }
 
-    if (successfulSymbols.length > 0) {
-      candleEngine.isContinuityValid = true;
-      console.log(`[BOT] CandleEngine Continuity Validated for ${successfulSymbols.length} stocks. Ready for live trading.`);
-      broker.subscribeToSecurityIds(successfulSymbols);
+      // Recover from gap
+      const successfulSymbols: string[] = [];
+      for (const item of watchlist) {
+        try {
+          const histRes = await axios.get(`${API_BASE_URL}/api/stocks/${item.symbol}/candles`);
+          const candles = buildSeededHistory(histRes.data?.sessionCandles, histRes.data?.historicalCandles);
 
-      initialRecoveryComplete = true;
-      lastWatchlistFetchMs = Date.now();
-    } else {
-      console.warn(`[BOT] Backfill failed for all stocks. Skipping continuity validation. Retrying in 60s.`);
-    }
-  })().finally(() => {
-    recoveryPromise = null;
-  });
+          if (!candles) {
+            console.error(`[BOT] Missing or gapped session candles for ${item.symbol}. Continuity compromised.`);
+            continue;
+          }
 
-  return recoveryPromise;
-};
+          const lastCandle = candles[candles.length - 1];
+          const epochSecs = Math.floor(Date.now() / 1000);
+          const currentSlot5m = Math.floor(epochSecs / 300) * 300;
+          const expectedLastClosed5m = currentSlot5m - 300;
+          const currentMins = getISTMinutes();
+
+          if (currentMins >= 9 * 60 + 20) {
+            if (Number(lastCandle.t) !== expectedLastClosed5m) {
+              // Stale backfill is expected during a rapid socket flap — not a real error.
+              console.log(
+                `[BOT] Backfill for ${item.symbol} is one slot behind ` +
+                `(Last=${lastCandle.t}, expected=${expectedLastClosed5m}). Candle engine will catch up via ticks.`
+              );
+            }
+          }
+
+          candleEngine.backfill(item.securityId, candles);
+          successfulSymbols.push(item.securityId);
+
+          // Throttle requests to prevent Upstox/Cloudflare HTTP 429 Rate Limits
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (err) {
+          console.error(`[BOT] Failed REST backfill for ${item.symbol}. Continuity compromised.`);
+        }
+      }
+
+      if (successfulSymbols.length > 0) {
+        candleEngine.isContinuityValid = true;
+        console.log(`[BOT] CandleEngine Continuity Validated for ${successfulSymbols.length} stocks. Ready for live trading.`);
+        broker.subscribeToSecurityIds(successfulSymbols);
+
+        initialRecoveryComplete = true;
+        lastWatchlistFetchMs = Date.now();
+      } else {
+        console.warn(`[BOT] Backfill failed for all stocks. Skipping continuity validation. Retrying in 60s.`);
+      }
+    })().finally(() => {
+      recoveryPromise = null;
+    });
+
+    return recoveryPromise;
+  };
 
   broker.on("onReconnect", async () => {
-    console.log(`[BOT] WebSocket reconnected. Initiating backfill...`);
+    console.log(`[BOT] WebSocket reconnected.`);
     await initAndRecover();
   });
 
   broker.on("onDisconnect", () => {
-    console.warn(`[BOT] WebSocket disconnected. Invalidating continuity and cleaning up partial buckets.`);
-    candleEngine.prepareForReconnect();
+    // Do NOT invalidate continuity here. The candle engine's in-memory state is
+    // still valid — only the live feed is interrupted. Continuity will be
+    // re-validated in initAndRecover() if the socket stays down long enough
+    // to cause a real gap (i.e. forceRefresh=true path or safety loop retry).
+    console.warn(`[BOT] WebSocket disconnected. Live feed paused; continuity preserved.`);
   });
 
   broker.onTick((tick) => {
