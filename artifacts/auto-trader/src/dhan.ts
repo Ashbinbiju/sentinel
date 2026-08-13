@@ -582,15 +582,16 @@ export class DhanBroker extends EventEmitter {
         this.parseBinaryMessage(data);
       });
       
-      this.ws.on("close", () => {
+      this.ws.on("close", (code: number, reason: Buffer) => {
         if (this.stableTimeout) {
           clearTimeout(this.stableTimeout);
           this.stableTimeout = null;
         }
         
+        const reasonStr = reason?.toString() || "no reason";
         const delay = Math.min(60000, 15000 * Math.pow(2, this.reconnectAttempts));
         this.reconnectAttempts++;
-        console.warn(`[BROKER] WebSocket Closed. Attempting reconnect in ${delay / 1000}s...`);
+        console.warn(`[BROKER] WebSocket Closed (code=${code}, reason="${reasonStr}"). Attempting reconnect in ${delay / 1000}s...`);
         
         if (this.pingInterval) {
           clearInterval(this.pingInterval);
