@@ -1,79 +1,109 @@
 /**
- * Minimal Dhan WebSocket diagnostic — isolates whether the issue is
- * our code, the token, or Dhan's service.
+ * Minimal Dhan WebSocket diagnostic — generates a FRESH token via TOTP
+ * and tests whether it works for WebSocket.
  */
 import { WebSocket } from "ws";
+import { TOTP } from "totp-generator";
+import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
+import * as dotenv from "dotenv";
+
+dotenv.config({ path: "../../.env" });
 
 const clientId = process.env.DHAN_CLIENT_ID?.trim();
-let accessToken = process.env.DHAN_ACCESS_TOKEN?.trim() || "";
+const pin = process.env.DHAN_PIN?.trim();
+const totpSecret = process.env.DHAN_TOTP_SECRET?.trim();
 
+let accessToken = process.env.DHAN_ACCESS_TOKEN?.trim() || "";
 const tokenFilePath = path.resolve(process.cwd(), "../../.dhan_token");
 if (fs.existsSync(tokenFilePath)) {
   accessToken = fs.readFileSync(tokenFilePath, "utf8").trim();
 }
 
-if (!clientId || !accessToken) {
-  console.error("Missing DHAN_CLIENT_ID or access token");
-  process.exit(1);
-}
+if (!clientId) { console.error("Missing DHAN_CLIENT_ID"); process.exit(1); }
 
-console.log(`Client ID: ${clientId}`);
-console.log(`Token length: ${accessToken.length}`);
-console.log(`Token first 20 chars: ${accessToken.substring(0, 20)}...`);
-console.log(`Token last 20 chars: ...${accessToken.substring(accessToken.length - 20)}`);
+async function testWithToken(label: string, token: string) {
+  console.log(`\n--- Testing: ${label} ---`);
+  console.log(`Token length: ${token.length}`);
+  console.log(`Token prefix: ${token.substring(0, 30)}...`);
 
-// Check for characters that might break the URL
-const hasSpecialChars = /[+/= \n\r\t]/.test(accessToken);
-console.log(`Token has URL-unsafe chars: ${hasSpecialChars}`);
-if (hasSpecialChars) {
-  console.log(`  Spaces: ${(accessToken.match(/ /g) || []).length}`);
-  console.log(`  Newlines: ${(accessToken.match(/[\n\r]/g) || []).length}`);
-  console.log(`  Plus: ${(accessToken.match(/\+/g) || []).length}`);
-  console.log(`  Equals: ${(accessToken.match(/=/g) || []).length}`);
-  console.log(`  Slash: ${(accessToken.match(/\//g) || []).length}`);
-}
+  const wsUrl = `wss://api-feed.dhan.co?version=2&token=${token}&clientId=${clientId}&authType=2`;
 
-const wsUrl = `wss://api-feed.dhan.co?version=2&token=${accessToken}&clientId=${clientId}&authType=2`;
-console.log(`\nWS URL length: ${wsUrl.length}`);
-console.log(`Connecting...`);
+  return new Promise<void>((resolve) => {
+    const ws = new WebSocket(wsUrl);
+    const timeout = setTimeout(() => {
+      console.log(`[${label}] ✅ Connection survived 15 seconds!`);
+      ws.close();
+      resolve();
+    }, 15000);
 
-const ws = new WebSocket(wsUrl);
+    ws.on("open", () => {
+      console.log(`[${label}] OPEN at ${new Date().toISOString()}`);
+    });
 
-ws.on("open", () => {
-  console.log(`[OPEN] Connected at ${new Date().toISOString()}`);
-  
-  // Don't subscribe to anything — just see if the bare connection survives
-  console.log("[TEST] Holding connection open with no subscriptions...");
-});
+    ws.on("message", (data: Buffer) => {
+      console.log(`[${label}] MSG: ${data.length} bytes`);
+    });
 
-ws.on("message", (data: Buffer) => {
-  console.log(`[MSG] Received ${data.length} bytes (code=${data.readUInt8(0)})`);
-});
+    ws.on("close", (code: number, reason: Buffer) => {
+      clearTimeout(timeout);
+      console.log(`[${label}] ❌ CLOSE code=${code} reason="${reason?.toString() || "none"}" at ${new Date().toISOString()}`);
+      resolve();
+    });
 
-ws.on("close", (code: number, reason: Buffer) => {
-  console.log(`[CLOSE] code=${code} reason="${reason?.toString() || "none"}" at ${new Date().toISOString()}`);
-  process.exit(0);
-});
+    ws.on("error", (err: any) => {
+      clearTimeout(timeout);
+      console.error(`[${label}] ERROR:`, err.message);
+      resolve();
+    });
 
-ws.on("error", (err: any) => {
-  console.error(`[ERROR]`, err.message);
-});
-
-ws.on("unexpected-response", (req: any, res: any) => {
-  console.error(`[UNEXPECTED-RESPONSE] HTTP ${res.statusCode} ${res.statusMessage}`);
-  let body = "";
-  res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-  res.on("end", () => {
-    console.error(`Response body: ${body}`);
-    process.exit(1);
+    ws.on("unexpected-response", (_req: any, res: any) => {
+      clearTimeout(timeout);
+      console.error(`[${label}] HTTP ${res.statusCode} ${res.statusMessage}`);
+      let body = "";
+      res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+      res.on("end", () => { console.error(`Body: ${body}`); resolve(); });
+    });
   });
-});
+}
 
-// Keep alive for 30 seconds
-setTimeout(() => {
-  console.log("[TEST] 30 seconds elapsed — connection survived! Closing.");
-  ws.close();
+async function main() {
+  // Test 1: Existing token
+  console.log("=== Test 1: Existing Token ===");
+  await testWithToken("EXISTING", accessToken);
+
+  // Test 2: Fresh TOTP token
+  if (pin && totpSecret) {
+    console.log("\n=== Test 2: Fresh TOTP Token ===");
+    try {
+      const cleanSecret = totpSecret.replace(/\s+/g, "").toUpperCase();
+      const totpInfo = await TOTP.generate(cleanSecret);
+      const totpCode = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
+      console.log(`TOTP generated: ${totpCode}`);
+
+      const response = await axios.post(
+        `https://auth.dhan.co/app/generateAccessToken?dhanClientId=${clientId}&pin=${pin}&totp=${totpCode}`,
+        {}
+      );
+
+      const rawToken = response.data?.accessToken ?? response.data?.token ?? response.data?.data?.accessToken ?? "";
+      const freshToken = typeof rawToken === "string" ? rawToken.trim() : "";
+
+      if (freshToken.length > 0) {
+        console.log(`Fresh token obtained! Length: ${freshToken.length}`);
+        await testWithToken("FRESH", freshToken);
+      } else {
+        console.error("No token in auth response:", response.data);
+      }
+    } catch (err: any) {
+      console.error("TOTP auth failed:", err?.response?.data || err.message);
+    }
+  } else {
+    console.log("\nSkipping fresh token test (no PIN/TOTP_SECRET)");
+  }
+
   process.exit(0);
-}, 30000);
+}
+
+main();
