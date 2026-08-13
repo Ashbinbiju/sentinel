@@ -1,20 +1,35 @@
 /**
  * Structural swing-trading strategy — exactly this pattern, nothing else:
  *
- *   Existing Uptrend -> High -> Break of High -> Further Upside -> New High
- *   -> Corrective Pullback -> Internal Swing Highs -> Descending Trendline
- *   (3+ touches) -> Bullish Candle Closes Above Trendline -> BUY
- *   -> SL below the corrective low -> 1:1 Risk/Reward Target
+ *   Established Uptrend -> High -> Break of that High -> New High
+ *   -> Corrective Pullback -> Internal Swing Highs (belonging to THIS
+ *   correction only) -> Descending Trendline (3+ touches) -> Bullish Candle
+ *   Closes Above Trendline -> BUY -> SL below the corrective low
+ *   -> 1:1 Risk/Reward Target
+ *
+ * The setup is proven CHRONOLOGICALLY, not assembled from conditions that
+ * happen to be true independently somewhere in the chart:
+ *
+ *   1. Search candidate (Low, next-High) pivot pairs from the most recent
+ *      backward. The first candidate whose High is actually broken by a
+ *      later close (a real Break of Structure) is the impulse in play —
+ *      older, unrelated Low/High pairs are never mixed in.
+ *   2. Everything downstream — the New High, the correction, its internal
+ *      swing highs, the trendline, the breakout, the corrective-low stop —
+ *      is scoped to candles strictly AFTER that proven BOS, so a trendline
+ *      can only be built from touches that belong to THIS correction.
  *
  * Deliberately contains no indicators (RSI/MACD/EMA/VWAP/Bollinger), no
  * volume filter, no candle-body or close-location threshold, no breakout
  * buffer, no max-SL-distance cutoff, and no signal/trendline scoring system.
  * Only the structural conditions above gate a BUY signal. Daily candles only.
  *
- * All swing-point confirmation uses a strict N-bar fractal rule (a high/low
- * is only "confirmed" once N candles exist on both sides), so nothing here
- * ever uses information that wasn't yet available at the time — the same
- * rule applies whether this is called for a live scan or a backtest.
+ * Non-repainting: swing points use a strict N-bar fractal rule (a high/low
+ * is only "confirmed" once N candles exist on both sides), and every pivot
+ * used here comes from re-running detection on the candle window ending at
+ * "today" — so nothing ever uses information that wasn't yet available at
+ * the time. The same engine is used for both the live scanner and the
+ * backtester (swing-backtest.ts calls this exact function).
  */
 
 export interface Candle {
@@ -77,6 +92,32 @@ export interface DiagnosticCheck {
   detail: string;
 }
 
+/** A pivot with both its own bar date and the date it became fractal-confirmed. */
+export interface PivotRef {
+  price: number;
+  date: string;
+  confirmedDate: string;
+}
+
+/**
+ * The exact chronological chain that produced (or almost produced) a signal —
+ * every structural point named explicitly, with dates, so a BUY can always be
+ * traced back to "what Low -> High -> BOS -> New High -> Correction -> 3-touch
+ * descending trendline -> Breakout sequence caused this."
+ */
+export interface StructuralSetupTrace {
+  mainLow: PivotRef | null;
+  mainHigh: PivotRef | null;
+  bosDate: string | null;
+  newHigh: { price: number; date: string } | null;
+  correctionStartDate: string | null;
+  internalHighs: PivotRef[];
+  trendlineStartDate: string | null;
+  trendlineEndDate: string | null;
+  correctiveLow: { price: number; date: string } | null;
+  breakoutDate: string | null;
+}
+
 export interface StructuralSwingSignal {
   category: WatchlistCategory;
   isBuySignal: boolean;
@@ -96,6 +137,9 @@ export interface StructuralSwingSignal {
   structuralSwingLow: number | null; // the corrective low the SL is based on
   trendline: TrendlineResult | null;
 
+  /** The full chronological chain behind this result — see StructuralSetupTrace. */
+  trace: StructuralSetupTrace;
+
   /** Every gate evaluated so far, in pipeline order, with the actual
    * computed value behind each pass/fail — stops accumulating once a stage
    * blocks (later gates can't be meaningfully evaluated without it). */
@@ -111,6 +155,19 @@ function r2(n: number): number {
 function isoDateOf(epochSecs: number): string {
   return new Date(epochSecs * 1000).toISOString().slice(0, 10);
 }
+
+const EMPTY_TRACE: StructuralSetupTrace = {
+  mainLow: null,
+  mainHigh: null,
+  bosDate: null,
+  newHigh: null,
+  correctionStartDate: null,
+  internalHighs: [],
+  trendlineStartDate: null,
+  trendlineEndDate: null,
+  correctiveLow: null,
+  breakoutDate: null,
+};
 
 /**
  * Confirmed swing highs/lows via strict N-bar fractal rule. A point at index i
@@ -181,6 +238,65 @@ export function fitTrendline(touches: SwingPoint[]): TrendlineResult | null {
   return { touches, slope, intercept, priceAt };
 }
 
+function pivotConfirmedDate(sorted: Candle[], p: SwingPoint, n: number): string {
+  const confirmedIdx = Math.min(p.index + n, sorted.length - 1);
+  return isoDateOf(sorted[confirmedIdx].t);
+}
+
+function pivotRef(sorted: Candle[], p: SwingPoint, n: number): PivotRef {
+  return { price: r2(p.price), date: isoDateOf(p.t), confirmedDate: pivotConfirmedDate(sorted, p, n) };
+}
+
+interface ImpulseCandidate {
+  low: SwingPoint;
+  high: SwingPoint;
+  bosIndex: number;
+}
+
+/**
+ * The core chronological-proof step. Walks candidate (Low, next-High) pairs
+ * from the confirmed pivot sequence, most recent first, and returns the
+ * first one where a later close actually breaks above the High — a real,
+ * provable Break of Structure. This never mixes a High from one part of the
+ * chart with a Low from an unrelated, older part: "the High" is always
+ * literally the next confirmed pivot after "the Low" in the alternating
+ * sequence, and BOS is only ever checked against candles after that High.
+ */
+function findMostRecentConfirmedImpulse(
+  sorted: Candle[],
+  pivots: SwingPoint[],
+  lastIndex: number,
+): ImpulseCandidate | null {
+  for (let i = pivots.length - 2; i >= 0; i--) {
+    if (pivots[i].type !== "LOW") continue;
+    const low = pivots[i];
+    const high = pivots[i + 1];
+    if (!high || high.type !== "HIGH") continue;
+
+    let bosIndex = -1;
+    for (let j = high.index + 1; j <= lastIndex; j++) {
+      if (sorted[j].c > high.price) {
+        bosIndex = j;
+        break;
+      }
+    }
+    if (bosIndex === -1) continue; // this High was never broken — try an older Low
+
+    return { low, high, bosIndex };
+  }
+  return null;
+}
+
+/** The most recent Low immediately followed by a High, regardless of BOS — used only to report "uptrend formed, no break yet" instead of a bare NO_SETUP. */
+function mostRecentLowHighPair(pivots: SwingPoint[]): { low: SwingPoint; high: SwingPoint } | null {
+  for (let i = pivots.length - 2; i >= 0; i--) {
+    if (pivots[i].type === "LOW" && pivots[i + 1]?.type === "HIGH") {
+      return { low: pivots[i], high: pivots[i + 1] };
+    }
+  }
+  return null;
+}
+
 /**
  * Runs the full structural setup detection against a daily candle series,
  * evaluating "as of" the most recent candle (candles.at(-1)). Pass a trimmed
@@ -212,6 +328,7 @@ export function analyzeStructuralSwingSetup(
     newHigh: null,
     structuralSwingLow: null,
     trendline: null,
+    trace: EMPTY_TRACE,
     checks: [],
     rejectionReasons: ["Insufficient candle history"],
   };
@@ -237,95 +354,67 @@ export function analyzeStructuralSwingSetup(
     `${pivots.length} confirmed (${pivots.filter((p) => p.type === "HIGH").length} highs, ${pivots.filter((p) => p.type === "LOW").length} lows)`,
   );
 
-  // --- Step 1: existing uptrend (Low -> High -> Break of High) -----------
-  // First find the most recent "peak" — the latest confirmed high that is
-  // higher than every confirmed high after it (i.e. nothing since has
-  // exceeded it; a run of lower highs trails it, or nothing trails it yet).
-  // That peak is the candidate "new high" a BOS would produce. majorHigh is
-  // whatever confirmed high immediately precedes that peak — the level a
-  // Break of Structure must clear to justify calling the peak a fresh high
-  // rather than just noise.
-  const allHighs = pivots.filter((p) => p.type === "HIGH");
-  const allLows = pivots.filter((p) => p.type === "LOW");
+  // --- Step 1/2: prove the chronological Low -> High -> Break of Structure ---
+  // chain. Never assembled from independently-true conditions — the High is
+  // always the pivot immediately following the Low, and BOS is only checked
+  // against candles strictly after it.
+  const impulse = findMostRecentConfirmedImpulse(sorted, pivots, lastIndex);
 
-  let majorLow: SwingPoint | null = null;
-  let majorHigh: SwingPoint | null = null;
-
-  if (allHighs.length >= 2) {
-    let peakIdx = allHighs.length - 1;
-    for (let hi = allHighs.length - 2; hi >= 0; hi--) {
-      if (allHighs[hi].price > allHighs[peakIdx].price) {
-        peakIdx = hi;
-      } else {
-        break;
-      }
+  if (!impulse) {
+    const fallback = mostRecentLowHighPair(pivots);
+    if (!fallback) {
+      check("Structure: Low -> High established", false, "no Low followed by a confirmed High found yet");
+      return {
+        ...empty,
+        reason: "No established Low -> High uptrend structure found",
+        checks,
+        rejectionReasons: ["No established Low -> High uptrend structure found"],
+      };
     }
-
-    if (peakIdx > 0) {
-      const highCandidate = allHighs[peakIdx - 1];
-      const priorHigh = peakIdx - 2 >= 0 ? allHighs[peakIdx - 2] : null;
-      const isHigherHigh = !priorHigh || highCandidate.price > priorHigh.price;
-
-      const highPivotIdx = pivots.indexOf(highCandidate);
-      let lowCandidate: SwingPoint | null = null;
-      for (let j = highPivotIdx - 1; j >= 0; j--) {
-        if (pivots[j].type === "LOW") { lowCandidate = pivots[j]; break; }
-      }
-
-      if (isHigherHigh && lowCandidate) {
-        const lowIdx = allLows.indexOf(lowCandidate);
-        const priorLow = lowIdx > 0 ? allLows[lowIdx - 1] : null;
-        const isHigherLow = !priorLow || lowCandidate.price > priorLow.price;
-        if (isHigherLow) {
-          majorHigh = highCandidate;
-          majorLow = lowCandidate;
-        }
-      }
-    }
-  }
-
-  if (!majorLow || !majorHigh) {
-    check("Existing uptrend (Low -> High)", false, "no qualifying Low-then-High pair found among confirmed pivots");
-    return {
-      ...empty,
-      reason: "No established Low -> High uptrend structure found",
-      checks,
-      rejectionReasons: ["No established Low -> High uptrend structure found"],
-    };
-  }
-  check("Existing uptrend (Low -> High)", true, `low ${r2(majorLow.price)}, high ${r2(majorHigh.price)}`);
-
-  // --- Step 2: Break of Structure past majorHigh --------------------------
-  // A BOS is simply a close, after majorHigh, that breaks above it — "the
-  // price breaks the previous High and moves upward again." No buffer.
-  let bosIndex = -1;
-  for (let i = majorHigh.index + 1; i <= lastIndex; i++) {
-    if (sorted[i].c > majorHigh.price) {
-      bosIndex = i;
-      break;
-    }
-  }
-  if (bosIndex === -1) {
     check(
-      "Break of Structure (close > previous High)",
+      "Structure: Low -> High established",
+      true,
+      `low ${r2(fallback.low.price)} on ${isoDateOf(sorted[fallback.low.index].t)}, high ${r2(fallback.high.price)} on ${isoDateOf(sorted[fallback.high.index].t)}`,
+    );
+    check(
+      "Structure: Break of Structure (close > High)",
       false,
-      `no close above ${r2(majorHigh.price)} yet; latest close ${r2(today.c)}`,
+      `no close above ${r2(fallback.high.price)} yet; latest close ${r2(today.c)}`,
     );
     return {
       ...empty,
       category: "SETUP_FORMING",
       reason: "Uptrend established but no Break of Structure above the prior high yet",
-      majorSwingLow: r2(majorLow.price),
-      majorSwingHigh: r2(majorHigh.price),
+      majorSwingLow: r2(fallback.low.price),
+      majorSwingHigh: r2(fallback.high.price),
+      trace: {
+        ...EMPTY_TRACE,
+        mainLow: pivotRef(sorted, fallback.low, cfg.swingLookback),
+        mainHigh: pivotRef(sorted, fallback.high, cfg.swingLookback),
+      },
       checks,
       rejectionReasons: ["No Break of Structure above the prior high yet"],
     };
   }
+
+  const { low: majorLow, high: majorHigh, bosIndex } = impulse;
   check(
-    "Break of Structure (close > previous High)",
+    "Structure: Low -> High established",
+    true,
+    `low ${r2(majorLow.price)} on ${isoDateOf(sorted[majorLow.index].t)}, high ${r2(majorHigh.price)} on ${isoDateOf(sorted[majorHigh.index].t)}`,
+  );
+  check(
+    "Structure: Break of Structure (close > High)",
     true,
     `closed at ${r2(sorted[bosIndex].c)} above ${r2(majorHigh.price)} on ${isoDateOf(sorted[bosIndex].t)}`,
   );
+
+  const traceBase: StructuralSetupTrace = {
+    ...EMPTY_TRACE,
+    mainLow: pivotRef(sorted, majorLow, cfg.swingLookback),
+    mainHigh: pivotRef(sorted, majorHigh, cfg.swingLookback),
+    bosDate: isoDateOf(sorted[bosIndex].t),
+  };
 
   // --- Step 3: New High — running max since BOS until a real pullback ----
   let newHighIdx = bosIndex;
@@ -339,7 +428,7 @@ export function analyzeStructuralSwingSetup(
 
   if (newHighIdx === lastIndex) {
     // Still making new highs today — no correction has started yet.
-    check("Corrective pullback started", false, `still making new highs as of latest candle (high ${r2(newHighPrice)})`);
+    check("Correction: pullback started", false, `still making new highs as of latest candle (high ${r2(newHighPrice)})`);
     return {
       ...empty,
       category: "CORRECTION",
@@ -348,17 +437,26 @@ export function analyzeStructuralSwingSetup(
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
+      trace: { ...traceBase, newHigh: { price: r2(newHighPrice), date: isoDateOf(sorted[newHighIdx].t) } },
       checks,
       rejectionReasons: ["Still extending — no corrective pullback yet"],
     };
   }
-  check("Corrective pullback started", true, `new high ${r2(newHighPrice)} on ${isoDateOf(sorted[newHighIdx].t)}, correcting since`);
+  check("Correction: pullback started", true, `new high ${r2(newHighPrice)} on ${isoDateOf(sorted[newHighIdx].t)}, correcting since`);
+
+  const traceWithNewHigh: StructuralSetupTrace = {
+    ...traceBase,
+    newHigh: { price: r2(newHighPrice), date: isoDateOf(sorted[newHighIdx].t) },
+    correctionStartDate: isoDateOf(sorted[newHighIdx].t),
+  };
 
   // --- Step 4: correction must not break the swing low that started the uptrend ---
+  // Only candles strictly after the New High belong to this correction — old
+  // swing points from before it are never used from this point on.
   const correctionCandles = sorted.slice(newHighIdx);
   const correctionLow = Math.min(...correctionCandles.map((c) => c.l));
   if (correctionLow <= majorLow.price) {
-    check("Correction stays above major swing low", false, `correction low ${r2(correctionLow)} broke below major low ${r2(majorLow.price)}`);
+    check("Correction: stays above major swing low", false, `correction low ${r2(correctionLow)} broke below major low ${r2(majorLow.price)}`);
     return {
       ...empty,
       category: "INVALIDATED",
@@ -367,20 +465,31 @@ export function analyzeStructuralSwingSetup(
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
+      trace: traceWithNewHigh,
       checks,
       rejectionReasons: ["Correction broke below the swing low that established the uptrend"],
     };
   }
-  check("Correction stays above major swing low", true, `correction low ${r2(correctionLow)} above major low ${r2(majorLow.price)}`);
+  check("Correction: stays above major swing low", true, `correction low ${r2(correctionLow)} above major low ${r2(majorLow.price)}`);
 
-  // --- Step 5/6: internal swing highs during the correction, and the ------
-  // descending trendline fitted through them.
+  // --- Step 5/6: internal swing highs belonging to THIS correction, and ---
+  // the descending trendline fitted through them. detectSwingPoints is run
+  // fresh on the correctionCandles slice only, so an internal high can never
+  // come from before the New High.
   const internalHighs = detectSwingPoints(correctionCandles, cfg.swingLookback)
     .map((p) => ({ ...p, index: p.index + newHighIdx })) // re-offset to full series
     .filter((p) => p.type === "HIGH");
 
+  for (let t = 0; t < cfg.minTrendlineTouches; t++) {
+    const touch = internalHighs[t];
+    check(
+      `Touch ${t + 1}`,
+      Boolean(touch),
+      touch ? `${r2(touch.price)} confirmed ${pivotConfirmedDate(sorted, touch, cfg.swingLookback)}` : "not formed yet",
+    );
+  }
+
   if (internalHighs.length < cfg.minTrendlineTouches) {
-    check(`Internal swing highs during correction (need ${cfg.minTrendlineTouches}+)`, false, `${internalHighs.length} found`);
     return {
       ...empty,
       category: internalHighs.length >= 2 ? "SETUP_FORMING" : "CORRECTION",
@@ -389,19 +498,25 @@ export function analyzeStructuralSwingSetup(
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
+      trace: {
+        ...traceWithNewHigh,
+        internalHighs: internalHighs.map((p) => pivotRef(sorted, p, cfg.swingLookback)),
+      },
       checks,
       rejectionReasons: [`Only ${internalHighs.length}/${cfg.minTrendlineTouches} internal swing highs found during the correction`],
     };
   }
-  check(
-    `Internal swing highs during correction (need ${cfg.minTrendlineTouches}+)`,
-    true,
-    `${internalHighs.length} found: ${internalHighs.map((p) => r2(p.price)).join(", ")}`,
-  );
+
+  const traceWithTouches: StructuralSetupTrace = {
+    ...traceWithNewHigh,
+    internalHighs: internalHighs.map((p) => pivotRef(sorted, p, cfg.swingLookback)),
+    trendlineStartDate: isoDateOf(internalHighs[0].t),
+    trendlineEndDate: isoDateOf(internalHighs.at(-1)!.t),
+  };
 
   const trendline = fitTrendline(internalHighs);
   if (!trendline || trendline.slope >= 0) {
-    check("Descending trendline (negative slope)", false, trendline ? `slope ${r2(trendline.slope)}/bar (not descending)` : "could not fit a line");
+    check("Trendline: descending (negative slope)", false, trendline ? `slope ${r2(trendline.slope)}/bar (not descending)` : "could not fit a line");
     return {
       ...empty,
       category: "SETUP_FORMING",
@@ -410,35 +525,47 @@ export function analyzeStructuralSwingSetup(
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
+      trace: traceWithTouches,
       checks,
       rejectionReasons: ["Internal swing highs don't form a descending trendline"],
     };
   }
-  check("Descending trendline (negative slope)", true, `${internalHighs.length} touches, slope ${r2(trendline.slope)}/bar`);
+  check("Trendline: descending (negative slope)", true, `${internalHighs.length} touches, slope ${r2(trendline.slope)}/bar`);
 
   // Structural swing low = lowest confirmed low since the new high (the
-  // corrective low), not just the nearest candle's low.
+  // corrective low), scoped to this same correction only.
   const correctionLowPoints = detectSwingPoints(correctionCandles, cfg.swingLookback)
     .map((p) => ({ ...p, index: p.index + newHighIdx }))
     .filter((p) => p.type === "LOW");
-  const structuralSwingLow =
-    correctionLowPoints.length > 0
-      ? Math.min(...correctionLowPoints.map((p) => p.price))
-      : correctionLow;
+  let correctiveLowPoint: { price: number; t: number };
+  if (correctionLowPoints.length > 0) {
+    correctiveLowPoint = correctionLowPoints.reduce((min, p) => (p.price < min.price ? p : min));
+  } else {
+    const lowCandle = correctionCandles.reduce((min, c) => (c.l < min.l ? c : min));
+    correctiveLowPoint = { price: lowCandle.l, t: lowCandle.t };
+  }
+  const structuralSwingLow = correctiveLowPoint.price;
+
+  const traceWithTrendline: StructuralSetupTrace = {
+    ...traceWithTouches,
+    correctiveLow: { price: r2(structuralSwingLow), date: isoDateOf(correctiveLowPoint.t) },
+  };
 
   // --- Step 7/8: breakout confirmation on today's candle -------------------
   // "The desired breakout is when the stock breaks the corrective trendline
   // and a strong green/bullish candle comes above the trendline and closes
   // above it." Just these two conditions — no buffer, no body/close-location
-  // threshold, no volume filter.
+  // threshold, no volume filter. Because this is only reached once 3+
+  // touches are already confirmed, the breakout can never be dated before
+  // the 3rd touch.
   const trendlinePriceToday = trendline.priceAt(lastIndex);
   const isBullishCandle = today.c > today.o;
   const closedAboveTrendline = today.c > trendlinePriceToday;
   const priceReachedTrendline = today.h >= trendlinePriceToday;
 
-  check("Price reached trendline today", priceReachedTrendline, `today's high ${r2(today.h)} vs trendline ${r2(trendlinePriceToday)}`);
-  check("Bullish candle (close > open)", isBullishCandle, `open ${r2(today.o)}, close ${r2(today.c)}`);
-  check("Close above trendline", closedAboveTrendline, `close ${r2(today.c)} vs trendline ${r2(trendlinePriceToday)}`);
+  check("Breakout: price reached trendline today", priceReachedTrendline, `today's high ${r2(today.h)} vs trendline ${r2(trendlinePriceToday)}`);
+  check("Breakout: bullish candle (close > open)", isBullishCandle, `open ${r2(today.o)}, close ${r2(today.c)}`);
+  check("Breakout: close above trendline", closedAboveTrendline, `close ${r2(today.c)} vs trendline ${r2(trendlinePriceToday)}`);
 
   const structuralSl = r2(structuralSwingLow * (1 - cfg.slBufferPct / 100));
 
@@ -457,10 +584,13 @@ export function analyzeStructuralSwingSetup(
       ...baseFields,
       category: priceReachedTrendline ? "BREAKOUT_WATCH" : "CORRECTION",
       reason: describeUnmetBreakoutConditions({ closedAboveTrendline, isBullishCandle }),
+      trace: traceWithTrendline,
       checks,
       rejectionReasons: breakoutRejectionReasons({ isBullishCandle, closedAboveTrendline }),
     };
   }
+
+  const traceWithBreakout: StructuralSetupTrace = { ...traceWithTrendline, breakoutDate: isoDateOf(today.t) };
 
   // --- BUY: entry, SL below the corrective low, 1:1 target -----------------
   const entryPrice = today.c; // NEXT_OPEN resolved by caller using the following day's data
@@ -472,6 +602,7 @@ export function analyzeStructuralSwingSetup(
       ...baseFields,
       category: "INVALIDATED",
       reason: "Structural stop-loss is not below the entry price",
+      trace: traceWithBreakout,
       checks,
       rejectionReasons: ["Structural stop-loss is not below the entry price"],
     };
@@ -492,6 +623,7 @@ export function analyzeStructuralSwingSetup(
     slDistancePct,
     rewardRisk: cfg.riskRewardRatio,
     reason: `Confirmed bullish breakout above a ${internalHighs.length}-touch descending trendline (close ${r2(entryPrice)} vs trendline ${r2(trendlinePriceToday)})`,
+    trace: traceWithBreakout,
     checks,
     rejectionReasons: [],
   };
