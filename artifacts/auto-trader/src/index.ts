@@ -2,7 +2,7 @@ import { initializeScripMaster, getSecurityId } from "./scrip-master";
 import { initializeAngelScripMaster } from "./angel-scrip-master";
 import { DhanBroker } from "./dhan";
 import { AngelOneFeed } from "./angelone";
-import { TradeDB } from "./db";
+import { TradeDB, type ActiveTrade } from "./db";
 import { CandleEngine, Candle } from "./candle-engine";
 import { ExecutionEngine, WatchlistContext } from "./engine";
 import { sleep, getISTDateStr, getISTMinutes, isMarketOpenIST, resolveTradePosition } from "./utils";
@@ -184,6 +184,42 @@ async function reconcileAfterSquareOff(executionEngine: ExecutionEngine): Promis
   await executionEngine.reconcileExits();
 }
 
+/**
+ * When we discover a position is already flat (closed itself via a TARGET_LEG or
+ * STOP_LOSS_LEG fill before we got to it), look up what it actually filled at
+ * instead of guessing. Mirrors the same triggered-leg lookup ExecutionEngine's
+ * reconcileExits() already does. Returns undefined if no triggered leg / fill data
+ * can be found, so the caller can fall back to entryPrice as a last resort.
+ */
+async function resolveActualExitPrice(broker: DhanBroker, trade: ActiveTrade): Promise<number | undefined> {
+  try {
+    const superOrders = await broker.getSuperOrderList();
+    const parent = superOrders.find(o => o.orderId === trade.superOrderId);
+    const triggeredLeg = parent?.legDetails?.find(leg =>
+      (leg.legName === "TARGET_LEG" || leg.legName === "STOP_LOSS_LEG") &&
+      (leg.orderStatus === "TRIGGERED" || leg.orderStatus === "TRADED")
+    );
+    if (!triggeredLeg) return undefined;
+
+    const trades = await broker.getTradesByOrderId(triggeredLeg.orderId);
+    let totalValue = 0;
+    let totalQty = 0;
+    for (const t of trades) {
+      if (t.transactionType !== trade.side) {
+        totalValue += Number(t.tradedPrice || 0) * Number(t.tradedQuantity || 0);
+        totalQty += Number(t.tradedQuantity || 0);
+      }
+    }
+
+    if (totalQty !== trade.quantity || totalQty === 0) return undefined;
+    const exitPrice = totalValue / totalQty;
+    return Number.isFinite(exitPrice) && exitPrice > 0 ? exitPrice : undefined;
+  } catch (e: any) {
+    console.warn(`[BOT] Failed to resolve real exit price for ${trade.symbol}:`, e.message);
+    return undefined;
+  }
+}
+
 async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
   const activeTrades = specificTrades || (await TradeDB.getOpenTrades());
   if (activeTrades.length === 0) return;
@@ -255,8 +291,9 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
         }
 
         if (netQty === 0) {
-          console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Force closing ghost trade.`);
-          await TradeDB.markTradeClosed(trade.id, "ORPHANED_FLAT_POSITION", trade.entryPrice);
+          const resolvedExitPrice = await resolveActualExitPrice(broker, trade);
+          console.log(`[BOT] Position flat prior to exit submission for ${trade.symbol}. Closing at ${resolvedExitPrice ?? `entryPrice fallback ${trade.entryPrice} (no triggered leg found)`}.`);
+          await TradeDB.markTradeClosed(trade.id, "ORPHANED_FLAT_POSITION", resolvedExitPrice ?? trade.entryPrice);
           continue tradeLoop;
         }
 
@@ -323,8 +360,9 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
         if (!positionFlat) {
           console.warn(`[BOT] Exit attempt ${exitAttempts} did not flatten position. Retrying...`);
         } else {
-          console.log(`[BOT] Position flat after terminal non-traded status for ${trade.symbol}. Force closing ghost trade.`);
-          await TradeDB.markTradeClosed(trade.id, "ORPHANED_FLAT_POSITION", trade.entryPrice);
+          const resolvedExitPrice = await resolveActualExitPrice(broker, trade);
+          console.log(`[BOT] Position flat after terminal non-traded status for ${trade.symbol}. Closing at ${resolvedExitPrice ?? `entryPrice fallback ${trade.entryPrice} (no triggered leg found)`}.`);
+          await TradeDB.markTradeClosed(trade.id, "ORPHANED_FLAT_POSITION", resolvedExitPrice ?? trade.entryPrice);
           continue tradeLoop;
         }
       }
