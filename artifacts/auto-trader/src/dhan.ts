@@ -558,16 +558,24 @@ export class DhanBroker extends EventEmitter {
           }
         }, 30000);
 
-        // Flush any subscriptions that were queued while the WS was down
-        if (this.pendingSubscriptions.size > 0) {
-          const pending = [...this.pendingSubscriptions];
-          this.pendingSubscriptions.clear();
-          console.log(`[BROKER] Flushing ${pending.length} pending subscriptions...`);
-          this.subscribeToSecurityIds(pending);
-        }
+        // Delay subscription and reconnect notification by 2s.
+        // Sending subscription frames at the exact moment of 'open' causes Dhan's
+        // backend to immediately close the connection (likely a session guard that
+        // needs time to fully register the new socket before accepting messages).
+        setTimeout(() => {
+          if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-        this.emit("onReconnect");
-        resolve();
+          // Flush any subscriptions that were queued while the WS was down
+          if (this.pendingSubscriptions.size > 0) {
+            const pending = [...this.pendingSubscriptions];
+            this.pendingSubscriptions.clear();
+            console.log(`[BROKER] Flushing ${pending.length} pending subscriptions...`);
+            this.subscribeToSecurityIds(pending);
+          }
+
+          this.emit("onReconnect");
+          resolve();
+        }, 2000);
       });
       
       this.ws.on("message", (data: Buffer) => {
