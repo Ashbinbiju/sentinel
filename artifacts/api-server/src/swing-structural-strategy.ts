@@ -44,8 +44,12 @@ export interface Candle {
 export interface StructuralStrategyConfig {
   /** N for swing high/low fractal detection. */
   swingLookback: number;
-  /** Minimum internal swing-high touch points required to accept a descending trendline. */
+  /** Minimum number of distinct resistance-reaction touch zones required to accept a descending trendline. */
   minTrendlineTouches: number;
+  /** Two internal-high pivots within this % of each other are the SAME resistance
+   *  reaction (one touch zone), not two — a pivot only starts a new, distinct
+   *  touch if it's meaningfully lower than the last accepted reaction. */
+  touchZoneTolerancePct: number;
   /** SL is placed this % below the corrective swing low, so it sits strictly below the low rather than exactly on it. */
   slBufferPct: number;
   /** Risk:reward ratio for the target (1.0 = 1:1). */
@@ -58,6 +62,7 @@ export interface StructuralStrategyConfig {
 export const DEFAULT_STRUCTURAL_CONFIG: StructuralStrategyConfig = {
   swingLookback: 3,
   minTrendlineTouches: 3,
+  touchZoneTolerancePct: 1,
   slBufferPct: 0.25,
   riskRewardRatio: 1.0,
   entryMode: "BREAKOUT_CLOSE",
@@ -100,6 +105,19 @@ export interface PivotRef {
 }
 
 /**
+ * A single distinct resistance reaction on the descending trendline. Usually
+ * one pivot; when two or more confirmed pivot highs test essentially the
+ * same level (within touchZoneTolerancePct) they collapse into one zone here
+ * rather than counting as separate touches — see buildTouchZones().
+ */
+export interface TouchZone {
+  price: number; // the lowest (most conservative) pivot price in this zone
+  date: string;
+  confirmedDate: string;
+  pivots: PivotRef[]; // every raw pivot merged into this reaction — length 1 if no merge occurred
+}
+
+/**
  * The exact chronological chain that produced (or almost produced) a signal —
  * every structural point named explicitly, with dates, so a BUY can always be
  * traced back to "what Low -> High -> BOS -> New High -> Correction -> 3-touch
@@ -111,7 +129,7 @@ export interface StructuralSetupTrace {
   bosDate: string | null;
   newHigh: { price: number; date: string } | null;
   correctionStartDate: string | null;
-  internalHighs: PivotRef[];
+  touchZones: TouchZone[];
   trendlineStartDate: string | null;
   trendlineEndDate: string | null;
   correctiveLow: { price: number; date: string } | null;
@@ -162,7 +180,7 @@ const EMPTY_TRACE: StructuralSetupTrace = {
   bosDate: null,
   newHigh: null,
   correctionStartDate: null,
-  internalHighs: [],
+  touchZones: [],
   trendlineStartDate: null,
   trendlineEndDate: null,
   correctiveLow: null,
@@ -245,6 +263,63 @@ function pivotConfirmedDate(sorted: Candle[], p: SwingPoint, n: number): string 
 
 function pivotRef(sorted: Candle[], p: SwingPoint, n: number): PivotRef {
   return { price: r2(p.price), date: isoDateOf(p.t), confirmedDate: pivotConfirmedDate(sorted, p, n) };
+}
+
+/**
+ * Groups the correction's confirmed swing highs into distinct resistance
+ * REACTIONS, not raw pivot points. A pivot only starts a new touch zone if
+ * it is meaningfully lower (by more than tolerancePct) than the last
+ * accepted zone; pivots within that band of the last zone are the same
+ * interaction and get folded in (keeping the lower, more conservative
+ * price as the zone's level). A pivot that comes in meaningfully HIGHER
+ * than the last zone breaks the descending structure and isn't a valid
+ * touch at all, so it's skipped rather than starting a new zone.
+ *
+ * Two highs with no genuine pullback between them never even reach this
+ * function as separate pivots: `correctionPivots` is already the reduced
+ * alternating H/L sequence (buildPivotSequence keeps only the more extreme
+ * of back-to-back same-type points), so a "touch" here always has at least
+ * some retracement before it. This pass additionally removes touches that
+ * DID retrace but are still testing essentially the same price ceiling —
+ * e.g. 510 then 508 a few candles later is one reaction, not two.
+ */
+function buildTouchZones(correctionPivots: SwingPoint[], tolerancePct: number): SwingPoint[][] {
+  const highPivots = correctionPivots.filter((p) => p.type === "HIGH");
+  const zones: SwingPoint[][] = [];
+
+  for (const p of highPivots) {
+    const lastZone = zones.at(-1);
+    if (!lastZone) {
+      zones.push([p]);
+      continue;
+    }
+    const zoneLevel = Math.min(...lastZone.map((z) => z.price));
+    const pctBelowZone = ((zoneLevel - p.price) / zoneLevel) * 100;
+
+    if (pctBelowZone >= tolerancePct) {
+      zones.push([p]); // meaningfully lower — a new, distinct reaction
+    } else if (pctBelowZone > -tolerancePct) {
+      lastZone.push(p); // within the same resistance band — same reaction
+    }
+    // else: meaningfully higher than the last zone — breaks the descending
+    // structure, not counted as a touch.
+  }
+
+  return zones;
+}
+
+function zoneRepresentative(zone: SwingPoint[]): SwingPoint {
+  return zone.reduce((min, p) => (p.price < min.price ? p : min));
+}
+
+function touchZoneRef(sorted: Candle[], zone: SwingPoint[], n: number): TouchZone {
+  const rep = zoneRepresentative(zone);
+  return {
+    price: r2(rep.price),
+    date: isoDateOf(rep.t),
+    confirmedDate: pivotConfirmedDate(sorted, rep, n),
+    pivots: [...zone].sort((a, b) => a.index - b.index).map((p) => pivotRef(sorted, p, n)),
+  };
 }
 
 interface ImpulseCandidate {
@@ -472,71 +547,73 @@ export function analyzeStructuralSwingSetup(
   }
   check("Correction: stays above major swing low", true, `correction low ${r2(correctionLow)} above major low ${r2(majorLow.price)}`);
 
-  // --- Step 5/6: internal swing highs belonging to THIS correction, and ---
-  // the descending trendline fitted through them. detectSwingPoints is run
-  // fresh on the correctionCandles slice only, so an internal high can never
-  // come from before the New High.
-  const internalHighs = detectSwingPoints(correctionCandles, cfg.swingLookback)
-    .map((p) => ({ ...p, index: p.index + newHighIdx })) // re-offset to full series
-    .filter((p) => p.type === "HIGH");
+  // --- Step 5/6: internal swing highs belonging to THIS correction, grouped ---
+  // into distinct resistance-reaction touch zones (clustered pivots testing
+  // the same level are one touch, not several — see buildTouchZones).
+  // detectSwingPoints + buildPivotSequence run fresh on the correctionCandles
+  // slice only, so a touch can never come from before the New High.
+  const correctionPivots = buildPivotSequence(
+    detectSwingPoints(correctionCandles, cfg.swingLookback).map((p) => ({ ...p, index: p.index + newHighIdx })),
+  );
+  const touchZonePivots = buildTouchZones(correctionPivots, cfg.touchZoneTolerancePct);
+  const touchZones = touchZonePivots.map((zone) => touchZoneRef(sorted, zone, cfg.swingLookback));
 
   for (let t = 0; t < cfg.minTrendlineTouches; t++) {
-    const touch = internalHighs[t];
+    const zone = touchZones[t];
+    const mergeNote = zone && zone.pivots.length > 1
+      ? ` (reaction zone: ${zone.pivots.map((p) => `${p.price}@${p.date}`).join(", ")})`
+      : "";
     check(
       `Touch ${t + 1}`,
-      Boolean(touch),
-      touch ? `${r2(touch.price)} confirmed ${pivotConfirmedDate(sorted, touch, cfg.swingLookback)}` : "not formed yet",
+      Boolean(zone),
+      zone ? `${zone.price} confirmed ${zone.confirmedDate}${mergeNote}` : "not formed yet",
     );
   }
 
-  if (internalHighs.length < cfg.minTrendlineTouches) {
+  if (touchZones.length < cfg.minTrendlineTouches) {
     return {
       ...empty,
-      category: internalHighs.length >= 2 ? "SETUP_FORMING" : "CORRECTION",
-      reason: `Correcting after Break of Structure; only ${internalHighs.length}/${cfg.minTrendlineTouches} internal swing highs so far`,
+      category: touchZones.length >= 2 ? "SETUP_FORMING" : "CORRECTION",
+      reason: `Correcting after Break of Structure; only ${touchZones.length}/${cfg.minTrendlineTouches} distinct resistance reactions so far`,
       majorSwingLow: r2(majorLow.price),
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
-      trace: {
-        ...traceWithNewHigh,
-        internalHighs: internalHighs.map((p) => pivotRef(sorted, p, cfg.swingLookback)),
-      },
+      trace: { ...traceWithNewHigh, touchZones },
       checks,
-      rejectionReasons: [`Only ${internalHighs.length}/${cfg.minTrendlineTouches} internal swing highs found during the correction`],
+      rejectionReasons: [`Only ${touchZones.length}/${cfg.minTrendlineTouches} distinct resistance reactions found during the correction (nearby pivots testing the same level count once)`],
     };
   }
 
   const traceWithTouches: StructuralSetupTrace = {
     ...traceWithNewHigh,
-    internalHighs: internalHighs.map((p) => pivotRef(sorted, p, cfg.swingLookback)),
-    trendlineStartDate: isoDateOf(internalHighs[0].t),
-    trendlineEndDate: isoDateOf(internalHighs.at(-1)!.t),
+    touchZones,
+    trendlineStartDate: touchZones[0].date,
+    trendlineEndDate: touchZones.at(-1)!.date,
   };
 
-  const trendline = fitTrendline(internalHighs);
+  const trendlineTouchPivots = touchZonePivots.map(zoneRepresentative);
+  const trendline = fitTrendline(trendlineTouchPivots);
   if (!trendline || trendline.slope >= 0) {
     check("Trendline: descending (negative slope)", false, trendline ? `slope ${r2(trendline.slope)}/bar (not descending)` : "could not fit a line");
     return {
       ...empty,
       category: "SETUP_FORMING",
-      reason: "Internal swing highs found, but they don't form a descending trendline yet",
+      reason: "Resistance reactions found, but they don't form a descending trendline yet",
       majorSwingLow: r2(majorLow.price),
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
       trace: traceWithTouches,
       checks,
-      rejectionReasons: ["Internal swing highs don't form a descending trendline"],
+      rejectionReasons: ["Resistance reactions don't form a descending trendline"],
     };
   }
-  check("Trendline: descending (negative slope)", true, `${internalHighs.length} touches, slope ${r2(trendline.slope)}/bar`);
+  check("Trendline: descending (negative slope)", true, `${touchZones.length} distinct reactions, slope ${r2(trendline.slope)}/bar`);
 
   // Structural swing low = lowest confirmed low since the new high (the
   // corrective low), scoped to this same correction only.
-  const correctionLowPoints = detectSwingPoints(correctionCandles, cfg.swingLookback)
-    .map((p) => ({ ...p, index: p.index + newHighIdx }))
-    .filter((p) => p.type === "LOW");
+  const correctionLowPoints = correctionPivots.filter((p) => p.type === "LOW");
   let correctiveLowPoint: { price: number; t: number };
   if (correctionLowPoints.length > 0) {
     correctiveLowPoint = correctionLowPoints.reduce((min, p) => (p.price < min.price ? p : min));
@@ -622,7 +699,7 @@ export function analyzeStructuralSwingSetup(
     riskPerShare,
     slDistancePct,
     rewardRisk: cfg.riskRewardRatio,
-    reason: `Confirmed bullish breakout above a ${internalHighs.length}-touch descending trendline (close ${r2(entryPrice)} vs trendline ${r2(trendlinePriceToday)})`,
+    reason: `Confirmed bullish breakout above a ${touchZones.length}-touch descending trendline (close ${r2(entryPrice)} vs trendline ${r2(trendlinePriceToday)})`,
     trace: traceWithBreakout,
     checks,
     rejectionReasons: [],
