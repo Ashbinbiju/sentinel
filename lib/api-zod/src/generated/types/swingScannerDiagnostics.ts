@@ -7,16 +7,12 @@
  */
 
 export interface SwingScannerDiagnostics {
-  /** Setups found before final ranking, technical, open-trade, and save filters. */
+  /** Confirmed READY_TO_BUY setups found across the scanned universe. */
   rawCandidates: number;
-  /** Candidates that passed final quality filters before excluding open tracker symbols. */
+  /** Candidates remaining after sorting by score. */
   finalCandidates: number;
   /** Final candidates remaining after excluding open tracker symbols. */
   availableCandidates: number;
   /** Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW. */
   excludedOpenSymbols: number;
-  /** Number of symbols loaded from the technical-indicators provider. */
-  technicalIndicatorSymbols: number;
-  /** Whether technical-indicator provider data was available for this scan. */
-  technicalDataAvailable: boolean;
 }

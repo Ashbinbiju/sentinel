@@ -612,6 +612,11 @@ components:
         - sectors
     SwingPick:
       type: object
+      description: >-
+        A structural swing setup: Existing Uptrend -> Break of Structure ->
+        Corrective Pullback -> Internal Lower Highs -> Descending Trendline ->
+        Confirmed Bullish Breakout -> BUY, SL at the corrective swing low,
+        1:1 risk/reward target. Daily timeframe only.
       properties:
         symbol:
           type: string
@@ -628,128 +633,55 @@ components:
           description: Last available daily close at scan time
         entryPrice:
           type: number
-          description: Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched.
+          description: Breakout candle close (or configured entry mode).
         sl:
           type: number
+          description: Structural corrective swing low, with a small buffer applied.
         target:
           type: number
+          description: Entry + risk (1:1 reward:risk by default).
         score:
           type: number
-        signalScore:
-          type: number
+          description: 0-100 structural signal strength score.
         grade:
           type: string
+          enum: ["A+", "A", "B", "Weak", "Ignore"]
         setup:
           type: string
+          description: Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks).
+          enum: ["READY_TO_BUY", "BREAKOUT_WATCH", "CORRECTION", "SETUP_FORMING", "INVALIDATED", "NO_SETUP"]
         entryType:
           $ref: "#/components/schemas/SwingEntryType"
         reason:
           type: string
         expectedHoldDays:
           type: number
-        recentReturn:
-          type: number
-        relativeStrength:
-          type: number
-        sectorRelativeStrength:
-          type: number
-        rvol:
-          type: number
-        avgTurnover:
-          type: number
-        entryDistancePct:
-          type: number
         riskPct:
           type: number
-          description: Percent risk from entry to stop loss; scanner rejects new picks above 6%.
+          description: Percent risk from entry to stop loss.
         rewardRisk:
           type: number
-        breakoutQuality:
-          type: string
-        trendPersistence:
-          type: number
-        freshBreakoutAge:
+        majorSwingLow:
           type: ["number", "null"]
-        consolidationCandles:
-          type: number
-        setupType:
-          type: string
-          enum:
-            - fresh_breakout
-            - sector_leader_continuation
-            - mean_reversion_bounce
-            - high_rvol_explosive
-            - slow_institutional_trend
-            - trend_continuation
-        latestMovePct:
-          type: number
-        ema20DistancePct:
-          type: number
-        liquidityScore:
-          type: number
-        intradaySignal:
-          type: string
-        swingSignal:
-          type: string
-        shortTermSignal:
-          type: string
-        longTermSignal:
-          type: string
-        breakoutSignal:
-          type: string
-        ichimokuTrend:
-          type: string
-        marketRegime:
-          type: string
-          enum: ["Bull", "Neutral", "Weak", "Unknown"]
-        marketBreadthPct:
+          description: Swing low that established the existing uptrend (the Break of Structure's preceding higher-low).
+        majorSwingHigh:
           type: ["number", "null"]
-        industryAdvanceRatio:
+          description: Swing high that the Break of Structure cleared.
+        bosLevel:
           type: ["number", "null"]
-        industryBreadthText:
-          type: ["string", "null"]
-        weakMarketSignalDowngrade:
-          type: boolean
-        indexTrendIndex:
-          type: ["string", "null"]
-        indexTrendDirection:
-          type: string
-          enum: ["Bullish", "Bearish", "Neutral", "Unknown"]
-        indexTrendText:
-          type: ["string", "null"]
-        indexTrendScoreAdjustment:
-          type: number
-        technicalStage:
-          type: ["string", "null"]
-        technicalScoreAdjustment:
-          type: number
-        technicalIndicatorText:
-          type: ["string", "null"]
-        technicalRs55:
+          description: Price level the Break of Structure closed above (equal to majorSwingHigh).
+        newHigh:
           type: ["number", "null"]
-        technicalVolumeRatio:
+          description: High reached after the Break of Structure, before the corrective pullback began.
+        structuralSwingLow:
           type: ["number", "null"]
-        technicalAboveEma200:
-          type: ["boolean", "null"]
-        technicalMacdTrend:
-          type: string
-          enum: ["Bullish", "Bearish", "Neutral", "Unknown"]
-        technicalAdxTrend:
-          type: string
-          enum: ["Bullish", "Bearish", "Neutral", "Unknown"]
-        insiderActivity:
-          type: string
-          enum: ["Buy", "Sell", "Mixed", "None"]
-        insiderScoreAdjustment:
-          type: number
-        insiderActivityText:
-          type: ["string", "null"]
-        insiderTransactionValue:
+          description: Corrective swing low the stop-loss is based on (before the SL buffer is applied).
+        trendlineTouches:
+          type: ["integer", "null"]
+          description: Number of confirmed internal lower highs used to fit the descending trendline.
+        trendlineQuality:
           type: ["number", "null"]
-        insiderTransactionDate:
-          type: ["string", "null"]
-        insiderCategory:
-          type: ["string", "null"]
+          description: 0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).
       required:
         - symbol
         - sector
@@ -760,57 +692,20 @@ components:
         - sl
         - target
         - score
-        - signalScore
         - grade
         - setup
         - entryType
         - reason
         - expectedHoldDays
-        - recentReturn
-        - relativeStrength
-        - sectorRelativeStrength
-        - rvol
-        - avgTurnover
-        - entryDistancePct
         - riskPct
         - rewardRisk
-        - breakoutQuality
-        - trendPersistence
-        - freshBreakoutAge
-        - consolidationCandles
-        - setupType
-        - latestMovePct
-        - ema20DistancePct
-        - liquidityScore
-        - intradaySignal
-        - swingSignal
-        - shortTermSignal
-        - longTermSignal
-        - breakoutSignal
-        - ichimokuTrend
-        - marketRegime
-        - marketBreadthPct
-        - industryAdvanceRatio
-        - industryBreadthText
-        - weakMarketSignalDowngrade
-        - indexTrendIndex
-        - indexTrendDirection
-        - indexTrendText
-        - indexTrendScoreAdjustment
-        - technicalStage
-        - technicalScoreAdjustment
-        - technicalIndicatorText
-        - technicalRs55
-        - technicalVolumeRatio
-        - technicalAboveEma200
-        - technicalMacdTrend
-        - technicalAdxTrend
-        - insiderActivity
-        - insiderScoreAdjustment
-        - insiderActivityText
-        - insiderTransactionValue
-        - insiderTransactionDate
-        - insiderCategory
+        - majorSwingLow
+        - majorSwingHigh
+        - bosLevel
+        - newHigh
+        - structuralSwingLow
+        - trendlineTouches
+        - trendlineQuality
     SwingScannerResult:
       type: object
       properties:
@@ -831,13 +726,6 @@ components:
           type: integer
         savedCount:
           type: integer
-        niftyReturn:
-          type: number
-        marketRegime:
-          type: string
-          enum: ["Bull", "Neutral", "Weak", "Unknown"]
-        marketBreadthPct:
-          type: ["number", "null"]
         diagnostics:
           $ref: "#/components/schemas/SwingScannerDiagnostics"
         picks:
@@ -852,9 +740,6 @@ components:
         - universeCount
         - candidateCount
         - savedCount
-        - niftyReturn
-        - marketRegime
-        - marketBreadthPct
         - diagnostics
         - picks
     SwingScannerDiagnostics:
@@ -862,29 +747,21 @@ components:
       properties:
         rawCandidates:
           type: integer
-          description: Setups found before final ranking, technical, open-trade, and save filters.
+          description: Confirmed READY_TO_BUY setups found across the scanned universe.
         finalCandidates:
           type: integer
-          description: Candidates that passed final quality filters before excluding open tracker symbols.
+          description: Candidates remaining after sorting by score.
         availableCandidates:
           type: integer
           description: Final candidates remaining after excluding open tracker symbols.
         excludedOpenSymbols:
           type: integer
           description: Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW.
-        technicalIndicatorSymbols:
-          type: integer
-          description: Number of symbols loaded from the technical-indicators provider.
-        technicalDataAvailable:
-          type: boolean
-          description: Whether technical-indicator provider data was available for this scan.
       required:
         - rawCandidates
         - finalCandidates
         - availableCandidates
         - excludedOpenSymbols
-        - technicalIndicatorSymbols
-        - technicalDataAvailable
     SwingScanJobResponse:
       type: object
       properties:
@@ -1021,45 +898,19 @@ components:
           type: ["string", "null"]
         lastCheckedAt:
           type: ["string", "null"]
-        indexTrendIndex:
+        majorSwingLow:
           type: ["string", "null"]
-        indexTrendDirection:
+        majorSwingHigh:
           type: ["string", "null"]
-          enum: ["Bullish", "Bearish", "Neutral", "Unknown", null]
-        indexTrendText:
+        bosLevel:
           type: ["string", "null"]
-        indexTrendScoreAdjustment:
-          type: string
-        technicalStage:
+        newHigh:
           type: ["string", "null"]
-        technicalScoreAdjustment:
-          type: string
-        technicalIndicatorText:
+        structuralSwingLow:
           type: ["string", "null"]
-        technicalRs55:
-          type: ["string", "null"]
-        technicalVolumeRatio:
-          type: ["string", "null"]
-        technicalAboveEma200:
-          type: ["boolean", "null"]
-        technicalMacdTrend:
-          type: ["string", "null"]
-          enum: ["Bullish", "Bearish", "Neutral", "Unknown", null]
-        technicalAdxTrend:
-          type: ["string", "null"]
-          enum: ["Bullish", "Bearish", "Neutral", "Unknown", null]
-        insiderActivity:
-          type: ["string", "null"]
-          enum: ["Buy", "Sell", "Mixed", "None", null]
-        insiderScoreAdjustment:
-          type: string
-        insiderActivityText:
-          type: ["string", "null"]
-        insiderTransactionValue:
-          type: ["string", "null"]
-        insiderTransactionDate:
-          type: ["string", "null"]
-        insiderCategory:
+        trendlineTouches:
+          type: ["integer", "null"]
+        trendlineQuality:
           type: ["string", "null"]
         plPct:
           type: ["number", "null"]
@@ -1087,24 +938,13 @@ components:
         - exitDate
         - lastPrice
         - lastCheckedAt
-        - indexTrendIndex
-        - indexTrendDirection
-        - indexTrendText
-        - indexTrendScoreAdjustment
-        - technicalStage
-        - technicalScoreAdjustment
-        - technicalIndicatorText
-        - technicalRs55
-        - technicalVolumeRatio
-        - technicalAboveEma200
-        - technicalMacdTrend
-        - technicalAdxTrend
-        - insiderActivity
-        - insiderScoreAdjustment
-        - insiderActivityText
-        - insiderTransactionValue
-        - insiderTransactionDate
-        - insiderCategory
+        - majorSwingLow
+        - majorSwingHigh
+        - bosLevel
+        - newHigh
+        - structuralSwingLow
+        - trendlineTouches
+        - trendlineQuality
         - plPct
         - daysOpen
     SwingTrackerResponse:

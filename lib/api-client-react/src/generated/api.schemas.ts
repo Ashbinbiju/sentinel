@@ -408,68 +408,35 @@ export interface SwingSectorsResponse {
   sectors: SwingSectorOption[];
 }
 
-export type SwingPickSetupType =
-  (typeof SwingPickSetupType)[keyof typeof SwingPickSetupType];
+export type SwingPickGrade =
+  (typeof SwingPickGrade)[keyof typeof SwingPickGrade];
 
-export const SwingPickSetupType = {
-  fresh_breakout: "fresh_breakout",
-  sector_leader_continuation: "sector_leader_continuation",
-  mean_reversion_bounce: "mean_reversion_bounce",
-  high_rvol_explosive: "high_rvol_explosive",
-  slow_institutional_trend: "slow_institutional_trend",
-  trend_continuation: "trend_continuation",
-} as const;
-
-export type SwingPickMarketRegime =
-  (typeof SwingPickMarketRegime)[keyof typeof SwingPickMarketRegime];
-
-export const SwingPickMarketRegime = {
-  Bull: "Bull",
-  Neutral: "Neutral",
+export const SwingPickGrade = {
+  "A+": "A+",
+  A: "A",
+  B: "B",
   Weak: "Weak",
-  Unknown: "Unknown",
+  Ignore: "Ignore",
 } as const;
 
-export type SwingPickIndexTrendDirection =
-  (typeof SwingPickIndexTrendDirection)[keyof typeof SwingPickIndexTrendDirection];
+/**
+ * Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks).
+ */
+export type SwingPickSetup =
+  (typeof SwingPickSetup)[keyof typeof SwingPickSetup];
 
-export const SwingPickIndexTrendDirection = {
-  Bullish: "Bullish",
-  Bearish: "Bearish",
-  Neutral: "Neutral",
-  Unknown: "Unknown",
+export const SwingPickSetup = {
+  READY_TO_BUY: "READY_TO_BUY",
+  BREAKOUT_WATCH: "BREAKOUT_WATCH",
+  CORRECTION: "CORRECTION",
+  SETUP_FORMING: "SETUP_FORMING",
+  INVALIDATED: "INVALIDATED",
+  NO_SETUP: "NO_SETUP",
 } as const;
 
-export type SwingPickTechnicalMacdTrend =
-  (typeof SwingPickTechnicalMacdTrend)[keyof typeof SwingPickTechnicalMacdTrend];
-
-export const SwingPickTechnicalMacdTrend = {
-  Bullish: "Bullish",
-  Bearish: "Bearish",
-  Neutral: "Neutral",
-  Unknown: "Unknown",
-} as const;
-
-export type SwingPickTechnicalAdxTrend =
-  (typeof SwingPickTechnicalAdxTrend)[keyof typeof SwingPickTechnicalAdxTrend];
-
-export const SwingPickTechnicalAdxTrend = {
-  Bullish: "Bullish",
-  Bearish: "Bearish",
-  Neutral: "Neutral",
-  Unknown: "Unknown",
-} as const;
-
-export type SwingPickInsiderActivity =
-  (typeof SwingPickInsiderActivity)[keyof typeof SwingPickInsiderActivity];
-
-export const SwingPickInsiderActivity = {
-  Buy: "Buy",
-  Sell: "Sell",
-  Mixed: "Mixed",
-  None: "None",
-} as const;
-
+/**
+ * A structural swing setup: Existing Uptrend -> Break of Structure -> Corrective Pullback -> Internal Lower Highs -> Descending Trendline -> Confirmed Bullish Breakout -> BUY, SL at the corrective swing low, 1:1 risk/reward target. Daily timeframe only.
+ */
 export interface SwingPick {
   symbol: string;
   sector: string;
@@ -479,103 +446,69 @@ export interface SwingPick {
   signalTime: string;
   /** Last available daily close at scan time */
   currentPrice: number;
-  /** Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched. */
+  /** Breakout candle close (or configured entry mode). */
   entryPrice: number;
+  /** Structural corrective swing low, with a small buffer applied. */
   sl: number;
+  /** Entry + risk (1:1 reward:risk by default). */
   target: number;
+  /** 0-100 structural signal strength score. */
   score: number;
-  signalScore: number;
-  grade: string;
-  setup: string;
+  grade: SwingPickGrade;
+  /** Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks). */
+  setup: SwingPickSetup;
   entryType: SwingEntryType;
   reason: string;
   expectedHoldDays: number;
-  recentReturn: number;
-  relativeStrength: number;
-  sectorRelativeStrength: number;
-  rvol: number;
-  avgTurnover: number;
-  entryDistancePct: number;
-  /** Percent risk from entry to stop loss; scanner rejects new picks above 6%. */
+  /** Percent risk from entry to stop loss. */
   riskPct: number;
   rewardRisk: number;
-  breakoutQuality: string;
-  trendPersistence: number;
-  /** @nullable */
-  freshBreakoutAge: number | null;
-  consolidationCandles: number;
-  setupType: SwingPickSetupType;
-  latestMovePct: number;
-  ema20DistancePct: number;
-  liquidityScore: number;
-  intradaySignal: string;
-  swingSignal: string;
-  shortTermSignal: string;
-  longTermSignal: string;
-  breakoutSignal: string;
-  ichimokuTrend: string;
-  marketRegime: SwingPickMarketRegime;
-  /** @nullable */
-  marketBreadthPct: number | null;
-  /** @nullable */
-  industryAdvanceRatio: number | null;
-  /** @nullable */
-  industryBreadthText: string | null;
-  weakMarketSignalDowngrade: boolean;
-  /** @nullable */
-  indexTrendIndex: string | null;
-  indexTrendDirection: SwingPickIndexTrendDirection;
-  /** @nullable */
-  indexTrendText: string | null;
-  indexTrendScoreAdjustment: number;
-  /** @nullable */
-  technicalStage: string | null;
-  technicalScoreAdjustment: number;
-  /** @nullable */
-  technicalIndicatorText: string | null;
-  /** @nullable */
-  technicalRs55: number | null;
-  /** @nullable */
-  technicalVolumeRatio: number | null;
-  /** @nullable */
-  technicalAboveEma200: boolean | null;
-  technicalMacdTrend: SwingPickTechnicalMacdTrend;
-  technicalAdxTrend: SwingPickTechnicalAdxTrend;
-  insiderActivity: SwingPickInsiderActivity;
-  insiderScoreAdjustment: number;
-  /** @nullable */
-  insiderActivityText: string | null;
-  /** @nullable */
-  insiderTransactionValue: number | null;
-  /** @nullable */
-  insiderTransactionDate: string | null;
-  /** @nullable */
-  insiderCategory: string | null;
+  /**
+   * Swing low that established the existing uptrend (the Break of Structure's preceding higher-low).
+   * @nullable
+   */
+  majorSwingLow: number | null;
+  /**
+   * Swing high that the Break of Structure cleared.
+   * @nullable
+   */
+  majorSwingHigh: number | null;
+  /**
+   * Price level the Break of Structure closed above (equal to majorSwingHigh).
+   * @nullable
+   */
+  bosLevel: number | null;
+  /**
+   * High reached after the Break of Structure, before the corrective pullback began.
+   * @nullable
+   */
+  newHigh: number | null;
+  /**
+   * Corrective swing low the stop-loss is based on (before the SL buffer is applied).
+   * @nullable
+   */
+  structuralSwingLow: number | null;
+  /**
+   * Number of confirmed internal lower highs used to fit the descending trendline.
+   * @nullable
+   */
+  trendlineTouches: number | null;
+  /**
+   * 0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).
+   * @nullable
+   */
+  trendlineQuality: number | null;
 }
 
-export type SwingScannerResultMarketRegime =
-  (typeof SwingScannerResultMarketRegime)[keyof typeof SwingScannerResultMarketRegime];
-
-export const SwingScannerResultMarketRegime = {
-  Bull: "Bull",
-  Neutral: "Neutral",
-  Weak: "Weak",
-  Unknown: "Unknown",
-} as const;
-
 export interface SwingScannerDiagnostics {
-  /** Setups found before final ranking, technical, open-trade, and save filters. */
+  /** Confirmed READY_TO_BUY setups found across the scanned universe. */
   rawCandidates: number;
-  /** Candidates that passed final quality filters before excluding open tracker symbols. */
+  /** Candidates remaining after sorting by score. */
   finalCandidates: number;
   /** Final candidates remaining after excluding open tracker symbols. */
   availableCandidates: number;
   /** Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW. */
   excludedOpenSymbols: number;
-  /** Number of symbols loaded from the technical-indicators provider. */
-  technicalIndicatorSymbols: number;
-  /** Whether technical-indicator provider data was available for this scan. */
-  technicalDataAvailable: boolean;
 }
 
 export interface SwingScannerResult {
@@ -587,10 +520,6 @@ export interface SwingScannerResult {
   universeCount: number;
   candidateCount: number;
   savedCount: number;
-  niftyReturn: number;
-  marketRegime: SwingScannerResultMarketRegime;
-  /** @nullable */
-  marketBreadthPct: number | null;
   diagnostics: SwingScannerDiagnostics;
   picks: SwingPick[];
 }
@@ -646,62 +575,6 @@ export const SwingTrackerTradeDirection = {
   SHORT: "SHORT",
 } as const;
 
-/**
- * @nullable
- */
-export type SwingTrackerTradeIndexTrendDirection =
-  | (typeof SwingTrackerTradeIndexTrendDirection)[keyof typeof SwingTrackerTradeIndexTrendDirection]
-  | null;
-
-export const SwingTrackerTradeIndexTrendDirection = {
-  Bullish: "Bullish",
-  Bearish: "Bearish",
-  Neutral: "Neutral",
-  Unknown: "Unknown",
-} as const;
-
-/**
- * @nullable
- */
-export type SwingTrackerTradeTechnicalMacdTrend =
-  | (typeof SwingTrackerTradeTechnicalMacdTrend)[keyof typeof SwingTrackerTradeTechnicalMacdTrend]
-  | null;
-
-export const SwingTrackerTradeTechnicalMacdTrend = {
-  Bullish: "Bullish",
-  Bearish: "Bearish",
-  Neutral: "Neutral",
-  Unknown: "Unknown",
-} as const;
-
-/**
- * @nullable
- */
-export type SwingTrackerTradeTechnicalAdxTrend =
-  | (typeof SwingTrackerTradeTechnicalAdxTrend)[keyof typeof SwingTrackerTradeTechnicalAdxTrend]
-  | null;
-
-export const SwingTrackerTradeTechnicalAdxTrend = {
-  Bullish: "Bullish",
-  Bearish: "Bearish",
-  Neutral: "Neutral",
-  Unknown: "Unknown",
-} as const;
-
-/**
- * @nullable
- */
-export type SwingTrackerTradeInsiderActivity =
-  | (typeof SwingTrackerTradeInsiderActivity)[keyof typeof SwingTrackerTradeInsiderActivity]
-  | null;
-
-export const SwingTrackerTradeInsiderActivity = {
-  Buy: "Buy",
-  Sell: "Sell",
-  Mixed: "Mixed",
-  None: "None",
-} as const;
-
 export interface SwingTrackerTrade {
   id: number;
   symbol: string;
@@ -732,38 +605,19 @@ export interface SwingTrackerTrade {
   /** @nullable */
   lastCheckedAt: string | null;
   /** @nullable */
-  indexTrendIndex: string | null;
+  majorSwingLow: string | null;
   /** @nullable */
-  indexTrendDirection: SwingTrackerTradeIndexTrendDirection;
+  majorSwingHigh: string | null;
   /** @nullable */
-  indexTrendText: string | null;
-  indexTrendScoreAdjustment: string;
+  bosLevel: string | null;
   /** @nullable */
-  technicalStage: string | null;
-  technicalScoreAdjustment: string;
+  newHigh: string | null;
   /** @nullable */
-  technicalIndicatorText: string | null;
+  structuralSwingLow: string | null;
   /** @nullable */
-  technicalRs55: string | null;
+  trendlineTouches: number | null;
   /** @nullable */
-  technicalVolumeRatio: string | null;
-  /** @nullable */
-  technicalAboveEma200: boolean | null;
-  /** @nullable */
-  technicalMacdTrend: SwingTrackerTradeTechnicalMacdTrend;
-  /** @nullable */
-  technicalAdxTrend: SwingTrackerTradeTechnicalAdxTrend;
-  /** @nullable */
-  insiderActivity: SwingTrackerTradeInsiderActivity;
-  insiderScoreAdjustment: string;
-  /** @nullable */
-  insiderActivityText: string | null;
-  /** @nullable */
-  insiderTransactionValue: string | null;
-  /** @nullable */
-  insiderTransactionDate: string | null;
-  /** @nullable */
-  insiderCategory: string | null;
+  trendlineQuality: string | null;
   /** @nullable */
   plPct: number | null;
   /** @nullable */

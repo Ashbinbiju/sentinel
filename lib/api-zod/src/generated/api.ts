@@ -462,20 +462,15 @@ export const GetSwingScannerResponse = zod.object({
       universeCount: zod.number(),
       candidateCount: zod.number(),
       savedCount: zod.number(),
-      niftyReturn: zod.number(),
-      marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
-      marketBreadthPct: zod.number().nullable(),
       diagnostics: zod.object({
         rawCandidates: zod
           .number()
           .describe(
-            "Setups found before final ranking, technical, open-trade, and save filters.",
+            "Confirmed READY_TO_BUY setups found across the scanned universe.",
           ),
         finalCandidates: zod
           .number()
-          .describe(
-            "Candidates that passed final quality filters before excluding open tracker symbols.",
-          ),
+          .describe("Candidates remaining after sorting by score."),
         availableCandidates: zod
           .number()
           .describe(
@@ -486,118 +481,101 @@ export const GetSwingScannerResponse = zod.object({
           .describe(
             "Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW.",
           ),
-        technicalIndicatorSymbols: zod
-          .number()
-          .describe(
-            "Number of symbols loaded from the technical-indicators provider.",
-          ),
-        technicalDataAvailable: zod
-          .boolean()
-          .describe(
-            "Whether technical-indicator provider data was available for this scan.",
-          ),
       }),
       picks: zod.array(
-        zod.object({
-          symbol: zod.string(),
-          sector: zod.string(),
-          tradeDate: zod
-            .string()
-            .describe(
-              "Latest daily candle date used for this setup (YYYY-MM-DD IST)",
-            ),
-          signalTime: zod
-            .string()
-            .describe("UTC ISO timestamp of when the scan saved the signal"),
-          currentPrice: zod
-            .number()
-            .describe("Last available daily close at scan time"),
-          entryPrice: zod
-            .number()
-            .describe(
-              "Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched.",
-            ),
-          sl: zod.number(),
-          target: zod.number(),
-          score: zod.number(),
-          signalScore: zod.number(),
-          grade: zod.string(),
-          setup: zod.string(),
-          entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
-          reason: zod.string(),
-          expectedHoldDays: zod.number(),
-          recentReturn: zod.number(),
-          relativeStrength: zod.number(),
-          sectorRelativeStrength: zod.number(),
-          rvol: zod.number(),
-          avgTurnover: zod.number(),
-          entryDistancePct: zod.number(),
-          riskPct: zod
-            .number()
-            .describe(
-              "Percent risk from entry to stop loss; scanner rejects new picks above 6%.",
-            ),
-          rewardRisk: zod.number(),
-          breakoutQuality: zod.string(),
-          trendPersistence: zod.number(),
-          freshBreakoutAge: zod.number().nullable(),
-          consolidationCandles: zod.number(),
-          setupType: zod.enum([
-            "fresh_breakout",
-            "sector_leader_continuation",
-            "mean_reversion_bounce",
-            "high_rvol_explosive",
-            "slow_institutional_trend",
-            "trend_continuation",
-          ]),
-          latestMovePct: zod.number(),
-          ema20DistancePct: zod.number(),
-          liquidityScore: zod.number(),
-          intradaySignal: zod.string(),
-          swingSignal: zod.string(),
-          shortTermSignal: zod.string(),
-          longTermSignal: zod.string(),
-          breakoutSignal: zod.string(),
-          ichimokuTrend: zod.string(),
-          marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
-          marketBreadthPct: zod.number().nullable(),
-          industryAdvanceRatio: zod.number().nullable(),
-          industryBreadthText: zod.string().nullable(),
-          weakMarketSignalDowngrade: zod.boolean(),
-          indexTrendIndex: zod.string().nullable(),
-          indexTrendDirection: zod.enum([
-            "Bullish",
-            "Bearish",
-            "Neutral",
-            "Unknown",
-          ]),
-          indexTrendText: zod.string().nullable(),
-          indexTrendScoreAdjustment: zod.number(),
-          technicalStage: zod.string().nullable(),
-          technicalScoreAdjustment: zod.number(),
-          technicalIndicatorText: zod.string().nullable(),
-          technicalRs55: zod.number().nullable(),
-          technicalVolumeRatio: zod.number().nullable(),
-          technicalAboveEma200: zod.boolean().nullable(),
-          technicalMacdTrend: zod.enum([
-            "Bullish",
-            "Bearish",
-            "Neutral",
-            "Unknown",
-          ]),
-          technicalAdxTrend: zod.enum([
-            "Bullish",
-            "Bearish",
-            "Neutral",
-            "Unknown",
-          ]),
-          insiderActivity: zod.enum(["Buy", "Sell", "Mixed", "None"]),
-          insiderScoreAdjustment: zod.number(),
-          insiderActivityText: zod.string().nullable(),
-          insiderTransactionValue: zod.number().nullable(),
-          insiderTransactionDate: zod.string().nullable(),
-          insiderCategory: zod.string().nullable(),
-        }),
+        zod
+          .object({
+            symbol: zod.string(),
+            sector: zod.string(),
+            tradeDate: zod
+              .string()
+              .describe(
+                "Latest daily candle date used for this setup (YYYY-MM-DD IST)",
+              ),
+            signalTime: zod
+              .string()
+              .describe("UTC ISO timestamp of when the scan saved the signal"),
+            currentPrice: zod
+              .number()
+              .describe("Last available daily close at scan time"),
+            entryPrice: zod
+              .number()
+              .describe("Breakout candle close (or configured entry mode)."),
+            sl: zod
+              .number()
+              .describe(
+                "Structural corrective swing low, with a small buffer applied.",
+              ),
+            target: zod
+              .number()
+              .describe("Entry + risk (1:1 reward:risk by default)."),
+            score: zod
+              .number()
+              .describe("0-100 structural signal strength score."),
+            grade: zod.enum(["A+", "A", "B", "Weak", "Ignore"]),
+            setup: zod
+              .enum([
+                "READY_TO_BUY",
+                "BREAKOUT_WATCH",
+                "CORRECTION",
+                "SETUP_FORMING",
+                "INVALIDATED",
+                "NO_SETUP",
+              ])
+              .describe(
+                "Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks).",
+              ),
+            entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
+            reason: zod.string(),
+            expectedHoldDays: zod.number(),
+            riskPct: zod
+              .number()
+              .describe("Percent risk from entry to stop loss."),
+            rewardRisk: zod.number(),
+            majorSwingLow: zod
+              .number()
+              .nullable()
+              .describe(
+                "Swing low that established the existing uptrend (the Break of Structure's preceding higher-low).",
+              ),
+            majorSwingHigh: zod
+              .number()
+              .nullable()
+              .describe("Swing high that the Break of Structure cleared."),
+            bosLevel: zod
+              .number()
+              .nullable()
+              .describe(
+                "Price level the Break of Structure closed above (equal to majorSwingHigh).",
+              ),
+            newHigh: zod
+              .number()
+              .nullable()
+              .describe(
+                "High reached after the Break of Structure, before the corrective pullback began.",
+              ),
+            structuralSwingLow: zod
+              .number()
+              .nullable()
+              .describe(
+                "Corrective swing low the stop-loss is based on (before the SL buffer is applied).",
+              ),
+            trendlineTouches: zod
+              .number()
+              .nullable()
+              .describe(
+                "Number of confirmed internal lower highs used to fit the descending trendline.",
+              ),
+            trendlineQuality: zod
+              .number()
+              .nullable()
+              .describe(
+                "0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).",
+              ),
+          })
+          .describe(
+            "A structural swing setup: Existing Uptrend -> Break of Structure -> Corrective Pullback -> Internal Lower Highs -> Descending Trendline -> Confirmed Bullish Breakout -> BUY, SL at the corrective swing low, 1:1 risk\/reward target. Daily timeframe only.",
+          ),
       ),
     }),
     zod.null(),
@@ -642,20 +620,15 @@ export const GetSwingScanJobResponse = zod.object({
       universeCount: zod.number(),
       candidateCount: zod.number(),
       savedCount: zod.number(),
-      niftyReturn: zod.number(),
-      marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
-      marketBreadthPct: zod.number().nullable(),
       diagnostics: zod.object({
         rawCandidates: zod
           .number()
           .describe(
-            "Setups found before final ranking, technical, open-trade, and save filters.",
+            "Confirmed READY_TO_BUY setups found across the scanned universe.",
           ),
         finalCandidates: zod
           .number()
-          .describe(
-            "Candidates that passed final quality filters before excluding open tracker symbols.",
-          ),
+          .describe("Candidates remaining after sorting by score."),
         availableCandidates: zod
           .number()
           .describe(
@@ -666,118 +639,101 @@ export const GetSwingScanJobResponse = zod.object({
           .describe(
             "Final candidates skipped because the symbol is already WATCHLIST, ACTIVE, or EXIT REVIEW.",
           ),
-        technicalIndicatorSymbols: zod
-          .number()
-          .describe(
-            "Number of symbols loaded from the technical-indicators provider.",
-          ),
-        technicalDataAvailable: zod
-          .boolean()
-          .describe(
-            "Whether technical-indicator provider data was available for this scan.",
-          ),
       }),
       picks: zod.array(
-        zod.object({
-          symbol: zod.string(),
-          sector: zod.string(),
-          tradeDate: zod
-            .string()
-            .describe(
-              "Latest daily candle date used for this setup (YYYY-MM-DD IST)",
-            ),
-          signalTime: zod
-            .string()
-            .describe("UTC ISO timestamp of when the scan saved the signal"),
-          currentPrice: zod
-            .number()
-            .describe("Last available daily close at scan time"),
-          entryPrice: zod
-            .number()
-            .describe(
-              "Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched.",
-            ),
-          sl: zod.number(),
-          target: zod.number(),
-          score: zod.number(),
-          signalScore: zod.number(),
-          grade: zod.string(),
-          setup: zod.string(),
-          entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
-          reason: zod.string(),
-          expectedHoldDays: zod.number(),
-          recentReturn: zod.number(),
-          relativeStrength: zod.number(),
-          sectorRelativeStrength: zod.number(),
-          rvol: zod.number(),
-          avgTurnover: zod.number(),
-          entryDistancePct: zod.number(),
-          riskPct: zod
-            .number()
-            .describe(
-              "Percent risk from entry to stop loss; scanner rejects new picks above 6%.",
-            ),
-          rewardRisk: zod.number(),
-          breakoutQuality: zod.string(),
-          trendPersistence: zod.number(),
-          freshBreakoutAge: zod.number().nullable(),
-          consolidationCandles: zod.number(),
-          setupType: zod.enum([
-            "fresh_breakout",
-            "sector_leader_continuation",
-            "mean_reversion_bounce",
-            "high_rvol_explosive",
-            "slow_institutional_trend",
-            "trend_continuation",
-          ]),
-          latestMovePct: zod.number(),
-          ema20DistancePct: zod.number(),
-          liquidityScore: zod.number(),
-          intradaySignal: zod.string(),
-          swingSignal: zod.string(),
-          shortTermSignal: zod.string(),
-          longTermSignal: zod.string(),
-          breakoutSignal: zod.string(),
-          ichimokuTrend: zod.string(),
-          marketRegime: zod.enum(["Bull", "Neutral", "Weak", "Unknown"]),
-          marketBreadthPct: zod.number().nullable(),
-          industryAdvanceRatio: zod.number().nullable(),
-          industryBreadthText: zod.string().nullable(),
-          weakMarketSignalDowngrade: zod.boolean(),
-          indexTrendIndex: zod.string().nullable(),
-          indexTrendDirection: zod.enum([
-            "Bullish",
-            "Bearish",
-            "Neutral",
-            "Unknown",
-          ]),
-          indexTrendText: zod.string().nullable(),
-          indexTrendScoreAdjustment: zod.number(),
-          technicalStage: zod.string().nullable(),
-          technicalScoreAdjustment: zod.number(),
-          technicalIndicatorText: zod.string().nullable(),
-          technicalRs55: zod.number().nullable(),
-          technicalVolumeRatio: zod.number().nullable(),
-          technicalAboveEma200: zod.boolean().nullable(),
-          technicalMacdTrend: zod.enum([
-            "Bullish",
-            "Bearish",
-            "Neutral",
-            "Unknown",
-          ]),
-          technicalAdxTrend: zod.enum([
-            "Bullish",
-            "Bearish",
-            "Neutral",
-            "Unknown",
-          ]),
-          insiderActivity: zod.enum(["Buy", "Sell", "Mixed", "None"]),
-          insiderScoreAdjustment: zod.number(),
-          insiderActivityText: zod.string().nullable(),
-          insiderTransactionValue: zod.number().nullable(),
-          insiderTransactionDate: zod.string().nullable(),
-          insiderCategory: zod.string().nullable(),
-        }),
+        zod
+          .object({
+            symbol: zod.string(),
+            sector: zod.string(),
+            tradeDate: zod
+              .string()
+              .describe(
+                "Latest daily candle date used for this setup (YYYY-MM-DD IST)",
+              ),
+            signalTime: zod
+              .string()
+              .describe("UTC ISO timestamp of when the scan saved the signal"),
+            currentPrice: zod
+              .number()
+              .describe("Last available daily close at scan time"),
+            entryPrice: zod
+              .number()
+              .describe("Breakout candle close (or configured entry mode)."),
+            sl: zod
+              .number()
+              .describe(
+                "Structural corrective swing low, with a small buffer applied.",
+              ),
+            target: zod
+              .number()
+              .describe("Entry + risk (1:1 reward:risk by default)."),
+            score: zod
+              .number()
+              .describe("0-100 structural signal strength score."),
+            grade: zod.enum(["A+", "A", "B", "Weak", "Ignore"]),
+            setup: zod
+              .enum([
+                "READY_TO_BUY",
+                "BREAKOUT_WATCH",
+                "CORRECTION",
+                "SETUP_FORMING",
+                "INVALIDATED",
+                "NO_SETUP",
+              ])
+              .describe(
+                "Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks).",
+              ),
+            entryType: zod.enum(["BREAKOUT", "PULLBACK"]),
+            reason: zod.string(),
+            expectedHoldDays: zod.number(),
+            riskPct: zod
+              .number()
+              .describe("Percent risk from entry to stop loss."),
+            rewardRisk: zod.number(),
+            majorSwingLow: zod
+              .number()
+              .nullable()
+              .describe(
+                "Swing low that established the existing uptrend (the Break of Structure's preceding higher-low).",
+              ),
+            majorSwingHigh: zod
+              .number()
+              .nullable()
+              .describe("Swing high that the Break of Structure cleared."),
+            bosLevel: zod
+              .number()
+              .nullable()
+              .describe(
+                "Price level the Break of Structure closed above (equal to majorSwingHigh).",
+              ),
+            newHigh: zod
+              .number()
+              .nullable()
+              .describe(
+                "High reached after the Break of Structure, before the corrective pullback began.",
+              ),
+            structuralSwingLow: zod
+              .number()
+              .nullable()
+              .describe(
+                "Corrective swing low the stop-loss is based on (before the SL buffer is applied).",
+              ),
+            trendlineTouches: zod
+              .number()
+              .nullable()
+              .describe(
+                "Number of confirmed internal lower highs used to fit the descending trendline.",
+              ),
+            trendlineQuality: zod
+              .number()
+              .nullable()
+              .describe(
+                "0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).",
+              ),
+          })
+          .describe(
+            "A structural swing setup: Existing Uptrend -> Break of Structure -> Corrective Pullback -> Internal Lower Highs -> Descending Trendline -> Confirmed Bullish Breakout -> BUY, SL at the corrective swing low, 1:1 risk\/reward target. Daily timeframe only.",
+          ),
       ),
     }),
     zod.null(),
@@ -866,56 +822,13 @@ export const GetSwingTradesResponse = zod.object({
       exitDate: zod.string().nullable(),
       lastPrice: zod.string().nullable(),
       lastCheckedAt: zod.string().nullable(),
-      indexTrendIndex: zod.string().nullable(),
-      indexTrendDirection: zod
-        .union([
-          zod.literal("Bullish"),
-          zod.literal("Bearish"),
-          zod.literal("Neutral"),
-          zod.literal("Unknown"),
-          zod.literal(null),
-        ])
-        .nullable(),
-      indexTrendText: zod.string().nullable(),
-      indexTrendScoreAdjustment: zod.string(),
-      technicalStage: zod.string().nullable(),
-      technicalScoreAdjustment: zod.string(),
-      technicalIndicatorText: zod.string().nullable(),
-      technicalRs55: zod.string().nullable(),
-      technicalVolumeRatio: zod.string().nullable(),
-      technicalAboveEma200: zod.boolean().nullable(),
-      technicalMacdTrend: zod
-        .union([
-          zod.literal("Bullish"),
-          zod.literal("Bearish"),
-          zod.literal("Neutral"),
-          zod.literal("Unknown"),
-          zod.literal(null),
-        ])
-        .nullable(),
-      technicalAdxTrend: zod
-        .union([
-          zod.literal("Bullish"),
-          zod.literal("Bearish"),
-          zod.literal("Neutral"),
-          zod.literal("Unknown"),
-          zod.literal(null),
-        ])
-        .nullable(),
-      insiderActivity: zod
-        .union([
-          zod.literal("Buy"),
-          zod.literal("Sell"),
-          zod.literal("Mixed"),
-          zod.literal("None"),
-          zod.literal(null),
-        ])
-        .nullable(),
-      insiderScoreAdjustment: zod.string(),
-      insiderActivityText: zod.string().nullable(),
-      insiderTransactionValue: zod.string().nullable(),
-      insiderTransactionDate: zod.string().nullable(),
-      insiderCategory: zod.string().nullable(),
+      majorSwingLow: zod.string().nullable(),
+      majorSwingHigh: zod.string().nullable(),
+      bosLevel: zod.string().nullable(),
+      newHigh: zod.string().nullable(),
+      structuralSwingLow: zod.string().nullable(),
+      trendlineTouches: zod.number().nullable(),
+      trendlineQuality: zod.string().nullable(),
       plPct: zod.number().nullable(),
       daysOpen: zod.number().nullable(),
     }),

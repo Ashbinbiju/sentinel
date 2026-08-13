@@ -6,13 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SwingEntryType } from "./swingEntryType";
-import type { SwingPickIndexTrendDirection } from "./swingPickIndexTrendDirection";
-import type { SwingPickInsiderActivity } from "./swingPickInsiderActivity";
-import type { SwingPickMarketRegime } from "./swingPickMarketRegime";
-import type { SwingPickSetupType } from "./swingPickSetupType";
-import type { SwingPickTechnicalAdxTrend } from "./swingPickTechnicalAdxTrend";
-import type { SwingPickTechnicalMacdTrend } from "./swingPickTechnicalMacdTrend";
+import type { SwingPickGrade } from "./swingPickGrade";
+import type { SwingPickSetup } from "./swingPickSetup";
 
+/**
+ * A structural swing setup: Existing Uptrend -> Break of Structure -> Corrective Pullback -> Internal Lower Highs -> Descending Trendline -> Confirmed Bullish Breakout -> BUY, SL at the corrective swing low, 1:1 risk/reward target. Daily timeframe only.
+ */
 export interface SwingPick {
   symbol: string;
   sector: string;
@@ -22,76 +21,56 @@ export interface SwingPick {
   signalTime: string;
   /** Last available daily close at scan time */
   currentPrice: number;
-  /** Entry trigger price. For many picks this can be above CMP and should be treated as watchlist until touched. */
+  /** Breakout candle close (or configured entry mode). */
   entryPrice: number;
+  /** Structural corrective swing low, with a small buffer applied. */
   sl: number;
+  /** Entry + risk (1:1 reward:risk by default). */
   target: number;
+  /** 0-100 structural signal strength score. */
   score: number;
-  signalScore: number;
-  grade: string;
-  setup: string;
+  grade: SwingPickGrade;
+  /** Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks). */
+  setup: SwingPickSetup;
   entryType: SwingEntryType;
   reason: string;
   expectedHoldDays: number;
-  recentReturn: number;
-  relativeStrength: number;
-  sectorRelativeStrength: number;
-  rvol: number;
-  avgTurnover: number;
-  entryDistancePct: number;
-  /** Percent risk from entry to stop loss; scanner rejects new picks above 6%. */
+  /** Percent risk from entry to stop loss. */
   riskPct: number;
   rewardRisk: number;
-  breakoutQuality: string;
-  trendPersistence: number;
-  /** @nullable */
-  freshBreakoutAge: number | null;
-  consolidationCandles: number;
-  setupType: SwingPickSetupType;
-  latestMovePct: number;
-  ema20DistancePct: number;
-  liquidityScore: number;
-  intradaySignal: string;
-  swingSignal: string;
-  shortTermSignal: string;
-  longTermSignal: string;
-  breakoutSignal: string;
-  ichimokuTrend: string;
-  marketRegime: SwingPickMarketRegime;
-  /** @nullable */
-  marketBreadthPct: number | null;
-  /** @nullable */
-  industryAdvanceRatio: number | null;
-  /** @nullable */
-  industryBreadthText: string | null;
-  weakMarketSignalDowngrade: boolean;
-  /** @nullable */
-  indexTrendIndex: string | null;
-  indexTrendDirection: SwingPickIndexTrendDirection;
-  /** @nullable */
-  indexTrendText: string | null;
-  indexTrendScoreAdjustment: number;
-  /** @nullable */
-  technicalStage: string | null;
-  technicalScoreAdjustment: number;
-  /** @nullable */
-  technicalIndicatorText: string | null;
-  /** @nullable */
-  technicalRs55: number | null;
-  /** @nullable */
-  technicalVolumeRatio: number | null;
-  /** @nullable */
-  technicalAboveEma200: boolean | null;
-  technicalMacdTrend: SwingPickTechnicalMacdTrend;
-  technicalAdxTrend: SwingPickTechnicalAdxTrend;
-  insiderActivity: SwingPickInsiderActivity;
-  insiderScoreAdjustment: number;
-  /** @nullable */
-  insiderActivityText: string | null;
-  /** @nullable */
-  insiderTransactionValue: number | null;
-  /** @nullable */
-  insiderTransactionDate: string | null;
-  /** @nullable */
-  insiderCategory: string | null;
+  /**
+   * Swing low that established the existing uptrend (the Break of Structure's preceding higher-low).
+   * @nullable
+   */
+  majorSwingLow: number | null;
+  /**
+   * Swing high that the Break of Structure cleared.
+   * @nullable
+   */
+  majorSwingHigh: number | null;
+  /**
+   * Price level the Break of Structure closed above (equal to majorSwingHigh).
+   * @nullable
+   */
+  bosLevel: number | null;
+  /**
+   * High reached after the Break of Structure, before the corrective pullback began.
+   * @nullable
+   */
+  newHigh: number | null;
+  /**
+   * Corrective swing low the stop-loss is based on (before the SL buffer is applied).
+   * @nullable
+   */
+  structuralSwingLow: number | null;
+  /**
+   * Number of confirmed internal lower highs used to fit the descending trendline.
+   * @nullable
+   */
+  trendlineTouches: number | null;
+  /**
+   * 0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).
+   * @nullable
+   */
+  trendlineQuality: number | null;
 }

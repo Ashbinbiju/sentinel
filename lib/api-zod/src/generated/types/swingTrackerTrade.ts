@@ -7,10 +7,6 @@
  */
 import type { SwingEntryType } from "./swingEntryType";
 import type { SwingTrackerTradeDirection } from "./swingTrackerTradeDirection";
-import type { SwingTrackerTradeIndexTrendDirection } from "./swingTrackerTradeIndexTrendDirection";
-import type { SwingTrackerTradeInsiderActivity } from "./swingTrackerTradeInsiderActivity";
-import type { SwingTrackerTradeTechnicalAdxTrend } from "./swingTrackerTradeTechnicalAdxTrend";
-import type { SwingTrackerTradeTechnicalMacdTrend } from "./swingTrackerTradeTechnicalMacdTrend";
 import type { SwingTradeStatus } from "./swingTradeStatus";
 
 export interface SwingTrackerTrade {
@@ -43,38 +39,19 @@ export interface SwingTrackerTrade {
   /** @nullable */
   lastCheckedAt: string | null;
   /** @nullable */
-  indexTrendIndex: string | null;
+  majorSwingLow: string | null;
   /** @nullable */
-  indexTrendDirection: SwingTrackerTradeIndexTrendDirection;
+  majorSwingHigh: string | null;
   /** @nullable */
-  indexTrendText: string | null;
-  indexTrendScoreAdjustment: string;
+  bosLevel: string | null;
   /** @nullable */
-  technicalStage: string | null;
-  technicalScoreAdjustment: string;
+  newHigh: string | null;
   /** @nullable */
-  technicalIndicatorText: string | null;
+  structuralSwingLow: string | null;
   /** @nullable */
-  technicalRs55: string | null;
+  trendlineTouches: number | null;
   /** @nullable */
-  technicalVolumeRatio: string | null;
-  /** @nullable */
-  technicalAboveEma200: boolean | null;
-  /** @nullable */
-  technicalMacdTrend: SwingTrackerTradeTechnicalMacdTrend;
-  /** @nullable */
-  technicalAdxTrend: SwingTrackerTradeTechnicalAdxTrend;
-  /** @nullable */
-  insiderActivity: SwingTrackerTradeInsiderActivity;
-  insiderScoreAdjustment: string;
-  /** @nullable */
-  insiderActivityText: string | null;
-  /** @nullable */
-  insiderTransactionValue: string | null;
-  /** @nullable */
-  insiderTransactionDate: string | null;
-  /** @nullable */
-  insiderCategory: string | null;
+  trendlineQuality: string | null;
   /** @nullable */
   plPct: number | null;
   /** @nullable */

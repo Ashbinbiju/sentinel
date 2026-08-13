@@ -1,4 +1,4 @@
-import { pgTable, text, serial, numeric, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, numeric, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -73,6 +73,14 @@ export const swingTradesTable = pgTable("swing_trades", {
   exitDate: text("exit_date"),
   lastPrice: numeric("last_price"),
   lastCheckedAt: timestamp("last_checked_at", { mode: "string", withTimezone: true }),
+  // Structural strategy context (uptrend -> BOS -> correction -> trendline).
+  majorSwingLow: numeric("major_swing_low"),
+  majorSwingHigh: numeric("major_swing_high"),
+  bosLevel: numeric("bos_level"),
+  newHigh: numeric("new_high"),
+  structuralSwingLow: numeric("structural_swing_low"),
+  trendlineTouches: integer("trendline_touches"),
+  trendlineQuality: numeric("trendline_quality"),
 }, (table) => {
   return {
     symbolDateUnique: uniqueIndex("swing_symbol_date_unique").on(table.symbol, table.date),

@@ -7,7 +7,6 @@
  */
 import type { SwingPick } from "./swingPick";
 import type { SwingScannerDiagnostics } from "./swingScannerDiagnostics";
-import type { SwingScannerResultMarketRegime } from "./swingScannerResultMarketRegime";
 
 export interface SwingScannerResult {
   fetchedAt: string;
@@ -18,10 +17,6 @@ export interface SwingScannerResult {
   universeCount: number;
   candidateCount: number;
   savedCount: number;
-  niftyReturn: number;
-  marketRegime: SwingScannerResultMarketRegime;
-  /** @nullable */
-  marketBreadthPct: number | null;
   diagnostics: SwingScannerDiagnostics;
   picks: SwingPick[];
 }
