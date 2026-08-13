@@ -19,7 +19,10 @@ const NSE_TICK_SIZE = 0.05;
 // PDH/PDL-only behaviour.
 const USE_PIVOT_FILTER = process.env.USE_PIVOT_FILTER !== "false";
 
-// Fixed target in absolute price points (₹). Every trade exits at ₹5 profit.
+// ₹5 in absolute price points. Used both as the initial Super Order target
+// (cancelled once protection is confirmed — see verifyOrderExecution) and as
+// the staircase step size for the tick-driven trailing stop in
+// _evaluateLiveTick: every ₹5 of favorable movement locks in that much profit.
 const FIXED_TARGET_POINTS = 5;
 
 // Reject a setup when its target sits further away than the instrument's
@@ -216,47 +219,9 @@ export class ExecutionEngine {
 
             const activeTrade = this.getActiveOrPendingTrade(securityId);
             if (activeTrade) {
-              if (activeTrade.state === "PROTECTION_CONFIRMED" || activeTrade.state === "TRAIL_CONFIRMED") {
-                const tradeBars = history.filter(h => h.t * 1000 >= new Date(activeTrade.createdAt).getTime());
-                let trailTo = 0;
-                let mfe = 0;
-
-                if (activeTrade.side === "BUY") {
-                  const runMax = Math.max(...tradeBars.map(h => h.h), activeTrade.entryPrice);
-                  mfe = runMax - activeTrade.entryPrice;
-                  if (mfe >= currentState.atr * 0.5) {
-                    trailTo = runMax - 2.5 * currentState.atr;
-                  }
-                } else {
-                  const runMin = Math.min(...tradeBars.map(h => h.l), activeTrade.entryPrice);
-                  mfe = activeTrade.entryPrice - runMin;
-                  if (mfe >= currentState.atr * 0.5) {
-                    trailTo = runMin + 2.5 * currentState.atr;
-                  }
-                }
-
-                if (trailTo > 0) {
-                  const roundedTrailTo = this.roundToTick(trailTo);
-                  
-                  const isBetter = activeTrade.side === "BUY" 
-                    ? roundedTrailTo > activeTrade.stopLossPrice
-                    : roundedTrailTo < activeTrade.stopLossPrice;
-                    
-                  if (isBetter) {
-                    console.log(`[ENGINE] 9EMA VWAP Trailing SL for ${ctx.symbol} to ${roundedTrailTo} (MFE: ${mfe.toFixed(2)})`);
-                    await TradeDB.updateState(activeTrade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: roundedTrailTo });
-                    await this.syncActiveTrades();
-                    try {
-                      await this.broker.moveSuperOrderStopToBreakeven(activeTrade.superOrderId, roundedTrailTo, activeTrade.trailingJump);
-                      await TradeDB.updateState(activeTrade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: roundedTrailTo });
-                      await this.syncActiveTrades();
-                      this.notifier.sendTrailApplied(ctx.symbol, roundedTrailTo).catch(e => console.error(e));
-                    } catch (err: any) {
-                      console.error(`[ENGINE] Failed to trail Super Order for ${ctx.symbol}:`, err.message);
-                    }
-                  }
-                }
-              }
+              // Trailing is handled tick-by-tick in _evaluateLiveTick (the ₹5
+              // staircase), not here — candle closes are too slow to guarantee a
+              // milestone gets locked in before a fast reversal takes it back.
               return reject("ACTIVE_OR_PENDING_TRADE");
             }
 
@@ -305,8 +270,6 @@ export class ExecutionEngine {
 
   private async initiateTrade(ctx: WatchlistContext, side: "BUY" | "SELL", entryPrice: number, sl: number, target: number) {
     try {
-      const risk = Math.max(Math.abs(entryPrice - sl), entryPrice * 0.001);
-
       let cycleBalance: number;
       const today = getISTDateStr();
 
@@ -335,7 +298,11 @@ export class ExecutionEngine {
         return;
       }
 
-      const trailingJump = this.roundToTick(risk * 0.5);
+      // Dhan's own native trailing (a constant-distance trail) is disabled here —
+      // it wouldn't guarantee the ₹5 profit lock this strategy wants until price
+      // moved favorably by the full risk distance. Trailing is instead driven
+      // explicitly, tick-by-tick, in _evaluateLiveTick.
+      const trailingJump = 0;
       const correlationId = `sentinel-${Date.now()}-${randomUUID().slice(0, 5)}`;
 
       const newTrade: ActiveTrade = {
@@ -452,6 +419,20 @@ export class ExecutionEngine {
           confirmed = true;
           console.log(`[ENGINE] Protection verified for ${tradeId} at fill ${actualFillPrice} qty ${actualFilledQty}`);
           this.notifier.sendTradeEntry(trade.symbol, trade.side, actualFillPrice, trade.targetPrice, trade.stopLossPrice).catch(e => console.error(e));
+
+          // Cancel the fixed target now that protection is confirmed — this trade
+          // exits only via the ₹5 staircase-trailing stop from here on, not a
+          // hard target. If price already blew through the target in the brief
+          // window before this cancel lands, Dhan will simply reject it as
+          // already-terminal, which is fine — the trade exits normally either way.
+          if (targetLeg?.orderStatus === "PENDING") {
+            try {
+              await this.broker.cancelSuperOrder(parent.orderId, "TARGET_LEG");
+              console.log(`[ENGINE] Cancelled fixed target for ${trade.symbol}; exit now driven by the trailing stop only.`);
+            } catch (err: any) {
+              console.warn(`[ENGINE] Could not cancel target leg for ${trade.symbol} (may have already triggered):`, err.message);
+            }
+          }
         }
       } catch (err) {
         console.warn(`[ENGINE] Order book polling failed for ${tradeId}`);
@@ -486,8 +467,39 @@ export class ExecutionEngine {
   }
 
   private async _evaluateLiveTick(securityId: string, ltp: number, trade: ActiveTrade) {
-    // Trailing is handled at the candle level in evaluateClosedCandle.
-    // Live tick trailing is disabled for this strategy to allow ATR space to breathe.
+    if (trade.state !== "PROTECTION_CONFIRMED" && trade.state !== "TRAIL_CONFIRMED") return;
+
+    const favorableMove = trade.side === "BUY" ? ltp - trade.entryPrice : trade.entryPrice - ltp;
+    if (favorableMove < FIXED_TARGET_POINTS) return;
+
+    const milestonesReached = Math.floor(favorableMove / FIXED_TARGET_POINTS);
+    const lockedProfit = milestonesReached * FIXED_TARGET_POINTS;
+    const candidateSl = this.roundToTick(
+      trade.side === "BUY" ? trade.entryPrice + lockedProfit : trade.entryPrice - lockedProfit
+    );
+
+    const isBetter = trade.side === "BUY"
+      ? candidateSl > trade.stopLossPrice
+      : candidateSl < trade.stopLossPrice;
+    if (!isBetter) return;
+
+    console.log(`[ENGINE] ₹${FIXED_TARGET_POINTS} staircase trail for ${trade.symbol}: SL -> ${candidateSl} (locking ₹${lockedProfit})`);
+    const previousState = trade.state;
+    await TradeDB.updateState(trade.id, "TRAIL_REQUESTED", { requestedTrailStopPrice: candidateSl });
+    await this.syncActiveTrades();
+    try {
+      await this.broker.moveSuperOrderStopToBreakeven(trade.superOrderId, candidateSl, trade.trailingJump);
+      await TradeDB.updateState(trade.id, "TRAIL_CONFIRMED", { trailApplied: true, stopLossPrice: candidateSl });
+      await this.syncActiveTrades();
+      this.notifier.sendTrailApplied(trade.symbol, candidateSl).catch(e => console.error(e));
+    } catch (err: any) {
+      console.error(`[ENGINE] Failed to trail Super Order for ${trade.symbol}:`, err.message);
+      // Revert to whatever state it was actually in before this attempt, so the
+      // trade re-enters protectedTrades for the next tick to retry, without
+      // falsely claiming a trail was ever confirmed if this was the first one.
+      await TradeDB.updateState(trade.id, previousState);
+      await this.syncActiveTrades();
+    }
   }
 
   private async initiateExit(trade: ActiveTrade, exitPrice: number, reason: string) {
