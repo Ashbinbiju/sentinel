@@ -12,10 +12,14 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 // In-memory maps
 // symbolMap: "TCS" -> "11536"
 let symbolMap = new Map<string, string>();
+// securityIdToSymbol: "11536" -> "TCS" (reverse of symbolMap, for translating
+// ticks/subscriptions from other brokers keyed by their own instrument IDs)
+let securityIdToSymbol = new Map<string, string>();
 
 function parseScripMaster(csvData: string): void {
   const lines = csvData.split('\n');
   const tempSymbolMap = new Map<string, string>();
+  const tempReverseMap = new Map<string, string>();
 
   // Dhan CSV Columns:
   // 0: SEM_EXM_EXCH_ID
@@ -75,11 +79,17 @@ function parseScripMaster(csvData: string): void {
         // Dhan trading symbol might be "TCS-EQ". We strip "-EQ" to get pure symbol.
         const cleanSymbol = tradingSymbol.replace(/-EQ$/i, '').replace(/-BE$/i, '').trim().toUpperCase();
         tempSymbolMap.set(cleanSymbol, securityId);
+        tempReverseMap.set(securityId, cleanSymbol);
       }
     }
   }
 
   symbolMap = tempSymbolMap;
+  securityIdToSymbol = tempReverseMap;
+}
+
+function rebuildReverseMap(): void {
+  securityIdToSymbol = new Map(Array.from(symbolMap, ([symbol, securityId]) => [securityId, symbol]));
 }
 
 export async function initializeScripMaster(): Promise<void> {
@@ -94,6 +104,7 @@ export async function initializeScripMaster(): Promise<void> {
         const cachedData = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'));
         if (cachedData.symbolMap) {
           symbolMap = new Map(Object.entries(cachedData.symbolMap));
+          rebuildReverseMap();
           console.log(`[SCRIP_MASTER] Loaded ${symbolMap.size} symbols from cache.`);
           return;
         }
@@ -121,6 +132,7 @@ export async function initializeScripMaster(): Promise<void> {
       try {
         const cachedData = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'));
         symbolMap = new Map(Object.entries(cachedData.symbolMap));
+        rebuildReverseMap();
         console.log(`[SCRIP_MASTER] Loaded ${symbolMap.size} symbols from stale cache.`);
       } catch (err) {
         console.error('[SCRIP_MASTER] Cache fallback failed.');
@@ -136,4 +148,12 @@ export async function initializeScripMaster(): Promise<void> {
 export function getSecurityId(symbol: string): string | null {
   const cleanSymbol = symbol.trim().toUpperCase();
   return symbolMap.get(cleanSymbol) || null;
+}
+
+/**
+ * Returns the Trading Symbol for a given Dhan Security ID.
+ * Example: "11536" -> "TCS"
+ */
+export function getSymbolForSecurityId(securityId: string): string | null {
+  return securityIdToSymbol.get(securityId) || null;
 }

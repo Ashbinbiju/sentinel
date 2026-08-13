@@ -1,5 +1,7 @@
 import { initializeScripMaster, getSecurityId } from "./scrip-master";
+import { initializeAngelScripMaster } from "./angel-scrip-master";
 import { DhanBroker } from "./dhan";
+import { AngelOneFeed } from "./angelone";
 import { TradeDB } from "./db";
 import { CandleEngine, Candle } from "./candle-engine";
 import { ExecutionEngine, WatchlistContext } from "./engine";
@@ -342,9 +344,12 @@ async function main() {
   if (DRY_RUN) console.log("⚠️ RUNNING IN DRY-RUN MODE ⚠️");
 
   await initializeScripMaster();
+  await initializeAngelScripMaster();
 
   const broker = new DhanBroker();
   await broker.validateOrRenewToken();
+
+  const marketFeed = new AngelOneFeed();
 
   const executionEngine = new ExecutionEngine(broker);
   const candleEngine = new CandleEngine();
@@ -371,7 +376,7 @@ async function main() {
       // a rapid-flap reconnect storm from triggering 12+ seconds of serial REST calls.
       if (!forceRefresh && candleEngine.isContinuityValid && watchlist.length > 0) {
         console.log(`[BOT] WebSocket reconnected with valid continuity. Re-subscribing ${watchlist.length} symbols (no backfill needed).`);
-        broker.subscribeToSecurityIds(watchlist.map(w => w.securityId));
+        marketFeed.subscribeToSecurityIds(watchlist.map(w => w.securityId));
         return;
       }
 
@@ -424,7 +429,7 @@ async function main() {
       if (successfulSymbols.length > 0) {
         candleEngine.isContinuityValid = true;
         console.log(`[BOT] CandleEngine Continuity Validated for ${successfulSymbols.length} stocks. Ready for live trading.`);
-        broker.subscribeToSecurityIds(successfulSymbols);
+        marketFeed.subscribeToSecurityIds(successfulSymbols);
 
         initialRecoveryComplete = true;
         lastWatchlistFetchMs = Date.now();
@@ -438,12 +443,12 @@ async function main() {
     return recoveryPromise;
   };
 
-  broker.on("onReconnect", async () => {
+  marketFeed.on("onReconnect", async () => {
     console.log(`[BOT] WebSocket reconnected.`);
     await initAndRecover();
   });
 
-  broker.on("onDisconnect", () => {
+  marketFeed.on("onDisconnect", () => {
     // Do NOT invalidate continuity here. The candle engine's in-memory state is
     // still valid — only the live feed is interrupted. Continuity will be
     // re-validated in initAndRecover() if the socket stays down long enough
@@ -451,14 +456,14 @@ async function main() {
     console.warn(`[BOT] WebSocket disconnected. Live feed paused; continuity preserved.`);
   });
 
-  broker.onTick((tick) => {
+  marketFeed.onTick((tick) => {
     candleEngine.processTick(tick);
     executionEngine.evaluateLiveTick(tick.securityId, tick.ltp);
   });
 
   // Start internal timers
   candleEngine.start();
-  await broker.connectWebSocket();
+  await marketFeed.connectWebSocket();
 
   // Initial trade sync
   await executionEngine.syncActiveTrades();
@@ -505,7 +510,7 @@ async function main() {
 
           if (removedSecurityIds.length > 0) {
             console.log(`[BOT] Unsubscribing from ${removedSecurityIds.length} removed symbols.`);
-            broker.unsubscribeFromSecurityIds(removedSecurityIds);
+            marketFeed.unsubscribeFromSecurityIds(removedSecurityIds);
             candleEngine.removeSymbols(removedSecurityIds);
           }
 
@@ -536,7 +541,7 @@ async function main() {
 
             if (successfulNewSymbols.length > 0) {
               console.log(`[BOT] Smart backfill complete. Subscribing to ${successfulNewSymbols.length} new symbols...`);
-              broker.subscribeToSecurityIds(successfulNewSymbols);
+              marketFeed.subscribeToSecurityIds(successfulNewSymbols);
             }
           }
 
