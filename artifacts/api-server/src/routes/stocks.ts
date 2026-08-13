@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { sendTelegramAlerts } from "../notifications.js";
 import { SWING_SECTORS, SWING_SECTOR_NAMES } from "../swing-universe.js";
+import { analyzeStructuralSwingSetup } from "../swing-structural-strategy.js";
 import {
   db,
   pool,
@@ -2220,8 +2221,10 @@ async function fetchUpstoxDailyCandles(symbol: string): Promise<Candle[] | null>
   const fromDate = new Date(toDate.getTime() - SWING_FETCH_LOOKBACK_CALENDAR_DAYS * 24 * 3600 * 1000);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-  const url = `https://api.upstox.com/v3/historical-candle/${encodedKey}/day/${fmt(toDate)}/${fmt(fromDate)}`;
-  
+  // v3 requires unit/interval (e.g. "days/1"), not a bare "day" segment —
+  // the old URL made Upstox parse the date as the interval and 400 every call.
+  const url = `https://api.upstox.com/v3/historical-candle/${encodedKey}/days/1/${fmt(toDate)}/${fmt(fromDate)}`;
+
   try {
     const resp = await fetch(url, { headers });
     if (resp.ok) {
@@ -4278,10 +4281,18 @@ function generateDdRecommendation(
   };
 }
 
+/**
+ * Structural swing strategy: Existing Uptrend -> Break of Structure ->
+ * Corrective Pullback -> Internal Lower Highs -> Descending Trendline ->
+ * Confirmed Bullish Breakout -> BUY, SL at the corrective swing low, 1:1 RR
+ * target. See swing-structural-strategy.ts for the full detection engine.
+ * Only candidates with a fully confirmed breakout (READY_TO_BUY) are
+ * returned here — this list becomes the actual watchlist picks, matching
+ * this function's previous role of only surfacing actionable setups.
+ */
 function analyzeSwingCandidate(
   stock: SwingUniverseStock,
   candles: Candle[],
-  niftyReturn: number,
 ): SwingCandidate | null {
   const validCandles = candles
     .filter((c) => [c.o, c.h, c.l, c.c].every((value) => Number.isFinite(value) && value > 0))
@@ -4289,110 +4300,16 @@ function analyzeSwingCandidate(
   if (validCandles.length < 60) return null;
 
   const last = validCandles.at(-1)!;
-  const previous = validCandles.at(-2);
   const currentPrice = r2(last.c);
   if (currentPrice < SWING_MIN_PRICE) return null;
 
-  const closes = validCandles.map((c) => c.c);
-  const volumes = validCandles.map((c) => c.v);
-  const ema20All = emaSeries(closes, 20);
-  const ema20 = ema20All.at(-1) ?? null;
-  const atr = calculateATR(validCandles, 14);
-  const rsiPeriod = atr !== null && (atr / currentPrice) > 0.03 ? 9 : 14;
-  const rsi = calculateRsiLast(closes, rsiPeriod);
-  const rsiSeries = calculateRsiSeries(closes, rsiPeriod);
-  const macd = calculateMacd(closes);
-  const bollinger = calculateBollingerLast(closes);
-  const avgVolume = rollingMeanLast(volumes, 10);
-  const adx = calculateAdxLast(validCandles, 14);
-  const ichimoku = calculateIchimokuLast(validCandles);
-  const cmf = calculateCmfLast(validCandles);
-  const donchian = calculateDonchianLast(validCandles);
-  const keltner = calculateKeltnerLast(closes, validCandles);
-  const trix = calculateTrixLast(closes);
-  const ultimateOsc = calculateUltimateOscLast(validCandles);
-  const cmo = calculateCmoLast(closes);
-  const vpt = calculateVptSeries(validCandles);
-  const obv = calculateObvSeries(validCandles);
-  const fibLevels = calculateFibLevels(validCandles);
-  const psar = calculatePsarLast(validCandles);
-  const divergence = detectDivergence(closes, rsiSeries);
-  const advancedPattern = detectAdvancedPattern(validCandles, emaSeries(closes, 50).at(-1) ?? null);
-  if (!previous || rsi === null || avgVolume === null || avgVolume <= 0 || ema20 === null) return null;
-
-  const recommendation = generateDdRecommendation(
-    validCandles,
-    currentPrice,
-    previous.c,
-    {
-      rsi,
-      macd,
-      bollinger,
-      atr,
-      adx,
-      avgVolume,
-      divergence,
-      ichimoku,
-      cmf,
-      donchian,
-      keltner,
-      trix,
-      ultimateOsc,
-      cmo,
-      vpt,
-      obv,
-      fibLevels,
-      psar,
-      advancedPattern,
-    },
-  );
-  if (recommendation.majorTrendConflict || recommendation.score < DD_MIN_TOP_PICK_SCORE) return null;
-  if (
-    ![
-      recommendation.swing,
-      recommendation.shortTerm,
-      recommendation.longTerm,
-      recommendation.breakout,
-      recommendation.ichimokuTrend,
-    ].some(isBuyRecommendation)
-  ) {
+  const signal = analyzeStructuralSwingSetup(validCandles);
+  if (!signal.isBuySignal || signal.entryPrice === null || signal.stopLoss === null || signal.target === null) {
     return null;
   }
 
-  const entryPrice = recommendation.buyAt;
-  const sl = recommendation.stopLoss;
-  const target = recommendation.target;
-  if (!isFinitePositive(entryPrice) || !isFinitePositive(sl) || !isFinitePositive(target)) return null;
-
-  const entryDistancePct = Math.abs(entryPrice - currentPrice) / currentPrice * 100;
-  const risk = entryPrice - sl;
-  const reward = target - entryPrice;
-  const riskPct = risk > 0 ? (risk / entryPrice) * 100 : 0;
-  const rewardRisk = risk > 0 ? reward / risk : 0;
-  if (!(
-    entryPrice > sl &&
-    target > entryPrice &&
-    entryDistancePct <= 8
-  )) return null;
-  const avgTurnover = avgVolume * currentPrice;
-  const rvol = last.v / avgVolume;
-  const recentReturn = percentChange(currentPrice, closes.at(-5));
-  const relativeStrength = recentReturn - niftyReturn;
-  const sectorRelativeStrength = stock.changePct ? stock.changePct - niftyReturn : 0;
-  const latestMovePct = percentChange(currentPrice, previous.c);
-  const ema20DistancePct = ((currentPrice - ema20) / ema20) * 100;
-  const trendPersistence = calculateTrendPersistenceScore(validCandles);
-  const freshAge = freshBreakoutAge(validCandles);
-  const consolidationCandles = countEntryConsolidationCandles(validCandles, freshAge);
-  // if (isLateExtendedBreakout(freshAge, return20Pct, return40Pct, ema20DistancePct, consolidationCandles)) {
-  //   return null;
-  // }
-  // if (isOverextendedSwingSetup(return20Pct, return40Pct, ema20DistancePct, consolidationCandles, latestMovePct)) {
-  //   return null;
-  // }
-  const liquidityScore = liquidityAdjustment(avgTurnover);
-  const quality = breakoutQualityDetails(freshAge, consolidationCandles, rvol, trendPersistence, liquidityScore);
-  const entryType: SwingCandidate["entryType"] = recommendation.entryType === "Breakout" ? "BREAKOUT" : "PULLBACK";
+  const riskPct = signal.slDistancePct ?? 0;
+  const rewardRisk = signal.rewardRisk ?? 1;
 
   return {
     symbol: stock.symbol,
@@ -4400,38 +4317,38 @@ function analyzeSwingCandidate(
     tradeDate: getISTDateStr(last.t),
     signalTime: new Date(last.t * 1000).toISOString(),
     currentPrice,
-    entryPrice,
-    sl,
-    target,
-    score: 0,
-    signalScore: r2(recommendation.score),
-    grade: "C",
-    setup: "Trend Continuation",
-    entryType,
-    reason: recommendation.notes.join("; "),
+    entryPrice: signal.entryPrice,
+    sl: signal.stopLoss,
+    target: signal.target,
+    score: signal.score,
+    signalScore: signal.score,
+    grade: signal.grade,
+    setup: signal.category,
+    entryType: "BREAKOUT",
+    reason: `${signal.reason}; Major swing low ${signal.majorSwingLow}; BOS level ${signal.bosLevel}; New high ${signal.newHigh}; Structural swing low (SL basis) ${signal.structuralSwingLow}; Trendline touches ${signal.trendline?.touches.length ?? 0} (quality ${signal.trendline?.qualityScore ?? 0})`,
     expectedHoldDays: SWING_EXPECTED_HOLD_DAYS,
-    recentReturn: r2(recentReturn),
-    relativeStrength: r2(relativeStrength),
-    sectorRelativeStrength: r2(sectorRelativeStrength),
-    rvol: r2(rvol),
-    avgTurnover: Math.round(avgTurnover),
-    entryDistancePct: r2(entryDistancePct),
+    recentReturn: 0,
+    relativeStrength: 0,
+    sectorRelativeStrength: 0,
+    rvol: 0,
+    avgTurnover: 0,
+    entryDistancePct: 0,
     riskPct: r2(riskPct),
     rewardRisk: r2(rewardRisk),
-    breakoutQuality: quality.grade,
-    trendPersistence: r2(trendPersistence),
-    freshBreakoutAge: freshAge,
-    consolidationCandles,
+    breakoutQuality: signal.grade,
+    trendPersistence: 0,
+    freshBreakoutAge: null,
+    consolidationCandles: 0,
     setupType: "trend_continuation",
-    latestMovePct: r2(latestMovePct),
-    ema20DistancePct: r2(ema20DistancePct),
-    liquidityScore: r2(liquidityScore),
-    intradaySignal: recommendation.intraday,
-    swingSignal: recommendation.swing,
-    shortTermSignal: recommendation.shortTerm,
-    longTermSignal: recommendation.longTerm,
-    breakoutSignal: recommendation.breakout,
-    ichimokuTrend: recommendation.ichimokuTrend,
+    latestMovePct: 0,
+    ema20DistancePct: 0,
+    liquidityScore: 0,
+    intradaySignal: "Unknown",
+    swingSignal: "Buy",
+    shortTermSignal: "Unknown",
+    longTermSignal: "Unknown",
+    breakoutSignal: "Buy",
+    ichimokuTrend: "Unknown",
     marketRegime: "Unknown",
     marketBreadthPct: null,
     industryAdvanceRatio: null,
@@ -4458,176 +4375,16 @@ function analyzeSwingCandidate(
   };
 }
 
-function finalizeSwingCandidates(
-  candidates: SwingCandidate[],
-  niftyReturn: number,
-  sectorPerformanceInput?: Map<string, number>,
-  marketRegime: MarketRegimeSnapshot = {
-    marketRegime: "Unknown",
-    marketBreadthAbove: null,
-    marketBreadthTotal: null,
-    marketBreadthPct: null,
-    marketBreadthSource: "unavailable",
-    niftyAboveEma20: null,
-    niftyAboveEma50: null,
-    marketStats: null,
-  },
-  indexTrend: IndexTrendPayload | null = null,
-  industryStrength: IndustryStrengthPayload | null = null,
-  technicalIndicatorsBySymbol: Map<string, TechnicalIndicatorImpact> = new Map(),
-  insiderActivityBySymbol: Map<string, InsiderActivityImpact> = new Map(),
-): SwingCandidate[] {
-  if (candidates.length === 0) return [];
-
-  const sectorPerformance = new Map(sectorPerformanceInput ?? []);
-  if (sectorPerformance.size === 0) {
-    const bySector = new Map<string, { sum: number; count: number }>();
-    for (const candidate of candidates) {
-      const existing = bySector.get(candidate.sector) ?? { sum: 0, count: 0 };
-      existing.sum += candidate.recentReturn;
-      existing.count += 1;
-      bySector.set(candidate.sector, existing);
-    }
-
-    for (const [sector, values] of bySector.entries()) {
-      sectorPerformance.set(sector, values.count ? values.sum / values.count : 0);
-    }
-  }
-
-  const withSector = candidates.map((candidate) => {
-    const sectorPerf = sectorPerformance.get(candidate.sector) ?? 0;
-    const sectorRelativeStrength = sectorPerf - niftyReturn;
-    return {
-      ...candidate,
-      relativeStrength: r2(candidate.recentReturn - niftyReturn),
-      sectorRelativeStrength: r2(sectorRelativeStrength),
-    };
-  });
-
-  const leaderAdjustments = sectorLeaderAdjustments(withSector);
-  return withSector
-    .map((candidate) => {
-      const sectorPerf = sectorPerformance.get(candidate.sector) ?? 0;
-      if (candidate.entryDistancePct > DD_MAX_RANKED_ENTRY_GAP_PERCENT) return null;
-
-      const weakLiquidity = candidate.avgTurnover < SWING_MIN_AVG_TURNOVER;
-      const weakSector = candidate.sectorRelativeStrength < SWING_MIN_SECTOR_RELATIVE_STRENGTH;
-      if (weakLiquidity && weakSector) return null;
-
-      const hasConsolidation = candidate.consolidationCandles >= SWING_MIN_CONSOLIDATION_CANDLES;
-      if (candidate.entryDistancePct < SWING_MIN_PULLBACK_GAP_PCT && !hasConsolidation) return null;
-
-      const relativeStrengthScore = relativeStrengthAdjustment(candidate.relativeStrength);
-      const sectorMomentumScore = sectorMomentumAdjustment(candidate.sectorRelativeStrength) +
-        bankWeakMarketSectorPenalty(candidate, marketRegime);
-      const liquidityScore = liquidityAdjustment(candidate.avgTurnover);
-      const rvolScore = rvolAdjustment(candidate.rvol);
-      const entryScore = entryDistanceAdjustment(candidate.entryDistancePct);
-      const riskScore = swingRiskAdjustment(candidate.riskPct);
-      const breakoutBonus = freshBreakoutBonus(candidate.freshBreakoutAge);
-      const trendAdjustment = trendPersistenceAdjustment(candidate.trendPersistence);
-      const leaderAdjustment = leaderAdjustments.get(candidate.symbol)?.adjustment ?? 0;
-      const industryAdvanceRatio = marketStatsSectorAdvanceRatio(candidate.sector, marketRegime.marketStats);
-      const industryPenalty = industryBreadthPenalty(industryAdvanceRatio);
-      const industryAvgChange = marketStatsSectorAvgChange(candidate.sector, marketRegime.marketStats);
-      const industryStrengthContext = industryStrengthImpact(candidate.sector, industryStrength, industryAvgChange);
-      const insiderActivity = insiderActivityBySymbol.get(candidate.symbol) ?? null;
-      const insiderAdjustment = insiderActivity?.scoreAdjustment ?? 0;
-      const indexTrendImpact = swingIndexTrendImpact(candidate.sector, indexTrend);
-      const technicalImpact = technicalIndicatorsBySymbol.get(candidate.symbol) ?? null;
-      // if (blocksSwingMarketTrendGate(candidate.sector, indexTrend)) return null;
-      // if (!passesSwingTechnicalLeadershipGate(candidate, technicalImpact, technicalIndicatorsBySymbol.size > 0)) return null;
-      const technicalAdjustment = technicalImpact?.scoreAdjustment ?? 0;
-      const rawScore =
-        (relativeStrengthScore * DD_RANKING_WEIGHTS.relativeStrength) +
-        (rvolScore * DD_RANKING_WEIGHTS.rvol) +
-        (sectorMomentumScore * DD_RANKING_WEIGHTS.sector) +
-        (liquidityScore * DD_RANKING_WEIGHTS.liquidity) +
-        (entryScore * DD_RANKING_WEIGHTS.entry) +
-        riskScore +
-        breakoutBonus +
-        trendAdjustment +
-        leaderAdjustment +
-        sectorExhaustionPenalty(sectorPerf) +
-        industryPenalty +
-        industryStrengthContext.adjustment +
-        indexTrendImpact.scoreAdjustment +
-        technicalAdjustment +
-        insiderAdjustment +
-        momentumExhaustionPenalty(candidate);
-      const score = r2(normalizeOpportunityScore(rawScore) * marketRegimeScoreMultiplier(marketRegime.marketRegime));
-      const grade = confidenceGrade(score);
-      const quality = breakoutQualityDetails(
-        candidate.freshBreakoutAge,
-        candidate.consolidationCandles,
-        candidate.rvol,
-        candidate.trendPersistence,
-        liquidityScore,
-      );
-      const setupType = classifyDdSetupType(candidate, breakoutBonus, leaderAdjustment);
-      const weakMarketSignalDowngrade = isStrictWeakMarketContext(marketRegime);
-      const intradaySignal = weakMarketSignalDowngrade
-        ? downgradeIntradaySignalForWeakMarket(candidate.intradaySignal)
-        : candidate.intradaySignal;
-      const swingSignal = weakMarketSignalDowngrade
-        ? downgradeBuySignalForWeakMarket(candidate.swingSignal)
-        : candidate.swingSignal;
-      const longTermSignal = weakMarketSignalDowngrade
-        ? downgradeBuySignalForWeakMarket(candidate.longTermSignal)
-        : candidate.longTermSignal;
-      const hasBuySignalAfterMarketFilter = [
-        swingSignal,
-        candidate.shortTermSignal,
-        longTermSignal,
-        candidate.breakoutSignal,
-        candidate.ichimokuTrend,
-      ].some(isBuyRecommendation);
-      if (!hasBuySignalAfterMarketFilter) return null;
-
-      const finalized: SwingCandidate = {
-        ...candidate,
-        score,
-        grade,
-        setupType,
-        setup: setupTypeLabel(setupType),
-        expectedHoldDays: expectedHoldDaysForSetup(setupType),
-        liquidityScore: r2(liquidityScore),
-        breakoutQuality: quality.grade,
-        intradaySignal,
-        swingSignal,
-        longTermSignal,
-        marketRegime: marketRegime.marketRegime,
-        marketBreadthPct: marketRegime.marketBreadthPct !== null ? r2(marketRegime.marketBreadthPct) : null,
-        industryAdvanceRatio: industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : null,
-        industryBreadthText: marketStatsSectorText(candidate.sector, marketRegime.marketStats),
-        weakMarketSignalDowngrade,
-        indexTrendIndex: indexTrendImpact.indexName,
-        indexTrendDirection: indexTrendImpact.direction,
-        indexTrendText: indexTrendImpact.text,
-        indexTrendScoreAdjustment: r2(indexTrendImpact.scoreAdjustment),
-        technicalStage: technicalImpact?.stage ?? null,
-        technicalScoreAdjustment: r2(technicalAdjustment),
-        technicalIndicatorText: technicalImpact?.text ?? null,
-        technicalRs55: technicalImpact?.rs55 !== null && technicalImpact?.rs55 !== undefined ? r2(technicalImpact.rs55) : null,
-        technicalVolumeRatio: technicalImpact?.volumeRatio !== null && technicalImpact?.volumeRatio !== undefined ? r2(technicalImpact.volumeRatio) : null,
-        technicalAboveEma200: technicalImpact?.aboveEma200 ?? null,
-        technicalMacdTrend: technicalImpact?.macdTrend ?? "Unknown",
-        technicalAdxTrend: technicalImpact?.adxTrend ?? "Unknown",
-        insiderActivity: insiderActivity?.activity ?? "None",
-        insiderScoreAdjustment: r2(insiderAdjustment),
-        insiderActivityText: insiderActivity?.text ?? null,
-        insiderTransactionValue: insiderActivity?.transactionValue !== null && insiderActivity?.transactionValue !== undefined
-          ? Math.round(insiderActivity.transactionValue)
-          : null,
-        insiderTransactionDate: insiderActivity?.transactionDate ?? null,
-        insiderCategory: insiderActivity?.category ?? null,
-        reason: `${candidate.reason}; Risk ${r2(candidate.riskPct)}%; RR ${r2(candidate.rewardRisk)}; Market ${marketRegime.marketRegime}; Breadth ${marketRegime.marketBreadthPct !== null ? `${r2(marketRegime.marketBreadthPct)}%` : "N/A"}; Industry breadth ${industryAdvanceRatio !== null ? r2(industryAdvanceRatio) : "N/A"}${industryStrengthContext.text ? `; ${industryStrengthContext.text}` : ""}${indexTrendImpact.text ? `; ${indexTrendImpact.text}; index trend adjustment ${r2(indexTrendImpact.scoreAdjustment)}` : ""}${technicalImpact?.text ? `; ${technicalImpact.text}; technical adjustment ${r2(technicalAdjustment)}` : ""}${insiderActivity?.text ? `; ${insiderActivity.text}; insider adjustment ${r2(insiderAdjustment)}` : ""}; Sector perf ${r2(sectorPerf)}%; RS ${r2(candidate.relativeStrength)}%; sector RS ${r2(candidate.sectorRelativeStrength)}%; ranking raw ${r2(rawScore)}`,
-      };
-      // if (finalized.score < SWING_MIN_SCORE || !isPublicShareSwingPick(finalized)) return null;
-      return finalized;
-    })
-    .filter((candidate): candidate is SwingCandidate => candidate !== null)
-    .sort((a, b) => b.score - a.score || a.riskPct - b.riskPct || b.rewardRisk - a.rewardRisk || b.signalScore - a.signalScore);
+/**
+ * analyzeSwingCandidate() already fully scores and gates each candidate
+ * (the structural strategy's own trendline/breakout/volume conditions are
+ * the quality bar now — there's no cross-sectional market-regime/sector/
+ * insider blending in this strategy). This just orders the picks.
+ */
+function finalizeSwingCandidates(candidates: SwingCandidate[]): SwingCandidate[] {
+  return [...candidates].sort(
+    (a, b) => b.score - a.score || a.riskPct - b.riskPct || b.rewardRisk - a.rewardRisk,
+  );
 }
 
 function parseRequestedSwingSectors(value: unknown): string[] {
@@ -4783,23 +4540,7 @@ async function runSwingScanner(
   onProgress?: (processedCount: number, candidateCount: number) => void,
 ): Promise<SwingScannerResult> {
   const scanTime = new Date().toISOString();
-  const [
-    niftyReturn,
-    marketRegime,
-    indexTrend,
-    industryStrength,
-    technicalIndicatorsBySymbol,
-    insiderActivityBySymbol,
-  ] = await Promise.all([
-    fetchNiftyDailyReturn(),
-    fetchMarketRegimeSnapshot(),
-    fetchIndexTrendPayload(),
-    fetchIndustryStrengthAnalysis(),
-    fetchTechnicalIndicatorMap(),
-    fetchInsiderActivityMap(),
-  ]);
   const stockBySymbol = new Map(universe.map((stock) => [stock.symbol, stock]));
-  const sectorReturnTotals = new Map<string, { sum: number; count: number }>();
   let processedCount = 0;
   let candidateCount = 0;
 
@@ -4813,14 +4554,7 @@ async function runSwingScanner(
       let candidate: SwingCandidate | null = null;
       const candles = await fetchDailyCandles(symbol);
       if (candles) {
-        const recentReturn = calculateSwingRecentReturn(candles);
-        if (recentReturn !== null) {
-          const existing = sectorReturnTotals.get(stock.sectorName) ?? { sum: 0, count: 0 };
-          existing.sum += recentReturn;
-          existing.count += 1;
-          sectorReturnTotals.set(stock.sectorName, existing);
-        }
-        candidate = analyzeSwingCandidate(stock, candles, niftyReturn);
+        candidate = analyzeSwingCandidate(stock, candles);
         if (candidate) {
           candidate.signalTime = scanTime;
         }
@@ -4833,21 +4567,8 @@ async function runSwingScanner(
     },
   );
 
-  const candidates = finalizeSwingCandidates(
-    analyzed.filter((candidate): candidate is SwingCandidate => candidate !== null),
-    niftyReturn,
-    new Map(
-      [...sectorReturnTotals.entries()].map(([sector, value]) => [
-        sector,
-        value.count ? value.sum / value.count : 0,
-      ]),
-    ),
-    marketRegime,
-    indexTrend,
-    industryStrength,
-    technicalIndicatorsBySymbol,
-    insiderActivityBySymbol,
-  );
+  const rawCandidates = analyzed.filter((candidate): candidate is SwingCandidate => candidate !== null);
+  const candidates = finalizeSwingCandidates(rawCandidates);
   const openSymbols = await fetchOpenSwingSymbols(candidates.map((candidate) => candidate.symbol));
   const availableCandidates = candidates.filter((candidate) =>
     !openSymbols.has(normalizeEquitySymbol(candidate.symbol))
@@ -4864,16 +4585,16 @@ async function runSwingScanner(
     universeCount: universe.length,
     candidateCount: availableCandidates.length,
     savedCount,
-    niftyReturn: r2(niftyReturn),
-    marketRegime: marketRegime.marketRegime,
-    marketBreadthPct: marketRegime.marketBreadthPct !== null ? r2(marketRegime.marketBreadthPct) : null,
+    niftyReturn: 0,
+    marketRegime: "Unknown",
+    marketBreadthPct: null,
     diagnostics: {
-      rawCandidates: analyzed.filter((candidate): candidate is SwingCandidate => candidate !== null).length,
+      rawCandidates: rawCandidates.length,
       finalCandidates: candidates.length,
       availableCandidates: availableCandidates.length,
       excludedOpenSymbols: candidates.length - availableCandidates.length,
-      technicalIndicatorSymbols: technicalIndicatorsBySymbol.size,
-      technicalDataAvailable: technicalIndicatorsBySymbol.size > 0,
+      technicalIndicatorSymbols: 0,
+      technicalDataAvailable: false,
     },
     picks,
   };
