@@ -609,7 +609,22 @@ export class ExecutionEngine {
           }
 
           const parent = brokerOrders.find(order => order.orderId === trade.superOrderId || order.correlationId === trade.correlationId);
-          if (!parent) continue;
+
+          if (!parent) {
+            // Dhan has no record of this order at all — either the initial POST never
+            // reached Dhan (superOrderId still empty) or the process died before
+            // ENTRY_SUBMITTING could resolve. Retry a few passes for eventual
+            // consistency, then give up rather than blocking this symbol forever.
+            const notFoundAttempts = (trade.verifyAttempts || 0) + 1;
+            if (notFoundAttempts > 5) {
+              console.warn(`[ENGINE] No Dhan order found for ${trade.symbol} (${trade.correlationId}) after ${notFoundAttempts} attempts. Marking REJECTED.`);
+              await TradeDB.updateState(trade.id, "REJECTED");
+              await this.syncActiveTrades();
+            } else {
+              await TradeDB.updateState(trade.id, undefined, { verifyAttempts: notFoundAttempts });
+            }
+            continue;
+          }
 
           const verifyAttempts = (trade.verifyAttempts || 0) + 1;
           await TradeDB.updateState(trade.id, "ENTRY_PENDING", {
