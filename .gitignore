@@ -65,3 +65,9 @@ trades.json
 # Security & Scratch Files
 .dhan_token
 scratch-*.ts
+artifacts/auto-trader/scratch/
+artifacts/auto-trader/tmp.json
+artifacts/auto-trader/debug-*.ts
+artifacts/auto-trader/debug_*.ts
+artifacts/auto-trader/test-*.ts
+artifacts/auto-trader/*_output.txt
