@@ -1078,7 +1078,7 @@ export async function fetchAngelCandles(symbol: string): Promise<CandleData | nu
   return null;
 }
 
-async function getUpstoxInstrumentMap(): Promise<Map<string, string>> {
+export async function getUpstoxInstrumentMap(): Promise<Map<string, string>> {
   if (!upstoxInstrumentMapPromise) {
     upstoxInstrumentMapPromise = (async () => {
       const zlib = await import("zlib");
