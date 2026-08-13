@@ -23,8 +23,6 @@ export interface SwingTrackerTrade {
   entryPrice: string;
   sl: string;
   target: string;
-  score: string;
-  grade: string;
   setup: string;
   /** @nullable */
   reason: string | null;
@@ -50,8 +48,6 @@ export interface SwingTrackerTrade {
   structuralSwingLow: string | null;
   /** @nullable */
   trendlineTouches: number | null;
-  /** @nullable */
-  trendlineQuality: string | null;
   /** @nullable */
   plPct: number | null;
   /** @nullable */

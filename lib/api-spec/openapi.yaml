@@ -640,12 +640,6 @@ components:
         target:
           type: number
           description: Entry + risk (1:1 reward:risk by default).
-        score:
-          type: number
-          description: 0-100 structural signal strength score.
-        grade:
-          type: string
-          enum: ["A+", "A", "B", "Weak", "Ignore"]
         setup:
           type: string
           description: Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks).
@@ -678,10 +672,7 @@ components:
           description: Corrective swing low the stop-loss is based on (before the SL buffer is applied).
         trendlineTouches:
           type: ["integer", "null"]
-          description: Number of confirmed internal lower highs used to fit the descending trendline.
-        trendlineQuality:
-          type: ["number", "null"]
-          description: 0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).
+          description: Number of confirmed internal swing highs used to fit the descending trendline.
       required:
         - symbol
         - sector
@@ -691,8 +682,6 @@ components:
         - entryPrice
         - sl
         - target
-        - score
-        - grade
         - setup
         - entryType
         - reason
@@ -705,7 +694,6 @@ components:
         - newHigh
         - structuralSwingLow
         - trendlineTouches
-        - trendlineQuality
     SwingScannerResult:
       type: object
       properties:
@@ -750,7 +738,7 @@ components:
           description: Confirmed READY_TO_BUY setups found across the scanned universe.
         finalCandidates:
           type: integer
-          description: Candidates remaining after sorting by score.
+          description: Candidates remaining after sorting (most recent breakout first).
         availableCandidates:
           type: integer
           description: Final candidates remaining after excluding open tracker symbols.
@@ -878,10 +866,6 @@ components:
           type: string
         target:
           type: string
-        score:
-          type: string
-        grade:
-          type: string
         setup:
           type: string
         reason:
@@ -910,8 +894,6 @@ components:
           type: ["string", "null"]
         trendlineTouches:
           type: ["integer", "null"]
-        trendlineQuality:
-          type: ["string", "null"]
         plPct:
           type: ["number", "null"]
         daysOpen:
@@ -928,8 +910,6 @@ components:
         - entryPrice
         - sl
         - target
-        - score
-        - grade
         - setup
         - reason
         - expectedHoldDays
@@ -944,7 +924,6 @@ components:
         - newHigh
         - structuralSwingLow
         - trendlineTouches
-        - trendlineQuality
         - plPct
         - daysOpen
     SwingTrackerResponse:

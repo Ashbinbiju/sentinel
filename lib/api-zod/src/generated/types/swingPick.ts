@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SwingEntryType } from "./swingEntryType";
-import type { SwingPickGrade } from "./swingPickGrade";
 import type { SwingPickSetup } from "./swingPickSetup";
 
 /**
@@ -27,9 +26,6 @@ export interface SwingPick {
   sl: number;
   /** Entry + risk (1:1 reward:risk by default). */
   target: number;
-  /** 0-100 structural signal strength score. */
-  score: number;
-  grade: SwingPickGrade;
   /** Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks). */
   setup: SwingPickSetup;
   entryType: SwingEntryType;
@@ -64,13 +60,8 @@ export interface SwingPick {
    */
   structuralSwingLow: number | null;
   /**
-   * Number of confirmed internal lower highs used to fit the descending trendline.
+   * Number of confirmed internal swing highs used to fit the descending trendline.
    * @nullable
    */
   trendlineTouches: number | null;
-  /**
-   * 0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).
-   * @nullable
-   */
-  trendlineQuality: number | null;
 }

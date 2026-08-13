@@ -470,7 +470,9 @@ export const GetSwingScannerResponse = zod.object({
           ),
         finalCandidates: zod
           .number()
-          .describe("Candidates remaining after sorting by score."),
+          .describe(
+            "Candidates remaining after sorting (most recent breakout first).",
+          ),
         availableCandidates: zod
           .number()
           .describe(
@@ -509,10 +511,6 @@ export const GetSwingScannerResponse = zod.object({
             target: zod
               .number()
               .describe("Entry + risk (1:1 reward:risk by default)."),
-            score: zod
-              .number()
-              .describe("0-100 structural signal strength score."),
-            grade: zod.enum(["A+", "A", "B", "Weak", "Ignore"]),
             setup: zod
               .enum([
                 "READY_TO_BUY",
@@ -564,13 +562,7 @@ export const GetSwingScannerResponse = zod.object({
               .number()
               .nullable()
               .describe(
-                "Number of confirmed internal lower highs used to fit the descending trendline.",
-              ),
-            trendlineQuality: zod
-              .number()
-              .nullable()
-              .describe(
-                "0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).",
+                "Number of confirmed internal swing highs used to fit the descending trendline.",
               ),
           })
           .describe(
@@ -628,7 +620,9 @@ export const GetSwingScanJobResponse = zod.object({
           ),
         finalCandidates: zod
           .number()
-          .describe("Candidates remaining after sorting by score."),
+          .describe(
+            "Candidates remaining after sorting (most recent breakout first).",
+          ),
         availableCandidates: zod
           .number()
           .describe(
@@ -667,10 +661,6 @@ export const GetSwingScanJobResponse = zod.object({
             target: zod
               .number()
               .describe("Entry + risk (1:1 reward:risk by default)."),
-            score: zod
-              .number()
-              .describe("0-100 structural signal strength score."),
-            grade: zod.enum(["A+", "A", "B", "Weak", "Ignore"]),
             setup: zod
               .enum([
                 "READY_TO_BUY",
@@ -722,13 +712,7 @@ export const GetSwingScanJobResponse = zod.object({
               .number()
               .nullable()
               .describe(
-                "Number of confirmed internal lower highs used to fit the descending trendline.",
-              ),
-            trendlineQuality: zod
-              .number()
-              .nullable()
-              .describe(
-                "0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).",
+                "Number of confirmed internal swing highs used to fit the descending trendline.",
               ),
           })
           .describe(
@@ -804,8 +788,6 @@ export const GetSwingTradesResponse = zod.object({
       entryPrice: zod.string(),
       sl: zod.string(),
       target: zod.string(),
-      score: zod.string(),
-      grade: zod.string(),
       setup: zod.string(),
       reason: zod.string().nullable(),
       expectedHoldDays: zod.string(),
@@ -828,7 +810,6 @@ export const GetSwingTradesResponse = zod.object({
       newHigh: zod.string().nullable(),
       structuralSwingLow: zod.string().nullable(),
       trendlineTouches: zod.number().nullable(),
-      trendlineQuality: zod.string().nullable(),
       plPct: zod.number().nullable(),
       daysOpen: zod.number().nullable(),
     }),

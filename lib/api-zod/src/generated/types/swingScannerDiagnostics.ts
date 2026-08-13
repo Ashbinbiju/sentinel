@@ -9,7 +9,7 @@
 export interface SwingScannerDiagnostics {
   /** Confirmed READY_TO_BUY setups found across the scanned universe. */
   rawCandidates: number;
-  /** Candidates remaining after sorting by score. */
+  /** Candidates remaining after sorting (most recent breakout first). */
   finalCandidates: number;
   /** Final candidates remaining after excluding open tracker symbols. */
   availableCandidates: number;

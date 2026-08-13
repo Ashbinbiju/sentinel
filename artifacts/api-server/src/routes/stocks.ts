@@ -340,8 +340,6 @@ interface SwingCandidate {
   entryPrice: number;
   sl: number;
   target: number;
-  score: number;
-  grade: string;
   setup: string;
   entryType: "BREAKOUT" | "PULLBACK";
   reason: string;
@@ -355,7 +353,6 @@ interface SwingCandidate {
   newHigh: number | null;
   structuralSwingLow: number | null;
   trendlineTouches: number | null;
-  trendlineQuality: number | null;
 }
 
 interface SwingScannerResult {
@@ -635,8 +632,6 @@ interface PersistedSwingTrade {
   entryPrice: string;
   sl: string;
   target: string;
-  score: string;
-  grade: string;
   setup: string;
   reason: string | null;
   expectedHoldDays: string;
@@ -651,7 +646,6 @@ interface PersistedSwingTrade {
   newHigh: string | null;
   structuralSwingLow: string | null;
   trendlineTouches: number | null;
-  trendlineQuality: string | null;
 }
 
 interface SwingTrackerTrade extends PersistedSwingTrade {
@@ -2011,8 +2005,6 @@ function ensureSwingTradesTable(): Promise<void> {
           entry_price NUMERIC NOT NULL,
           sl NUMERIC NOT NULL,
           target NUMERIC NOT NULL,
-          score NUMERIC NOT NULL,
-          grade TEXT NOT NULL,
           setup TEXT NOT NULL,
           reason TEXT,
           expected_hold_days NUMERIC NOT NULL DEFAULT 8,
@@ -2038,8 +2030,7 @@ function ensureSwingTradesTable(): Promise<void> {
         ADD COLUMN IF NOT EXISTS bos_level NUMERIC,
         ADD COLUMN IF NOT EXISTS new_high NUMERIC,
         ADD COLUMN IF NOT EXISTS structural_swing_low NUMERIC,
-        ADD COLUMN IF NOT EXISTS trendline_touches INTEGER,
-        ADD COLUMN IF NOT EXISTS trendline_quality NUMERIC
+        ADD COLUMN IF NOT EXISTS trendline_touches INTEGER
       `);
     })().catch((err: any) => {
       swingTradesTableReady = null;
@@ -3084,8 +3075,6 @@ function analyzeSwingCandidate(
     entryPrice: signal.entryPrice,
     sl: signal.stopLoss,
     target: signal.target,
-    score: signal.score,
-    grade: signal.grade,
     setup: signal.category,
     entryType: "BREAKOUT",
     reason: signal.reason,
@@ -3098,19 +3087,17 @@ function analyzeSwingCandidate(
     newHigh: signal.newHigh,
     structuralSwingLow: signal.structuralSwingLow,
     trendlineTouches: signal.trendline?.touches.length ?? null,
-    trendlineQuality: signal.trendline?.qualityScore ?? null,
   };
 }
 
 /**
- * analyzeSwingCandidate() already fully scores and gates each candidate
- * (the structural strategy's own trendline/breakout/volume conditions are
- * the quality bar now — there's no cross-sectional market-regime/sector/
- * insider blending in this strategy). This just orders the picks.
+ * analyzeSwingCandidate() already fully gates each candidate (only confirmed
+ * READY_TO_BUY breakouts are returned) — there's no scoring system in this
+ * strategy. This just orders the picks, most recent breakout first.
  */
 function finalizeSwingCandidates(candidates: SwingCandidate[]): SwingCandidate[] {
   return [...candidates].sort(
-    (a, b) => b.score - a.score || a.riskPct - b.riskPct || b.rewardRisk - a.rewardRisk,
+    (a, b) => b.tradeDate.localeCompare(a.tradeDate) || a.symbol.localeCompare(b.symbol),
   );
 }
 
@@ -3428,8 +3415,6 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
     entryPrice: String(row.entry_price),
     sl: String(row.sl),
     target: String(row.target),
-    score: String(row.score),
-    grade: String(row.grade),
     setup: String(row.setup),
     reason: row.reason === null || row.reason === undefined ? null : String(row.reason),
     expectedHoldDays: String(row.expected_hold_days),
@@ -3444,7 +3429,6 @@ function mapSwingTradeRow(row: Record<string, unknown>): PersistedSwingTrade {
     newHigh: row.new_high === null || row.new_high === undefined ? null : String(row.new_high),
     structuralSwingLow: row.structural_swing_low === null || row.structural_swing_low === undefined ? null : String(row.structural_swing_low),
     trendlineTouches: row.trendline_touches === null || row.trendline_touches === undefined ? null : Number(row.trendline_touches),
-    trendlineQuality: row.trendline_quality === null || row.trendline_quality === undefined ? null : String(row.trendline_quality),
   };
 }
 
@@ -3474,30 +3458,27 @@ async function persistSwingCandidates(candidates: SwingCandidate[], scanTime: st
       `
         INSERT INTO swing_trades (
           symbol, date, signal_time, sector, direction, entry_type,
-          current_price, entry_price, sl, target, score, grade, setup, reason,
+          current_price, entry_price, sl, target, setup, reason,
           expected_hold_days, status, last_price, last_checked_at,
           major_swing_low, major_swing_high, bos_level, new_high,
-          structural_swing_low, trendline_touches, trendline_quality
+          structural_swing_low, trendline_touches
         )
         VALUES (
           $1, $2, $3, $4, 'LONG', $5,
-          $6, $7, $8, $9, $10, $11, $12, $13,
-          $14, 'WATCHLIST', $15, $16,
-          $17, $18, $19, $20,
-          $21, $22, $23
+          $6, $7, $8, $9, $10, $11,
+          $12, 'WATCHLIST', $13, $14,
+          $15, $16, $17, $18,
+          $19, $20
         )
         ON CONFLICT (symbol, date) DO UPDATE
         SET signal_time = EXCLUDED.signal_time,
-            score = EXCLUDED.score,
-            grade = EXCLUDED.grade,
             reason = EXCLUDED.reason,
             major_swing_low = EXCLUDED.major_swing_low,
             major_swing_high = EXCLUDED.major_swing_high,
             bos_level = EXCLUDED.bos_level,
             new_high = EXCLUDED.new_high,
             structural_swing_low = EXCLUDED.structural_swing_low,
-            trendline_touches = EXCLUDED.trendline_touches,
-            trendline_quality = EXCLUDED.trendline_quality
+            trendline_touches = EXCLUDED.trendline_touches
         WHERE to_char(swing_trades.signal_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') = '00:00'
         RETURNING id
       `,
@@ -3511,8 +3492,6 @@ async function persistSwingCandidates(candidates: SwingCandidate[], scanTime: st
         String(candidate.entryPrice),
         String(candidate.sl),
         String(candidate.target),
-        String(candidate.score),
-        candidate.grade,
         candidate.setup,
         candidate.reason,
         String(candidate.expectedHoldDays),
@@ -3524,7 +3503,6 @@ async function persistSwingCandidates(candidates: SwingCandidate[], scanTime: st
         candidate.newHigh === null ? null : String(candidate.newHigh),
         candidate.structuralSwingLow === null ? null : String(candidate.structuralSwingLow),
         candidate.trendlineTouches,
-        candidate.trendlineQuality === null ? null : String(candidate.trendlineQuality),
       ],
     );
 

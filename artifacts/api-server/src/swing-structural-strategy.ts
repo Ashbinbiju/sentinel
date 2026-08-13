@@ -1,13 +1,20 @@
 /**
- * Structural swing-trading strategy: Existing Uptrend -> Break of Structure ->
- * Corrective Pullback -> Internal Lower Highs -> Descending Trendline ->
- * Confirmed Bullish Breakout -> BUY, with SL at the corrective swing low and a
- * 1:1 risk/reward target. Operates on daily candles only.
+ * Structural swing-trading strategy — exactly this pattern, nothing else:
  *
- * All swing-point confirmation uses a strict N-bar fractal rule (a high/low is
- * only "confirmed" once N candles exist on both sides), so nothing here ever
- * uses information that wasn't yet available at the time — the same rule
- * applies whether this is called for a live scan or a backtest.
+ *   Existing Uptrend -> High -> Break of High -> Further Upside -> New High
+ *   -> Corrective Pullback -> Internal Swing Highs -> Descending Trendline
+ *   (3+ touches) -> Bullish Candle Closes Above Trendline -> BUY
+ *   -> SL below the corrective low -> 1:1 Risk/Reward Target
+ *
+ * Deliberately contains no indicators (RSI/MACD/EMA/VWAP/Bollinger), no
+ * volume filter, no candle-body or close-location threshold, no breakout
+ * buffer, no max-SL-distance cutoff, and no signal/trendline scoring system.
+ * Only the structural conditions above gate a BUY signal. Daily candles only.
+ *
+ * All swing-point confirmation uses a strict N-bar fractal rule (a high/low
+ * is only "confirmed" once N candles exist on both sides), so nothing here
+ * ever uses information that wasn't yet available at the time — the same
+ * rule applies whether this is called for a live scan or a backtest.
  */
 
 export interface Candle {
@@ -22,62 +29,23 @@ export interface Candle {
 export interface StructuralStrategyConfig {
   /** N for swing high/low fractal detection. */
   swingLookback: number;
-  /** BOS confirmed if close > previous swing high * (1 + this). */
-  bosBufferPct: number;
-  /** A swing high counts as a trendline "touch" if within this % of the fitted line. */
-  trendlineTouchTolerancePct: number;
-  /** Minimum touch points required to accept a trendline. */
+  /** Minimum internal swing-high touch points required to accept a descending trendline. */
   minTrendlineTouches: number;
-  /** Breakout candle must close above the trendline by at least this %. */
-  breakoutBufferPct: number;
-  /** Minimum candle body as a fraction of its total range. */
-  minCandleBodyPct: number;
-  /** Minimum (close-low)/(high-low) for the breakout candle. */
-  minCloseLocationPct: number;
-  /** Close-location threshold that earns the "strong" scoring bonus. */
-  strongCloseLocationPct: number;
-  /** Body% threshold that earns the "strong" scoring bonus. */
-  strongCandleBodyPct: number;
-  /** Whether volume confirmation is required for a BUY signal. */
-  requireVolumeConfirmation: boolean;
-  /** Minimum breakout-volume / N-day-average-volume ratio. */
-  minVolumeRatio: number;
-  /** Volume ratio threshold that earns the "strong" scoring bonus. */
-  strongVolumeRatio: number;
-  /** Lookback period (days) for the average-volume baseline. */
-  volumeAvgPeriod: number;
-  /** SL is placed this % below the structural corrective swing low. */
+  /** SL is placed this % below the corrective swing low, so it sits strictly below the low rather than exactly on it. */
   slBufferPct: number;
-  /** Setups with SL distance beyond this % are rejected outright. */
-  maxSlPct: number;
   /** Risk:reward ratio for the target (1.0 = 1:1). */
   riskRewardRatio: number;
   /** BREAKOUT_CLOSE = enter at the breakout candle's close (live-scan default).
    *  NEXT_OPEN = enter at the following candle's open (backtest-realistic). */
   entryMode: "BREAKOUT_CLOSE" | "NEXT_OPEN";
-  /** Tolerance for internal-lower-high strictly-descending comparisons. */
-  lowerHighTolerancePct: number;
 }
 
 export const DEFAULT_STRUCTURAL_CONFIG: StructuralStrategyConfig = {
   swingLookback: 3,
-  bosBufferPct: 0.25,
-  trendlineTouchTolerancePct: 0.5,
   minTrendlineTouches: 3,
-  breakoutBufferPct: 0.5,
-  minCandleBodyPct: 50,
-  minCloseLocationPct: 0.70,
-  strongCloseLocationPct: 0.80,
-  strongCandleBodyPct: 65,
-  requireVolumeConfirmation: true,
-  minVolumeRatio: 1.2,
-  strongVolumeRatio: 1.5,
-  volumeAvgPeriod: 20,
   slBufferPct: 0.25,
-  maxSlPct: 15,
   riskRewardRatio: 1.0,
   entryMode: "BREAKOUT_CLOSE",
-  lowerHighTolerancePct: 0.1,
 };
 
 export interface SwingPoint {
@@ -92,7 +60,6 @@ export interface TrendlineResult {
   slope: number; // price change per candle-index step
   intercept: number; // price at index 0
   priceAt: (index: number) => number;
-  qualityScore: number; // 0-100
 }
 
 export type WatchlistCategory =
@@ -120,9 +87,6 @@ export interface StructuralSwingSignal {
   riskPerShare: number | null;
   slDistancePct: number | null;
   rewardRisk: number | null;
-
-  score: number; // 0-100
-  grade: "A+" | "A" | "B" | "Weak" | "Ignore";
   reason: string;
 
   majorSwingLow: number | null; // swing low that established the existing uptrend
@@ -197,13 +161,9 @@ export function buildPivotSequence(points: SwingPoint[]): SwingPoint[] {
 
 /**
  * Fits a line through the given touch points (least-squares on candle index
- * vs price) and scores its quality. Higher score = cleaner, more reliable
- * resistance line.
+ * vs price). A negative slope means the line is descending.
  */
-export function fitTrendline(
-  touches: SwingPoint[],
-  volumeDecreasing: boolean,
-): TrendlineResult | null {
+export function fitTrendline(touches: SwingPoint[]): TrendlineResult | null {
   if (touches.length < 2) return null;
 
   const n = touches.length;
@@ -218,37 +178,7 @@ export function fitTrendline(
   const intercept = (sumY - slope * sumX) / n;
   const priceAt = (index: number) => slope * index + intercept;
 
-  // Quality scoring
-  let quality = 0;
-  if (n >= 5) quality += 40;
-  else if (n === 4) quality += 30;
-  else quality += 20; // n === 3
-
-  const spans = touches.slice(1).map((p, i) => p.index - touches[i].index);
-  const minSpan = Math.min(...spans);
-  if (minSpan >= 5) quality += 20;
-  else if (minSpan >= 2) quality += 10;
-
-  const avgPrice = sumY / n;
-  const slopePctPerBar = Math.abs(slope) / avgPrice * 100;
-  if (slopePctPerBar > 0.05 && slopePctPerBar < 5) quality += 15; // clean, not near-horizontal, not vertical
-
-  const fitErrors = touches.map((p) => Math.abs(p.price - priceAt(p.index)) / priceAt(p.index));
-  const avgError = fitErrors.reduce((s, e) => s + e, 0) / fitErrors.length;
-  if (avgError <= 0.005) quality += 15;
-  else if (avgError <= 0.01) quality += 8;
-
-  if (volumeDecreasing) quality += 10;
-
-  return { touches, slope, intercept, priceAt, qualityScore: Math.min(100, quality) };
-}
-
-function averageVolume(candles: Candle[], endIndexExclusive: number, period: number): number | null {
-  const start = endIndexExclusive - period;
-  if (start < 0) return null;
-  const slice = candles.slice(start, endIndexExclusive);
-  const sum = slice.reduce((s, c) => s + c.v, 0);
-  return sum / slice.length;
+  return { touches, slope, intercept, priceAt };
 }
 
 /**
@@ -275,8 +205,6 @@ export function analyzeStructuralSwingSetup(
     riskPerShare: null,
     slDistancePct: null,
     rewardRisk: null,
-    score: 0,
-    grade: "Ignore",
     reason: "Insufficient data",
     majorSwingLow: null,
     majorSwingHigh: null,
@@ -309,7 +237,7 @@ export function analyzeStructuralSwingSetup(
     `${pivots.length} confirmed (${pivots.filter((p) => p.type === "HIGH").length} highs, ${pivots.filter((p) => p.type === "LOW").length} lows)`,
   );
 
-  // --- Step 1: existing uptrend (HH + HL) ---------------------------------
+  // --- Step 1: existing uptrend (Low -> High -> Break of High) -----------
   // First find the most recent "peak" — the latest confirmed high that is
   // higher than every confirmed high after it (i.e. nothing since has
   // exceeded it; a run of lower highs trails it, or nothing trails it yet).
@@ -357,33 +285,31 @@ export function analyzeStructuralSwingSetup(
   }
 
   if (!majorLow || !majorHigh) {
-    check("Existing uptrend (Higher High + Higher Low)", false, "no qualifying HH/HL pair found among confirmed pivots");
+    check("Existing uptrend (Low -> High)", false, "no qualifying Low-then-High pair found among confirmed pivots");
     return {
       ...empty,
-      reason: "No established Higher-High / Higher-Low structure found",
+      reason: "No established Low -> High uptrend structure found",
       checks,
-      rejectionReasons: ["No established Higher-High / Higher-Low structure found"],
+      rejectionReasons: ["No established Low -> High uptrend structure found"],
     };
   }
-  check("Existing uptrend (Higher High + Higher Low)", true, `major low ${r2(majorLow.price)}, major high ${r2(majorHigh.price)}`);
+  check("Existing uptrend (Low -> High)", true, `low ${r2(majorLow.price)}, high ${r2(majorHigh.price)}`);
 
   // --- Step 2: Break of Structure past majorHigh --------------------------
-  // A BOS is a close, after majorHigh, that exceeds majorHigh by the buffer.
-  // It can be confirmed by either a later pivot high or (for the live/most
-  // recent case) simply a close on any candle after majorHigh.
-  const bosThreshold = majorHigh.price * (1 + cfg.bosBufferPct / 100);
+  // A BOS is simply a close, after majorHigh, that breaks above it — "the
+  // price breaks the previous High and moves upward again." No buffer.
   let bosIndex = -1;
   for (let i = majorHigh.index + 1; i <= lastIndex; i++) {
-    if (sorted[i].c > bosThreshold) {
+    if (sorted[i].c > majorHigh.price) {
       bosIndex = i;
       break;
     }
   }
   if (bosIndex === -1) {
     check(
-      `Break of Structure (close > major high + ${cfg.bosBufferPct}%)`,
+      "Break of Structure (close > previous High)",
       false,
-      `no close above ${r2(bosThreshold)} yet; latest close ${r2(today.c)}`,
+      `no close above ${r2(majorHigh.price)} yet; latest close ${r2(today.c)}`,
     );
     return {
       ...empty,
@@ -396,9 +322,9 @@ export function analyzeStructuralSwingSetup(
     };
   }
   check(
-    `Break of Structure (close > major high + ${cfg.bosBufferPct}%)`,
+    "Break of Structure (close > previous High)",
     true,
-    `closed at ${r2(sorted[bosIndex].c)} above ${r2(bosThreshold)} on ${isoDateOf(sorted[bosIndex].t)}`,
+    `closed at ${r2(sorted[bosIndex].c)} above ${r2(majorHigh.price)} on ${isoDateOf(sorted[bosIndex].t)}`,
   );
 
   // --- Step 3: New High — running max since BOS until a real pullback ----
@@ -428,7 +354,7 @@ export function analyzeStructuralSwingSetup(
   }
   check("Corrective pullback started", true, `new high ${r2(newHighPrice)} on ${isoDateOf(sorted[newHighIdx].t)}, correcting since`);
 
-  // --- Step 4/5: corrective internal lower highs since the new high ------
+  // --- Step 4: correction must not break the swing low that started the uptrend ---
   const correctionCandles = sorted.slice(newHighIdx);
   const correctionLow = Math.min(...correctionCandles.map((c) => c.l));
   if (correctionLow <= majorLow.price) {
@@ -447,66 +373,48 @@ export function analyzeStructuralSwingSetup(
   }
   check("Correction stays above major swing low", true, `correction low ${r2(correctionLow)} above major low ${r2(majorLow.price)}`);
 
-  const correctionPoints = detectSwingPoints(correctionCandles, cfg.swingLookback)
+  // --- Step 5/6: internal swing highs during the correction, and the ------
+  // descending trendline fitted through them.
+  const internalHighs = detectSwingPoints(correctionCandles, cfg.swingLookback)
     .map((p) => ({ ...p, index: p.index + newHighIdx })) // re-offset to full series
     .filter((p) => p.type === "HIGH");
 
-  const tol = cfg.lowerHighTolerancePct / 100;
-  const lowerHighs: SwingPoint[] = [];
-  for (const p of correctionPoints) {
-    const prev = lowerHighs.at(-1);
-    if (!prev || p.price <= prev.price * (1 + tol)) {
-      lowerHighs.push(p);
-    }
-  }
-
-  if (lowerHighs.length < 2) {
-    check("Internal lower highs (need 2+ to attempt a trendline)", false, `${lowerHighs.length} found`);
+  if (internalHighs.length < cfg.minTrendlineTouches) {
+    check(`Internal swing highs during correction (need ${cfg.minTrendlineTouches}+)`, false, `${internalHighs.length} found`);
     return {
       ...empty,
-      category: "CORRECTION",
-      reason: "Correcting after Break of Structure; internal lower-high structure not formed yet",
+      category: internalHighs.length >= 2 ? "SETUP_FORMING" : "CORRECTION",
+      reason: `Correcting after Break of Structure; only ${internalHighs.length}/${cfg.minTrendlineTouches} internal swing highs so far`,
       majorSwingLow: r2(majorLow.price),
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
       checks,
-      rejectionReasons: ["Internal lower-high structure not formed yet"],
+      rejectionReasons: [`Only ${internalHighs.length}/${cfg.minTrendlineTouches} internal swing highs found during the correction`],
     };
   }
   check(
-    "Internal lower highs (need 2+ to attempt a trendline)",
+    `Internal swing highs during correction (need ${cfg.minTrendlineTouches}+)`,
     true,
-    `${lowerHighs.length} found: ${lowerHighs.map((p) => r2(p.price)).join(" > ")}`,
+    `${internalHighs.length} found: ${internalHighs.map((p) => r2(p.price)).join(", ")}`,
   );
 
-  // --- Step 6/7: trendline from internal lower highs ----------------------
-  const recentVolumes = correctionCandles.map((c) => c.v);
-  const volumeDecreasing =
-    recentVolumes.length >= 4 &&
-    recentVolumes.slice(-2).reduce((a, b) => a + b, 0) <
-      recentVolumes.slice(0, 2).reduce((a, b) => a + b, 0);
-
-  const trendline = fitTrendline(lowerHighs, volumeDecreasing);
-  if (!trendline || lowerHighs.length < cfg.minTrendlineTouches) {
-    check(`Descending trendline (need ${cfg.minTrendlineTouches}+ touches)`, false, `${lowerHighs.length}/${cfg.minTrendlineTouches} touches`);
+  const trendline = fitTrendline(internalHighs);
+  if (!trendline || trendline.slope >= 0) {
+    check("Descending trendline (negative slope)", false, trendline ? `slope ${r2(trendline.slope)}/bar (not descending)` : "could not fit a line");
     return {
       ...empty,
       category: "SETUP_FORMING",
-      reason: `Internal lower highs forming (${lowerHighs.length}/${cfg.minTrendlineTouches} needed for a trendline)`,
+      reason: "Internal swing highs found, but they don't form a descending trendline yet",
       majorSwingLow: r2(majorLow.price),
       majorSwingHigh: r2(majorHigh.price),
       bosLevel: r2(majorHigh.price),
       newHigh: r2(newHighPrice),
       checks,
-      rejectionReasons: [`Only ${lowerHighs.length}/${cfg.minTrendlineTouches} trendline touches`],
+      rejectionReasons: ["Internal swing highs don't form a descending trendline"],
     };
   }
-  check(
-    `Descending trendline (need ${cfg.minTrendlineTouches}+ touches)`,
-    true,
-    `${lowerHighs.length} touches, quality score ${trendline.qualityScore}/100`,
-  );
+  check("Descending trendline (negative slope)", true, `${internalHighs.length} touches, slope ${r2(trendline.slope)}/bar`);
 
   // Structural swing low = lowest confirmed low since the new high (the
   // corrective low), not just the nearest candle's low.
@@ -518,64 +426,21 @@ export function analyzeStructuralSwingSetup(
       ? Math.min(...correctionLowPoints.map((p) => p.price))
       : correctionLow;
 
-  // --- Step 8: breakout confirmation on today's candle --------------------
+  // --- Step 7/8: breakout confirmation on today's candle -------------------
+  // "The desired breakout is when the stock breaks the corrective trendline
+  // and a strong green/bullish candle comes above the trendline and closes
+  // above it." Just these two conditions — no buffer, no body/close-location
+  // threshold, no volume filter.
   const trendlinePriceToday = trendline.priceAt(lastIndex);
-  const breakoutThreshold = trendlinePriceToday * (1 + cfg.breakoutBufferPct / 100);
   const isBullishCandle = today.c > today.o;
-  const range = today.h - today.l;
-  const bodyPct = range > 0 ? (Math.abs(today.c - today.o) / range) * 100 : 0;
-  const closeLocation = range > 0 ? (today.c - today.l) / range : 0;
-  const avgVol = averageVolume(sorted, lastIndex, cfg.volumeAvgPeriod);
-  const volumeRatio = avgVol && avgVol > 0 ? today.v / avgVol : null;
-
-  const closedAboveTrendline = today.c > breakoutThreshold;
-  const closedAboveResistance = today.c > newHighPrice * (1 - cfg.trendlineTouchTolerancePct / 100) || closedAboveTrendline;
-  const passesBody = bodyPct >= cfg.minCandleBodyPct;
-  const passesCloseLocation = closeLocation >= cfg.minCloseLocationPct;
-  const passesVolume = !cfg.requireVolumeConfirmation || (volumeRatio !== null && volumeRatio >= cfg.minVolumeRatio);
-
-  // Diagnostic-only checks (not independently gating — informational context
-  // for "why not BUY", distinct from the actual buffer/body/volume gates below).
+  const closedAboveTrendline = today.c > trendlinePriceToday;
   const priceReachedTrendline = today.h >= trendlinePriceToday;
-  check("Price reached trendline today", priceReachedTrendline, `today's high ${r2(today.h)} vs trendline ${r2(trendlinePriceToday)}`);
-  check("Close above trendline (before buffer)", today.c > trendlinePriceToday, `close ${r2(today.c)} vs trendline ${r2(trendlinePriceToday)}`);
 
-  // Actual gating checks — these five, together, decide READY_TO_BUY vs BREAKOUT_WATCH/CORRECTION.
-  check(
-    `Breakout buffer met (close > trendline + ${cfg.breakoutBufferPct}%)`,
-    closedAboveTrendline,
-    `close ${r2(today.c)} vs threshold ${r2(breakoutThreshold)}`,
-  );
+  check("Price reached trendline today", priceReachedTrendline, `today's high ${r2(today.h)} vs trendline ${r2(trendlinePriceToday)}`);
   check("Bullish candle (close > open)", isBullishCandle, `open ${r2(today.o)}, close ${r2(today.c)}`);
-  check(`Candle body >= ${cfg.minCandleBodyPct}%`, passesBody, `${r2(bodyPct)}%`);
-  check(`Close location >= ${r2(cfg.minCloseLocationPct * 100)}%`, passesCloseLocation, `${r2(closeLocation * 100)}%`);
-  check(
-    `Volume >= ${cfg.minVolumeRatio}x avg`,
-    passesVolume,
-    volumeRatio !== null ? `${r2(volumeRatio)}x avg` : cfg.requireVolumeConfirmation ? "no volume baseline available" : "not required",
-  );
+  check("Close above trendline", closedAboveTrendline, `close ${r2(today.c)} vs trendline ${r2(trendlinePriceToday)}`);
 
   const structuralSl = r2(structuralSwingLow * (1 - cfg.slBufferPct / 100));
-
-  const scoreParts = {
-    trend: 15, // reaching this point already requires a valid HH/HL structure
-    bos: 10,
-    trendlineTouches:
-      lowerHighs.length >= 5 ? 20 : lowerHighs.length === 4 ? 15 : 10,
-    candleBody: bodyPct >= cfg.strongCandleBodyPct ? 10 : passesBody ? 5 : 0,
-    closeLocation: closeLocation >= cfg.strongCloseLocationPct ? 10 : passesCloseLocation ? 5 : 0,
-    volume:
-      volumeRatio !== null && volumeRatio >= cfg.strongVolumeRatio
-        ? 15
-        : volumeRatio !== null && volumeRatio >= cfg.minVolumeRatio
-        ? 10
-        : 0,
-    resistance: closedAboveResistance ? 10 : 0,
-  };
-  const rawScore = Object.values(scoreParts).reduce((a, b) => a + b, 0);
-  const score = Math.min(100, rawScore);
-  const grade: StructuralSwingSignal["grade"] =
-    score >= 80 ? "A+" : score >= 70 ? "A" : score >= 60 ? "B" : score >= 50 ? "Weak" : "Ignore";
 
   const baseFields = {
     majorSwingLow: r2(majorLow.price),
@@ -584,38 +449,21 @@ export function analyzeStructuralSwingSetup(
     newHigh: r2(newHighPrice),
     structuralSwingLow: structuralSl,
     trendline,
-    score,
-    grade,
   };
 
-  if (!isBullishCandle || !closedAboveTrendline || !passesBody || !passesCloseLocation || !passesVolume) {
-    // Close but not confirmed — approaching the trendline
-    const nearTrendline =
-      Math.abs(today.c - trendlinePriceToday) / trendlinePriceToday <= cfg.trendlineTouchTolerancePct / 100 * 3;
+  if (!isBullishCandle || !closedAboveTrendline) {
     return {
       ...empty,
       ...baseFields,
-      category: nearTrendline || today.h > trendlinePriceToday ? "BREAKOUT_WATCH" : "CORRECTION",
-      reason: describeUnmetBreakoutConditions({
-        closedAboveTrendline,
-        passesBody,
-        passesCloseLocation,
-        passesVolume,
-        isBullishCandle,
-      }),
+      category: priceReachedTrendline ? "BREAKOUT_WATCH" : "CORRECTION",
+      reason: describeUnmetBreakoutConditions({ closedAboveTrendline, isBullishCandle }),
       checks,
-      rejectionReasons: breakoutRejectionReasons({
-        isBullishCandle,
-        closedAboveTrendline,
-        passesBody,
-        passesCloseLocation,
-        passesVolume,
-      }),
+      rejectionReasons: breakoutRejectionReasons({ isBullishCandle, closedAboveTrendline }),
     };
   }
 
-  // --- All conditions met: BUY signal -------------------------------------
-  const entryPrice = cfg.entryMode === "BREAKOUT_CLOSE" ? today.c : today.c; // NEXT_OPEN resolved by caller using the following day's data
+  // --- BUY: entry, SL below the corrective low, 1:1 target -----------------
+  const entryPrice = today.c; // NEXT_OPEN resolved by caller using the following day's data
   const riskPerShare = r2(entryPrice - structuralSl);
   if (riskPerShare <= 0) {
     check("Risk per share positive (entry > SL)", false, `entry ${r2(entryPrice)}, SL ${structuralSl}`);
@@ -631,22 +479,6 @@ export function analyzeStructuralSwingSetup(
   check("Risk per share positive (entry > SL)", true, `entry ${r2(entryPrice)}, SL ${structuralSl}, risk ${riskPerShare}/share`);
 
   const slDistancePct = r2((riskPerShare / entryPrice) * 100);
-  const withinMaxSl = slDistancePct <= cfg.maxSlPct;
-  check(`SL distance within max ${cfg.maxSlPct}%`, withinMaxSl, `${slDistancePct}%`);
-  if (!withinMaxSl) {
-    return {
-      ...empty,
-      ...baseFields,
-      category: "BREAKOUT_WATCH",
-      entryPrice: r2(entryPrice),
-      stopLoss: structuralSl,
-      riskPerShare,
-      slDistancePct,
-      reason: `Breakout confirmed but SL distance ${slDistancePct}% exceeds the configured max ${cfg.maxSlPct}%`,
-      checks,
-      rejectionReasons: [`SL distance ${slDistancePct}% exceeds the configured max ${cfg.maxSlPct}%`],
-    };
-  }
   const target = r2(entryPrice + riskPerShare * cfg.riskRewardRatio);
 
   return {
@@ -659,7 +491,7 @@ export function analyzeStructuralSwingSetup(
     riskPerShare,
     slDistancePct,
     rewardRisk: cfg.riskRewardRatio,
-    reason: `Confirmed breakout above ${lowerHighs.length}-touch descending trendline; body ${r2(bodyPct)}%, close-location ${r2(closeLocation * 100)}%${volumeRatio !== null ? `, volume ${r2(volumeRatio)}x avg` : ""}`,
+    reason: `Confirmed bullish breakout above a ${internalHighs.length}-touch descending trendline (close ${r2(entryPrice)} vs trendline ${r2(trendlinePriceToday)})`,
     checks,
     rejectionReasons: [],
   };
@@ -667,17 +499,11 @@ export function analyzeStructuralSwingSetup(
 
 function describeUnmetBreakoutConditions(flags: {
   closedAboveTrendline: boolean;
-  passesBody: boolean;
-  passesCloseLocation: boolean;
-  passesVolume: boolean;
   isBullishCandle: boolean;
 }): string {
   const missing: string[] = [];
   if (!flags.isBullishCandle) missing.push("candle not bullish");
-  if (!flags.closedAboveTrendline) missing.push("close below trendline + buffer");
-  if (!flags.passesBody) missing.push("candle body too small");
-  if (!flags.passesCloseLocation) missing.push("close not near candle high");
-  if (!flags.passesVolume) missing.push("volume confirmation not met");
+  if (!flags.closedAboveTrendline) missing.push("close not above trendline");
   return `Trendline formed, breakout not yet confirmed: ${missing.join(", ")}`;
 }
 
@@ -685,16 +511,10 @@ function describeUnmetBreakoutConditions(flags: {
 function breakoutRejectionReasons(flags: {
   isBullishCandle: boolean;
   closedAboveTrendline: boolean;
-  passesBody: boolean;
-  passesCloseLocation: boolean;
-  passesVolume: boolean;
 }): string[] {
   const reasons: string[] = [];
   if (!flags.isBullishCandle) reasons.push("Candle is not bullish (close <= open)");
-  if (!flags.closedAboveTrendline) reasons.push("Close did not clear the trendline + breakout buffer");
-  if (!flags.passesBody) reasons.push("Candle body too weak");
-  if (!flags.passesCloseLocation) reasons.push("Close too far from the candle's high");
-  if (!flags.passesVolume) reasons.push("Volume confirmation failed");
+  if (!flags.closedAboveTrendline) reasons.push("Close did not close above the descending trendline");
   return reasons;
 }
 

@@ -108,8 +108,6 @@ export interface BacktestTrade {
   holdingDays: number | null;
   pnlPct: number | null;
   rMultiple: number | null;
-  score: number;
-  grade: string;
 }
 
 function isoDate(epochSecs: number): string {
@@ -184,8 +182,6 @@ export function backtestSymbol(
           holdingDays: result.exitIndex !== null ? result.exitIndex - entryIndex : null,
           pnlPct: pnlPct !== null ? Math.round(pnlPct * 100) / 100 : null,
           rMultiple,
-          score: signal.score,
-          grade: signal.grade,
         });
 
         if (variant.label === "1:1" && result.exitIndex !== null) {

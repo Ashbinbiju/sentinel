@@ -408,17 +408,6 @@ export interface SwingSectorsResponse {
   sectors: SwingSectorOption[];
 }
 
-export type SwingPickGrade =
-  (typeof SwingPickGrade)[keyof typeof SwingPickGrade];
-
-export const SwingPickGrade = {
-  "A+": "A+",
-  A: "A",
-  B: "B",
-  Weak: "Weak",
-  Ignore: "Ignore",
-} as const;
-
 /**
  * Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks).
  */
@@ -452,9 +441,6 @@ export interface SwingPick {
   sl: number;
   /** Entry + risk (1:1 reward:risk by default). */
   target: number;
-  /** 0-100 structural signal strength score. */
-  score: number;
-  grade: SwingPickGrade;
   /** Watchlist category at signal time (only READY_TO_BUY setups are ever saved as picks). */
   setup: SwingPickSetup;
   entryType: SwingEntryType;
@@ -489,21 +475,16 @@ export interface SwingPick {
    */
   structuralSwingLow: number | null;
   /**
-   * Number of confirmed internal lower highs used to fit the descending trendline.
+   * Number of confirmed internal swing highs used to fit the descending trendline.
    * @nullable
    */
   trendlineTouches: number | null;
-  /**
-   * 0-100 quality score for the fitted trendline (touch count, spacing, fit error, slope).
-   * @nullable
-   */
-  trendlineQuality: number | null;
 }
 
 export interface SwingScannerDiagnostics {
   /** Confirmed READY_TO_BUY setups found across the scanned universe. */
   rawCandidates: number;
-  /** Candidates remaining after sorting by score. */
+  /** Candidates remaining after sorting (most recent breakout first). */
   finalCandidates: number;
   /** Final candidates remaining after excluding open tracker symbols. */
   availableCandidates: number;
@@ -589,8 +570,6 @@ export interface SwingTrackerTrade {
   entryPrice: string;
   sl: string;
   target: string;
-  score: string;
-  grade: string;
   setup: string;
   /** @nullable */
   reason: string | null;
@@ -616,8 +595,6 @@ export interface SwingTrackerTrade {
   structuralSwingLow: string | null;
   /** @nullable */
   trendlineTouches: number | null;
-  /** @nullable */
-  trendlineQuality: string | null;
   /** @nullable */
   plPct: number | null;
   /** @nullable */

@@ -31,9 +31,6 @@ interface SwingPick {
   entryPrice: number;
   sl: number;
   target: number;
-  score: number;
-  signalScore: number;
-  grade: string;
   setup: string;
   entryType: "BREAKOUT" | "PULLBACK";
   reason: string;
@@ -134,8 +131,6 @@ interface SwingTrackerTrade {
   entryPrice: string;
   sl: string;
   target: string;
-  score: string;
-  grade: string;
   setup: string;
   reason: string | null;
   expectedHoldDays: string;
@@ -374,10 +369,6 @@ function PickCard({ pick }: { pick: SwingPick }) {
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{pick.sector} - {pick.setup}</p>
         </div>
-        <div className="text-right">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Grade</div>
-          <div className="font-mono text-lg font-extrabold text-emerald-300">{pick.grade}</div>
-        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -387,8 +378,7 @@ function PickCard({ pick }: { pick: SwingPick }) {
         <Metric label="Target" value={formatCurrency(pick.target)} tone="green" />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Metric label="Score" value={pick.score.toFixed(1)} tone="green" />
+      <div className="mt-3 grid grid-cols-3 gap-2">
         <Metric label="R/R" value={`${pick.rewardRisk.toFixed(2)}x`} />
         <Metric label="Risk" value={formatPercent(-riskPct)} tone="red" />
         <Metric label="Target" value={formatPercent(targetPct)} tone="green" />
@@ -459,12 +449,11 @@ function TrackerCard({ trade }: { trade: SwingTrackerTrade }) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Metric label="Entry" value={formatCurrency(entry)} tone="blue" />
         <Metric label="CMP" value={formatCurrency(last)} />
         <Metric label="SL" value={formatCurrency(sl)} tone="red" />
         <Metric label="Target" value={formatCurrency(target)} tone="green" />
-        <Metric label="Score" value={Number(trade.score).toFixed(1)} tone="green" />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

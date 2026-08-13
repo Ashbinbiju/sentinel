@@ -56,8 +56,6 @@ async function main() {
         Entry: t.entryPrice,
         SL: t.sl,
         Target: t.target,
-        Score: t.score,
-        Grade: t.grade,
         Status: t.status
       })));
     } else {

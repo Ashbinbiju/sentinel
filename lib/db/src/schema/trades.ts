@@ -63,8 +63,6 @@ export const swingTradesTable = pgTable("swing_trades", {
   entryPrice: numeric("entry_price").notNull(),
   sl: numeric("sl").notNull(),
   target: numeric("target").notNull(),
-  score: numeric("score").notNull(),
-  grade: text("grade").notNull(),
   setup: text("setup").notNull(),
   reason: text("reason"),
   expectedHoldDays: numeric("expected_hold_days").notNull().default("8"),
@@ -80,7 +78,6 @@ export const swingTradesTable = pgTable("swing_trades", {
   newHigh: numeric("new_high"),
   structuralSwingLow: numeric("structural_swing_low"),
   trendlineTouches: integer("trendline_touches"),
-  trendlineQuality: numeric("trendline_quality"),
 }, (table) => {
   return {
     symbolDateUnique: uniqueIndex("swing_symbol_date_unique").on(table.symbol, table.date),

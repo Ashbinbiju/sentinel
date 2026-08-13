@@ -26,7 +26,6 @@ export * from "./stockItemMarketAlignment";
 export * from "./stockItemMarketTrendIndex";
 export * from "./swingEntryType";
 export * from "./swingPick";
-export * from "./swingPickGrade";
 export * from "./swingPickSetup";
 export * from "./swingScanJobResponse";
 export * from "./swingScanJobResponseStatus";
