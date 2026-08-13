@@ -31,6 +31,16 @@ const FIXED_TARGET_POINTS = 5;
 // 0 = disabled.
 const MAX_TARGET_RANGE_RATIO = parseFloat(process.env.MAX_TARGET_RANGE_RATIO || "0");
 
+// Reject a CONTINUATION setup (BUY on an up day, SELL on a down day) once the
+// stock has already moved this far from prevClose — e.g. GFL was already
+// +8.6% on the day when a BUY fired straight into the top of that spike and
+// reversed. Only blocks chasing an already-exhausted move in its own
+// direction; a fade (SELL after a big up day, BUY after a big down day) is
+// untouched since that's betting on the exhaustion, not fighting it. Every
+// watchlist symbol is sourced from the day's top gainers, so this must stay
+// high enough to not gate out ordinary momentum — 0 = disabled.
+const MAX_DAY_MOVE_FOR_CONTINUATION_PCT = parseFloat(process.env.MAX_DAY_MOVE_FOR_CONTINUATION_PCT || "0.06");
+
 export interface WatchlistContext {
   symbol: string;
   securityId: string;
@@ -226,6 +236,14 @@ export class ExecutionEngine {
             }
 
             if (!direction) return reject("NO_SETUP");
+
+            if (MAX_DAY_MOVE_FOR_CONTINUATION_PCT > 0 && ctx.prevClose > 0) {
+              const dayChangePct = (entryPrice - ctx.prevClose) / ctx.prevClose;
+              const chasingExhaustedMove =
+                (direction === "BUY" && dayChangePct > MAX_DAY_MOVE_FOR_CONTINUATION_PCT) ||
+                (direction === "SELL" && dayChangePct < -MAX_DAY_MOVE_FOR_CONTINUATION_PCT);
+              if (chasingExhaustedMove) return reject("DAY_MOVE_EXHAUSTED");
+            }
 
             const MAX_DAILY_TRADES = 1;
 
