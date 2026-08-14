@@ -118,58 +118,79 @@ export class DhanBroker {
     };
   }
 
+  private isAuthError(err: any): boolean {
+    const authError = err?.response?.data;
+    return (
+      err?.response?.status === 401 ||
+      err?.response?.status === 403 ||
+      authError?.errorCode === "DH-901" ||
+      authError?.errorType === "Invalid_Authentication"
+    );
+  }
+
+  private async renewToken(): Promise<void> {
+    console.warn("[BROKER] Token invalid or missing. Attempting automated login via PIN + TOTP...");
+
+    if (!this.pin || !this.totpSecret) {
+      throw new Error("Dhan token expired and automated login failed because DHAN_PIN or DHAN_TOTP_SECRET is missing from .env");
+    }
+
+    try {
+      const cleanSecret = this.totpSecret.replace(/\s+/g, "").toUpperCase();
+      const totpInfo = await TOTP.generate(cleanSecret);
+      const totpCode = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
+
+      const response = await axios.post(`${DHAN_AUTH_URL}?dhanClientId=${this.clientId}&pin=${this.pin}&totp=${totpCode}`, {});
+
+      const rawToken = response.data?.accessToken ?? response.data?.token ?? response.data?.data?.accessToken ?? response.data?.data?.token;
+      const newToken = typeof rawToken === "string" ? rawToken.trim() : "";
+
+      if (newToken.length > 0) {
+         this.accessToken = newToken;
+         console.log("[BROKER] Automated Dhan login successful. Token renewed.");
+         // Write the renewed token to the shared file for api-server to use
+         try {
+           const tokenFilePath = path.resolve(process.cwd(), "../../.dhan_token");
+           fs.writeFileSync(tokenFilePath, this.accessToken, "utf8");
+         } catch (e) {
+           console.warn("[BROKER] Failed to save .dhan_token", e);
+         }
+      } else {
+         console.error("[BROKER] Dhan Auth Response:", response.data);
+         throw new Error("No valid accessToken returned from Auth endpoint");
+      }
+    } catch (loginErr: any) {
+      console.error("[BROKER] Automated Dhan login failed:", loginErr?.response?.data || loginErr.message);
+      throw new Error("Automated Dhan login failed. Please verify your PIN and TOTP secret.");
+    }
+  }
+
   async validateOrRenewToken(): Promise<void> {
     try {
       if (!this.accessToken) throw { response: { status: 401 } };
       await this.getAccountBalance();
       console.log("[BROKER] Dhan access token is valid.");
     } catch (err: any) {
-      const authError = err?.response?.data;
-
-      const authenticationFailed =
-        err?.response?.status === 401 ||
-        err?.response?.status === 403 ||
-        authError?.errorCode === "DH-901" ||
-        authError?.errorType === "Invalid_Authentication";
-
-      if (authenticationFailed) {
-        console.warn("[BROKER] Token invalid or missing. Attempting automated login via PIN + TOTP...");
-        
-        if (!this.pin || !this.totpSecret) {
-          throw new Error("Dhan token expired and automated login failed because DHAN_PIN or DHAN_TOTP_SECRET is missing from .env");
-        }
-
-        try {
-          const cleanSecret = this.totpSecret.replace(/\s+/g, "").toUpperCase();
-          const totpInfo = await TOTP.generate(cleanSecret);
-          const totpCode = typeof totpInfo === "string" ? totpInfo : totpInfo.otp;
-          
-          const response = await axios.post(`${DHAN_AUTH_URL}?dhanClientId=${this.clientId}&pin=${this.pin}&totp=${totpCode}`, {});
-          
-          const rawToken = response.data?.accessToken ?? response.data?.token ?? response.data?.data?.accessToken ?? response.data?.data?.token;
-          const newToken = typeof rawToken === "string" ? rawToken.trim() : "";
-          
-          if (newToken.length > 0) {
-             this.accessToken = newToken;
-             console.log("[BROKER] Automated Dhan login successful. Token renewed.");
-             // Write the renewed token to the shared file for api-server to use
-             try {
-               const tokenFilePath = path.resolve(process.cwd(), "../../.dhan_token");
-               fs.writeFileSync(tokenFilePath, this.accessToken, "utf8");
-             } catch (e) {
-               console.warn("[BROKER] Failed to save .dhan_token", e);
-             }
-          } else {
-             console.error("[BROKER] Dhan Auth Response:", response.data);
-             throw new Error("No valid accessToken returned from Auth endpoint");
-          }
-        } catch (loginErr: any) {
-          console.error("[BROKER] Automated Dhan login failed:", loginErr?.response?.data || loginErr.message);
-          throw new Error("Automated Dhan login failed. Please verify your PIN and TOTP secret.");
-        }
+      if (this.isAuthError(err)) {
+        await this.renewToken();
       } else {
         throw err;
       }
+    }
+  }
+
+  // Every call site below reads this.accessToken fresh via getHeaders() at call
+  // time, so retrying the same closure after renewToken() picks up the new
+  // token automatically. Without this, a token that goes bad mid-session (not
+  // just at startup/day-rollover, where validateOrRenewToken already covers
+  // it) 401-loops silently until someone notices and restarts the process.
+  private async withAuthRetry<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (!this.isAuthError(err)) throw err;
+      await this.renewToken();
+      return await fn();
     }
   }
 
@@ -186,28 +207,25 @@ export class DhanBroker {
   }
 
   async getPositions(): Promise<DhanPosition[]> {
-    const response = await axios.get(`${DHAN_BASE_URL}/positions`, {
-      headers: this.getHeaders(),
-      timeout: 10000
-    });
+    const response = await this.withAuthRetry(() =>
+      axios.get(`${DHAN_BASE_URL}/positions`, { headers: this.getHeaders(), timeout: 10000 })
+    );
     if (!Array.isArray(response.data)) throw new Error("Invalid Dhan positions response");
     return response.data;
   }
 
   async getOrderBook(): Promise<DhanOrder[]> {
-    const response = await axios.get(`${DHAN_BASE_URL}/orders`, {
-      headers: this.getHeaders(),
-      timeout: 10000
-    });
+    const response = await this.withAuthRetry(() =>
+      axios.get(`${DHAN_BASE_URL}/orders`, { headers: this.getHeaders(), timeout: 10000 })
+    );
     if (!Array.isArray(response.data)) throw new Error("Invalid Dhan order book response");
     return response.data;
   }
-  
+
   async getSuperOrderList(): Promise<DhanOrder[]> {
-    const response = await axios.get(`${DHAN_BASE_URL}/super/orders`, {
-      headers: this.getHeaders(),
-      timeout: 10000
-    });
+    const response = await this.withAuthRetry(() =>
+      axios.get(`${DHAN_BASE_URL}/super/orders`, { headers: this.getHeaders(), timeout: 10000 })
+    );
     if (!Array.isArray(response.data)) throw new Error("Invalid Dhan super order list response");
     return response.data;
   }
@@ -246,12 +264,11 @@ export class DhanBroker {
 
   async getOrderByCorrelationId(correlationId: string): Promise<DhanOrder | null> {
     try {
-      const response = await axios.get(
-        `${DHAN_BASE_URL}/orders/external/${encodeURIComponent(correlationId)}`,
-        {
-          headers: this.getHeaders(),
-          timeout: 10_000,
-        }
+      const response = await this.withAuthRetry(() =>
+        axios.get(
+          `${DHAN_BASE_URL}/orders/external/${encodeURIComponent(correlationId)}`,
+          { headers: this.getHeaders(), timeout: 10_000 }
+        )
       );
       return response.data;
     } catch (error: any) {
@@ -264,12 +281,11 @@ export class DhanBroker {
 
   async getTradesByOrderId(orderId: string): Promise<any[]> {
     try {
-      const response = await axios.get(
-        `${DHAN_BASE_URL}/trades/${encodeURIComponent(orderId)}`,
-        {
-          headers: this.getHeaders(),
-          timeout: 10_000,
-        }
+      const response = await this.withAuthRetry(() =>
+        axios.get(
+          `${DHAN_BASE_URL}/trades/${encodeURIComponent(orderId)}`,
+          { headers: this.getHeaders(), timeout: 10_000 }
+        )
       );
       const data = response.data;
       return Array.isArray(data) ? data : data ? [data] : [];
@@ -305,10 +321,9 @@ export class DhanBroker {
         trailingJump: input.trailingJump ?? 0,
       };
 
-      const response = await axios.post(`${DHAN_BASE_URL}/super/orders`, payload, {
-        headers: this.getHeaders(),
-        timeout: 10000
-      });
+      const response = await this.withAuthRetry(() =>
+        axios.post(`${DHAN_BASE_URL}/super/orders`, payload, { headers: this.getHeaders(), timeout: 10000 })
+      );
 
       if (response.data && response.data.orderId) {
         console.log(`[BROKER] Super Order placed successfully! ID: ${response.data.orderId}`);
@@ -329,19 +344,18 @@ export class DhanBroker {
   ): Promise<void> {
     if (process.env.DRY_RUN === "true") return;
     try {
-      await axios.put(
-        `${DHAN_BASE_URL}/super/orders/${orderId}`,
-        {
-          dhanClientId: this.clientId,
-          orderId,
-          legName: "STOP_LOSS_LEG",
-          stopLossPrice: entryPrice,
-          trailingJump,
-        },
-        {
-          headers: this.getHeaders(),
-          timeout: 10000
-        }
+      await this.withAuthRetry(() =>
+        axios.put(
+          `${DHAN_BASE_URL}/super/orders/${orderId}`,
+          {
+            dhanClientId: this.clientId,
+            orderId,
+            legName: "STOP_LOSS_LEG",
+            stopLossPrice: entryPrice,
+            trailingJump,
+          },
+          { headers: this.getHeaders(), timeout: 10000 }
+        )
       );
     } catch (err: any) {
       console.error(`[BROKER] Failed to modify Super Order SL leg for ${orderId}:`, err?.response?.data || err.message);
@@ -359,9 +373,11 @@ export class DhanBroker {
     }
 
     try {
-      await axios.delete(
-        `${DHAN_BASE_URL}/super/orders/${orderId}/${orderLeg}`,
-        { headers: this.getHeaders(), timeout: 10000 }
+      await this.withAuthRetry(() =>
+        axios.delete(
+          `${DHAN_BASE_URL}/super/orders/${orderId}/${orderLeg}`,
+          { headers: this.getHeaders(), timeout: 10000 }
+        )
       );
       console.log(`[BROKER] Cancelled super order ${orderId} leg ${orderLeg} successfully.`);
     } catch (err: any) {
@@ -390,9 +406,9 @@ export class DhanBroker {
   async cancelOrder(orderId: string): Promise<void> {
     if (process.env.DRY_RUN === "true") return;
     try {
-      await axios.delete(`${DHAN_BASE_URL}/orders/${orderId}`, {
-        headers: this.getHeaders(), timeout: 10000
-      });
+      await this.withAuthRetry(() =>
+        axios.delete(`${DHAN_BASE_URL}/orders/${orderId}`, { headers: this.getHeaders(), timeout: 10000 })
+      );
     } catch (err: any) {
       console.error(`[BROKER] Exception cancelling order ${orderId}:`, err?.response?.data || err.message);
       throw err;
@@ -441,11 +457,10 @@ export class DhanBroker {
         afterMarketOrder: false
       };
       
-      const response = await axios.post(`${DHAN_BASE_URL}/orders`, payload, {
-        headers: this.getHeaders(),
-        timeout: 10000
-      });
-      
+      const response = await this.withAuthRetry(() =>
+        axios.post(`${DHAN_BASE_URL}/orders`, payload, { headers: this.getHeaders(), timeout: 10000 })
+      );
+
       if (response.data && response.data.orderId) {
         return response.data.orderId;
       } else {
