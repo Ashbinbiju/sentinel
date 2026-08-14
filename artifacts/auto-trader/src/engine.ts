@@ -240,6 +240,26 @@ export class ExecutionEngine {
               if (dayChangePct > MAX_DAY_MOVE_PCT) return reject("DAY_MOVE_EXHAUSTED");
             }
 
+            // Net change vs prevClose misses a stock that already round-tripped
+            // WITHIN today — e.g. AVANTIFEED crashed -6% at the open, then a BUY
+            // fired on the recovery once it was already +4.6% off today's own low,
+            // netting out to only +1.2% vs yesterday's close (under the cap above)
+            // while still chasing an exhausted intraday swing. Measure against
+            // today's own session low/high instead, in the trade's direction.
+            if (MAX_DAY_MOVE_PCT > 0) {
+              const todaysCandles = aggregatedHistory.filter(
+                hc => getEpochDateStr(hc.t + 300) === getEpochDateStr(c.t + 300)
+              );
+              if (todaysCandles.length > 0) {
+                const sessionLow = Math.min(...todaysCandles.map(hc => hc.l));
+                const sessionHigh = Math.max(...todaysCandles.map(hc => hc.h));
+                const swingPct = direction === "BUY"
+                  ? (sessionLow > 0 ? (entryPrice - sessionLow) / sessionLow : 0)
+                  : (sessionHigh > 0 ? (sessionHigh - entryPrice) / sessionHigh : 0);
+                if (swingPct > MAX_DAY_MOVE_PCT) return reject("DAY_MOVE_EXHAUSTED");
+              }
+            }
+
             const MAX_DAILY_TRADES = 1;
 
             const tradesToday = (await TradeDB.getTradesForDate(getISTDateStr())).filter(trade =>
