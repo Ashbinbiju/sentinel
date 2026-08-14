@@ -593,6 +593,33 @@ export class ExecutionEngine {
             console.error(`[EMERGENCY] Position reversed for ${trade.symbol}: ${netQty}`);
             await TradeDB.updateState(trade.id, "REVERSAL_RECONCILIATION_REQUIRED");
             await this.syncActiveTrades();
+          } else if (
+            triggeredLeg &&
+            pos &&
+            netQty !== 0 &&
+            ((trade.side === "BUY" && netQty > 0) || (trade.side === "SELL" && netQty < 0))
+          ) {
+            // Leg reports TRIGGERED/TRADED but the position is still open in its
+            // ORIGINAL direction — Dhan's own Super Order T&C says this leg fires
+            // as a market order on trigger, but also disclaims that execution
+            // "is not guaranteed." AVANTIFEED 2026-08-14: the SL leg showed
+            // triggered while the position sat open, unprotected, for over an
+            // hour — invisible to the kill switch too, since that only tracks
+            // REALIZED pnl from closed trades. Require this to persist across
+            // one more reconcile pass (~10s) before forcing a market exit, so we
+            // don't race the leg's own market order while still in flight.
+            const firstSeenAt = trade.triggeredButOpenSinceMs ?? Date.now();
+            const elapsedMs = Date.now() - firstSeenAt;
+
+            if (!trade.triggeredButOpenSinceMs) {
+              console.warn(`[ENGINE] ${trade.symbol} leg triggered but position still open (netQty=${netQty}). Watching before forcing exit.`);
+              await TradeDB.updateState(trade.id, undefined, { triggeredButOpenSinceMs: firstSeenAt });
+            } else if (elapsedMs >= 15_000) {
+              console.error(`[EMERGENCY] ${trade.symbol} leg triggered ${Math.round(elapsedMs / 1000)}s ago but still not flat (netQty=${netQty}). Forcing market exit.`);
+              this.notifier.sendSystemAlert(`${trade.symbol}: SL/target leg triggered but never flattened the position. Forcing market exit.`).catch(e => console.error(e));
+              await TradeDB.updateState(trade.id, "PROTECTION_FAILED_RECONCILIATION_REQUIRED");
+              await this.syncActiveTrades();
+            }
           }
         }
       } catch (e: any) {

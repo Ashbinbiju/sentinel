@@ -18,7 +18,8 @@ export type TradeState =
   | "REJECTED"
   | "ENTRY_RECONCILIATION_REQUIRED"
   | "EXIT_RECONCILIATION_REQUIRED"
-  | "REVERSAL_RECONCILIATION_REQUIRED";
+  | "REVERSAL_RECONCILIATION_REQUIRED"
+  | "PROTECTION_FAILED_RECONCILIATION_REQUIRED";
 
 export interface ActiveTrade {
   id: string;
@@ -47,6 +48,12 @@ export interface ActiveTrade {
   closedAt?: string;
   verifyAttempts?: number;
   productType?: "INTRADAY" | "BO";
+  // Set the first time reconcileExits() sees a triggered SL/target leg with the
+  // position still open in its original direction — a leg that "triggered" per
+  // Dhan but never actually flattened. Used to require the condition persist
+  // for PROTECTION_FAILED_GRACE_MS before forcing a market exit, so we don't
+  // race the leg's own market order while it's still in flight.
+  triggeredButOpenSinceMs?: number;
   
   // Legacy fields
   entry_price?: number;

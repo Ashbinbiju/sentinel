@@ -617,10 +617,14 @@ async function main() {
         }
       }
 
-      // Reversal/Emergency Intraday Square-off
-      const orphanedTrades = activeTrades.filter(t => t.state === "REVERSAL_RECONCILIATION_REQUIRED");
+      // Reversal/Emergency Intraday Square-off. Covers both an actual position
+      // reversal and a leg that reported triggered without ever flattening the
+      // position (see reconcileExits()'s PROTECTION_FAILED_RECONCILIATION_REQUIRED).
+      const orphanedTrades = activeTrades.filter(t =>
+        t.state === "REVERSAL_RECONCILIATION_REQUIRED" || t.state === "PROTECTION_FAILED_RECONCILIATION_REQUIRED"
+      );
       if (orphanedTrades.length > 0) {
-        console.warn(`[BOT] Found ${orphanedTrades.length} reversed trades needing emergency square-off.`);
+        console.warn(`[BOT] Found ${orphanedTrades.length} trades needing emergency square-off.`);
         await closeAllOpenTrades(broker, orphanedTrades);
         await reconcileAfterSquareOff(executionEngine);
       }
