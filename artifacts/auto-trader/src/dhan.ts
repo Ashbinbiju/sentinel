@@ -61,6 +61,8 @@ export interface DhanOrder {
   remainingQuantity?: number;
   averageTradedPrice?: number;
   legDetails?: DhanSuperOrderLeg[];
+  /** Dhan's rejection text, e.g. the RMS "insufficient funds" message. */
+  omsErrorDescription?: string;
 }
 
 export interface DhanSuperOrder extends DhanOrder {
@@ -431,15 +433,32 @@ export class DhanBroker {
     throw new Error(`Order ${orderId} terminal state was not confirmed`);
   }
 
+  /**
+   * Places an exit order. Pass `limitPrice` to send an explicit LIMIT order.
+   *
+   * Dhan confirmed (support chat, 14 Aug 2026) that for API-placed orders,
+   * MARKET orders are converted to LIMIT orders server-side — and the price
+   * they pick sits at/near the trigger, i.e. ABOVE a falling market for a
+   * sell, so it never fills. Both AVANTIFEED failures that day were exactly
+   * this: a sell limit resting above the market while the position bled.
+   * Passing an aggressive limit here (through the market, not at it) is what
+   * actually crosses the spread and fills against resting bids.
+   */
   async placeMarketOrder(
     securityId: string,
     quantity: number,
     side: "BUY" | "SELL" = "BUY",
     productType: "INTRADAY" | "CNC" | "BO" = "INTRADAY",
-    correlationId?: string
+    correlationId?: string,
+    limitPrice?: number
   ): Promise<string> {
-    console.log(`[BROKER] Placing MARKET exit ${side} for secId: ${securityId} | Qty: ${quantity}`);
-    
+    const useLimit = Number.isFinite(limitPrice) && (limitPrice as number) > 0;
+    console.log(
+      useLimit
+        ? `[BROKER] Placing LIMIT exit ${side} for secId: ${securityId} | Qty: ${quantity} @ ${limitPrice}`
+        : `[BROKER] Placing MARKET exit ${side} for secId: ${securityId} | Qty: ${quantity}`
+    );
+
     if (process.env.DRY_RUN === "true") return `mock-market-id-${Date.now()}`;
 
     try {
@@ -449,11 +468,11 @@ export class DhanBroker {
         transactionType: side,
         exchangeSegment: "NSE_EQ",
         productType: productType,
-        orderType: "MARKET",
+        orderType: useLimit ? "LIMIT" : "MARKET",
         validity: "DAY",
         securityId: securityId,
         quantity: Math.floor(quantity),
-        price: 0,
+        price: useLimit ? limitPrice : 0,
         afterMarketOrder: false
       };
       

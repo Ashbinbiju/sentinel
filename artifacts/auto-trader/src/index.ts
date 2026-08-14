@@ -220,6 +220,66 @@ async function resolveActualExitPrice(broker: DhanBroker, trade: ActiveTrade): P
   }
 }
 
+/**
+ * Last seen LTP per securityId, fed from the live tick stream. Used to price
+ * exit orders aggressively enough to actually fill — see placeMarketOrder's
+ * note on Dhan converting API MARKET orders into non-filling LIMIT orders.
+ */
+const lastLtpBySecurityId = new Map<string, number>();
+
+// How far THROUGH the market to price a forced exit. A sell goes this far
+// below LTP (a buy this far above) so it crosses the spread and fills against
+// resting bids instead of resting on the book. 1% is well inside NSE circuit
+// limits (typically 5-20%) while still clearing a normal spread.
+const EXIT_LIMIT_BUFFER_PCT = parseFloat(process.env.EXIT_LIMIT_BUFFER_PCT || "0.01");
+
+function computeExitLimitPrice(side: "BUY" | "SELL", ltp: number): number | undefined {
+  if (!Number.isFinite(ltp) || ltp <= 0) return undefined;
+  const raw = side === "SELL" ? ltp * (1 - EXIT_LIMIT_BUFFER_PCT) : ltp * (1 + EXIT_LIMIT_BUFFER_PCT);
+  const rounded = Math.round(raw / 0.05) * 0.05;
+  return rounded > 0 ? Number(rounded.toFixed(2)) : undefined;
+}
+
+/**
+ * Clears any live exit-side order resting on the exchange for this position.
+ *
+ * Dhan confirmed (support chat, 14 Aug 2026): once a Super Order SL/target leg
+ * triggers it places a real order that reserves the position's quantity, and
+ * "if an order is already pending, any attempt to square off the position will
+ * be rejected." That rejection surfaces misleadingly as an RMS *insufficient
+ * funds* error, because a second sell of the same qty prices like a fresh
+ * short. On 14 Aug 2026 this silently defeated every retry in the loop below —
+ * 20+ identical failed square-offs against a stuck order nothing ever cancelled.
+ */
+async function cancelPendingExitOrders(broker: DhanBroker, trade: ActiveTrade): Promise<void> {
+  const LIVE_STATUSES = ["PENDING", "TRANSIT", "PART_TRADED"];
+  const exitSide = trade.side === "BUY" ? "SELL" : "BUY";
+
+  let orders;
+  try {
+    orders = await broker.getOrderBook();
+  } catch (err: any) {
+    console.warn(`[BOT] Could not read order book to clear pending exits for ${trade.symbol}:`, err.message);
+    return;
+  }
+
+  const pending = orders.filter(order =>
+    String(order.securityId) === String(trade.securityId) &&
+    String(order.transactionType || "").toUpperCase() === exitSide &&
+    LIVE_STATUSES.includes(String(order.orderStatus || "").toUpperCase())
+  );
+
+  for (const order of pending) {
+    try {
+      console.log(`[BOT] Cancelling pending ${exitSide} order ${order.orderId} on ${trade.symbol} before square-off.`);
+      await broker.cancelOrder(order.orderId);
+      await broker.waitForOrderTerminal(order.orderId);
+    } catch (err: any) {
+      console.warn(`[BOT] Failed to cancel pending order ${order.orderId} for ${trade.symbol}:`, err.message);
+    }
+  }
+}
+
 async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
   const activeTrades = specificTrades || (await TradeDB.getOpenTrades());
   if (activeTrades.length === 0) return;
@@ -304,10 +364,19 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
           throw new Error("Exit correlation ID exceeds Dhan limit");
         }
 
+        // MUST run before placing a new exit: a triggered SL/target leg leaves a
+        // live order reserving this quantity, and Dhan rejects any square-off
+        // while it rests there (as a confusing "insufficient funds" error).
+        await cancelPendingExitOrders(broker, trade);
+
         await TradeDB.updateState(trade.id, "EXIT_RECONCILIATION_REQUIRED", { exitCorrelationId });
 
-        console.log(`[BOT] Emitting MARKET EXIT for ${qtyToExit} of ${trade.symbol}`);
-        const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, trade.productType as any, exitCorrelationId);
+        const exitLimitPrice = computeExitLimitPrice(exitSide, lastLtpBySecurityId.get(String(trade.securityId)) ?? NaN);
+        if (exitLimitPrice === undefined) {
+          console.warn(`[BOT] No live LTP for ${trade.symbol}; falling back to MARKET (Dhan may convert it to a non-filling limit).`);
+        }
+        console.log(`[BOT] Emitting EXIT for ${qtyToExit} of ${trade.symbol}${exitLimitPrice !== undefined ? ` @ limit ${exitLimitPrice}` : ""}`);
+        const exitOrderId = await broker.placeMarketOrder(trade.securityId, qtyToExit, exitSide, trade.productType as any, exitCorrelationId, exitLimitPrice);
 
         let retries = 0;
         let orderTerminal = false;
@@ -321,6 +390,12 @@ async function closeAllOpenTrades(broker: DhanBroker, specificTrades?: any[]) {
           const terminalStatuses = new Set(["TRADED", "CANCELLED", "REJECTED", "EXPIRED"]);
 
           if (exitOrder && terminalStatuses.has(exitOrder.orderStatus)) {
+            if (exitOrder.orderStatus === "REJECTED") {
+              // Surface WHY. Previously the loop only logged "did not flatten
+              // position", so the real cause (Dhan's RMS text) was only visible
+              // by digging through the Dhan app after the fact.
+              console.error(`[BOT] Exit order REJECTED for ${trade.symbol}: ${exitOrder.omsErrorDescription || JSON.stringify(exitOrder)}`);
+            }
             orderTerminal = true;
           } else if (retries === 15) {
             if (!exitOrder) {
@@ -495,6 +570,7 @@ async function main() {
   });
 
   marketFeed.onTick((tick) => {
+    lastLtpBySecurityId.set(String(tick.securityId), tick.ltp);
     candleEngine.processTick(tick);
     executionEngine.evaluateLiveTick(tick.securityId, tick.ltp);
   });
