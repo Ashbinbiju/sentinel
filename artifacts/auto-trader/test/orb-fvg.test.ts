@@ -60,7 +60,7 @@ async function runTests() {
   {
     const bars = [...openingRange, ...breakoutRun, bar(9, 45, 109, 140, 108, 138)];
     const [t] = runSymbol("TEST", bars);
-    assert.strictEqual(t.reason, "T3");
+    assert.strictEqual(t.reason, "TARGET");
     assert.strictEqual(t.exit, 136);
     assert.ok(t.hit1 && t.hit2 && t.hit3, "T1/T2/T3 should all be flagged");
     assert.strictEqual(Number(t.rMultiple.toFixed(4)), 3, "T3 is exactly +3R");
@@ -99,6 +99,16 @@ async function runTests() {
     ];
     assert.strictEqual(runSymbol("TEST", bars).length, 0, "no signals during the OR window");
     console.log("✅ 6: moves inside 09:15-09:30 never signal");
+  }
+
+  // 7. exitR shortens the target against the same signal: 1R closes at 118.
+  {
+    const bars = [...openingRange, ...breakoutRun, bar(9, 45, 109, 120, 108, 119)];
+    const [t] = runSymbol("TEST", bars, { exitR: 1 });
+    assert.strictEqual(t.reason, "TARGET");
+    assert.strictEqual(t.exit, 118, "1R off entry 109 with risk 9");
+    assert.strictEqual(Number(t.rMultiple.toFixed(4)), 1);
+    console.log("✅ 7: exitR override closes at the shorter target");
   }
 
   console.log("🎉 All ORB+FVG port tests passed!");

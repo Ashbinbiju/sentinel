@@ -58,7 +58,11 @@ async function getBars(symbol: string) {
 }
 
 /** Walks one symbol's full 5-min series, Pine-style: FVG state is continuous, OR/signal state resets daily. */
-export function runSymbol(symbol: string, bars: any[]) {
+export function runSymbol(symbol: string, bars: any[], opts: any = {}) {
+  // exitR = the R multiple the position actually closes at. The Pine indicator
+  // only flattens at T3, but T3 turned out to be reached ~1% of the time, so
+  // this is exposed to test shorter targets against the same signals.
+  const exitR = opts.exitR ?? R3;
   const trades: any[] = [];
   const bull: any[] = [], bear: any[] = [];
 
@@ -94,14 +98,14 @@ export function runSymbol(symbol: string, bars: any[]) {
       // scored as the stop. The Pine indicator resolves it the other way
       // (targets first), which is why it will look rosier than this.
       const stopHit = long ? b.l <= open.sl : b.h >= open.sl;
-      const t3Hit = long ? b.h >= open.t3 : b.l <= open.t3;
+      const t3Hit = long ? b.h >= open.exitPx : b.l <= open.exitPx;
       if (stopHit && t3Hit) open.ambiguous = true;
 
       if (!open.hit1 && (long ? b.h >= open.t1 : b.l <= open.t1)) open.hit1 = true;
       if (!open.hit2 && (long ? b.h >= open.t2 : b.l <= open.t2)) open.hit2 = true;
 
       if (stopHit) { closeTrade(open, open.sl, istTime(b.t), "STOP"); open = null; }
-      else if (t3Hit) { open.hit3 = true; closeTrade(open, open.t3, istTime(b.t), "T3"); open = null; }
+      else if (t3Hit) { open.hit3 = true; closeTrade(open, open.exitPx, istTime(b.t), "TARGET"); open = null; }
       else if (min >= EOD) { closeTrade(open, b.c, istTime(b.t), "SQUARE-OFF 15:15"); open = null; }
     }
 
@@ -151,6 +155,7 @@ export function runSymbol(symbol: string, bars: any[]) {
     return {
       symbol: sym, date, side, entry, sl, risk, idx, entryTime,
       t1: entry + sign * risk * R1, t2: entry + sign * risk * R2, t3: entry + sign * risk * R3,
+      exitPx: entry + sign * risk * exitR,
       hit1: false, hit2: false, hit3: false, ambiguous: false,
       bullFvgs: nb, bearFvgs: ns, lastClose: entry, lastTime: entryTime,
     };
